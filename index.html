@@ -86,7 +86,8 @@
 
   <div class="actions">
     <button class="btn btn-primary" onclick="loadWeather()">&#8635; Refresh forecast</button>
-    <button class="btn" onclick="sendEmailAlert()">&#9993; Send email alert to leadership team</button>
+    <button class="btn" onclick="sendEmailAlert('ops')">&#9993; Notify ops team</button>
+    <button class="btn" onclick="sendEmailAlert('full')">&#9993; Notify full leadership</button>
   </div>
   <div id="status-msg" class="status-msg"></div>
 
@@ -118,7 +119,8 @@
 
 <script>
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
-const ALERT_EMAIL = 'AByerly@scriptcare.com, BClay@scriptcare.com, bjansen@scriptcare.com, cverma@scriptcare.com, CLeBlanc@scriptcare.com, EFletcher@scriptcare.com, sgoff@scriptcare.com, TDerby@scriptcare.com';
+const OPS_TEAM_EMAIL = 'BClay@scriptcare.com, bjansen@scriptcare.com, cverma@scriptcare.com, CLeBlanc@scriptcare.com, EFletcher@scriptcare.com, sgoff@scriptcare.com, TDerby@scriptcare.com';
+const FULL_LEADERSHIP_EMAIL = 'AByerly@scriptcare.com, BClay@scriptcare.com, bjansen@scriptcare.com, cverma@scriptcare.com, CLeBlanc@scriptcare.com, EFletcher@scriptcare.com, sgoff@scriptcare.com, TDerby@scriptcare.com';
 
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
@@ -442,10 +444,12 @@ function showStatus(msg, type) {
   el.style.display = 'block';
 }
 
-async function sendEmailAlert() {
+async function sendEmailAlert(group) {
+  const recipients = group === 'full' ? FULL_LEADERSHIP_EMAIL : OPS_TEAM_EMAIL;
+  const groupLabel = group === 'full' ? 'full leadership' : 'ops team';
   const results = Object.values(weatherState);
   if (results.length === 0) { showStatus('Load weather data first.', 'err'); return; }
-  showStatus('Preparing email...', 'info');
+  showStatus('Preparing email to ' + groupLabel + '...', 'info');
   const { subject, body } = buildEmailContent(results);
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -454,14 +458,14 @@ async function sendEmailAlert() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
-        messages: [{ role: 'user', content: `Send an email via Gmail to ${ALERT_EMAIL} with subject: "${subject}" and body:\n\n${body}\n\nConfirm when sent.` }],
+        messages: [{ role: 'user', content: `Send an email via Gmail to ${recipients} with subject: "${subject}" and body:\n\n${body}\n\nConfirm when sent.` }],
         mcp_servers: [{ type: 'url', url: 'https://gmailmcp.googleapis.com/mcp/v1', name: 'gmail-mcp' }]
       })
     });
     if (!response.ok) throw new Error();
-    showStatus('Email sent — ' + subject, 'ok');
+    showStatus('Email sent to ' + groupLabel + ' — ' + subject, 'ok');
   } catch(e) {
-    showStatus('Could not send automatically. Forward manually to ' + ALERT_EMAIL, 'err');
+    showStatus('Could not send automatically. Forward manually to ' + groupLabel + '.', 'err');
   }
 }
 
