@@ -304,7 +304,7 @@ async function sendEmailAlert() {
 async function loadWeather() {
   document.getElementById('last-updated').textContent = 'Refreshing...';
   weatherState = {};
-  if (WEATHER_API_KEY === '9a54213295e4acad6a2af136430650e5') {
+  if (WEATHER_API_KEY === 'YOUR_OPENWEATHERMAP_KEY_HERE') {
     const demo = useDemoData();
     demo.forEach(r => { weatherState[r.id] = r; });
     if (r => r.hub) { renderHub(weatherState['mem']); renderHub(weatherState['sdf']); }
