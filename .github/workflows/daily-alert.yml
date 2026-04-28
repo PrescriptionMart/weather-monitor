@@ -1,86 +1,27 @@
-name: Daily overnight weather alert
+name: Daily dashboard reminder
 
 on:
   schedule:
-    # Runs every day at 8:00 AM Central Time (13:00 UTC)
-    # Adjust if needed: https://crontab.guru
-    - cron: '0 13 * * *'
-  workflow_dispatch: # also allows manual trigger from GitHub UI
+    # Runs Monday-Friday at 8:00 AM Central (13:00 UTC)
+    # Skips weekends since shipping decisions are weekday operations
+    - cron: '0 13 * * 1-5'
+  workflow_dispatch: # also allows manual trigger from Actions tab
 
 jobs:
-  check-weather:
+  send-reminder:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check overnight weather at shipping hubs
+      - name: Send reminder email via Gmail
         env:
-          OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-          ALERT_EMAIL: bclay@scriptcare.com
+          REMINDER_EMAIL: BClay@scriptcare.com
         run: |
           node - <<'EOF'
           const https = require('https');
 
-          const HUBS = [
-            { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765 },
-            { id: 'sdf', name: 'Louisville (SDF)', label: 'UPS Worldport', lat: 38.1741, lon: -85.7369 },
-            { id: 'ord', name: 'Chicago (ORD)', label: 'Midwest', lat: 41.9742, lon: -87.9073 },
-            { id: 'dfw', name: 'Dallas (DFW)', label: 'South-Central', lat: 32.8998, lon: -97.0403 },
-            { id: 'atl', name: 'Atlanta (ATL)', label: 'Southeast', lat: 33.6407, lon: -84.4277 },
-            { id: 'den', name: 'Denver (DEN)', label: 'Mountain', lat: 39.8561, lon: -104.6737 },
-            { id: 'lax', name: 'Los Angeles (LAX)', label: 'West Coast', lat: 33.9425, lon: -118.408 },
-            { id: 'jfk', name: 'New York (JFK)', label: 'Northeast', lat: 40.6413, lon: -73.7781 },
-          ];
-
-          const SEVERE = ['thunderstorm','tornado','hurricane','blizzard','ice storm','freezing rain','severe','hail','sleet','heavy snow'];
-          const MODERATE = ['rain','snow','drizzle','shower','mist','fog','wind','overcast'];
-
-          function assessRisk(desc, wind, vis) {
-            const d = desc.toLowerCase();
-            if (SEVERE.some(k => d.includes(k)) || wind > 25 || (vis && vis < 800)) return 'high';
-            if (MODERATE.some(k => d.includes(k)) || wind > 15 || (vis && vis < 3000)) return 'medium';
-            return 'low';
-          }
-
-          function riskLabel(r) { return r === 'high' ? 'DO NOT SHIP' : r === 'medium' ? 'USE CAUTION' : 'CLEAR'; }
-
-          function fetchJSON(url) {
-            return new Promise((resolve, reject) => {
-              https.get(url, res => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
-              }).on('error', reject);
-            });
-          }
-
-          async function getHubWeather(hub) {
-            const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${hub.lat}&lon=${hub.lon}&appid=${process.env.OPENWEATHER_KEY}&units=imperial`;
-            const data = await fetchJSON(url);
-            const now = new Date();
-            const slots = data.list.filter(item => {
-              const d = new Date(item.dt * 1000);
-              const h = d.getHours();
-              const isTonight = d.getDate() === now.getDate() && h >= 22;
-              const isTomorrow = d.getDate() === (now.getDate() + 1) && h <= 4;
-              return isTonight || isTomorrow;
-            });
-            const useSlots = slots.length > 0 ? slots : data.list.slice(0, 3);
-            let maxRisk = 'low', worstDesc = '', maxWind = 0;
-            useSlots.forEach(s => {
-              const desc = s.weather[0].description;
-              const wind = s.wind ? s.wind.speed : 0;
-              const vis = s.visibility;
-              const risk = assessRisk(desc, wind, vis);
-              if (risk === 'high' || (risk === 'medium' && maxRisk === 'low')) { maxRisk = risk; worstDesc = desc; }
-              if (wind > maxWind) maxWind = wind;
-            });
-            return { ...hub, risk: maxRisk, desc: worstDesc || useSlots[0].weather[0].description, wind: Math.round(maxWind), temp: Math.round(useSlots[0].main.temp) };
-          }
-
-          async function getGmailToken() {
+          async function getToken() {
             const body = JSON.stringify({
               client_id: process.env.GMAIL_CLIENT_ID,
               client_secret: process.env.GMAIL_CLIENT_SECRET,
@@ -88,60 +29,56 @@ jobs:
               grant_type: 'refresh_token'
             });
             return new Promise((resolve, reject) => {
-              const req = https.request({ hostname: 'oauth2.googleapis.com', path: '/token', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': body.length } }, res => {
-                let data = ''; res.on('data', c => data += c); res.on('end', () => resolve(JSON.parse(data).access_token));
-              }); req.on('error', reject); req.write(body); req.end();
+              const req = https.request({
+                hostname: 'oauth2.googleapis.com', path: '/token', method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }
+              }, res => {
+                let data = ''; res.on('data', c => data += c);
+                res.on('end', () => resolve(JSON.parse(data).access_token));
+              });
+              req.on('error', reject); req.write(body); req.end();
             });
           }
 
-          async function sendEmail(subject, body) {
-            const token = await getGmailToken();
-            const to = process.env.ALERT_EMAIL;
-            const raw = Buffer.from(`To: ${to}\nSubject: ${subject}\nContent-Type: text/plain; charset=utf-8\n\n${body}`).toString('base64url');
+          async function sendEmail(token, subject, body) {
+            const raw = Buffer.from(
+              `To: ${process.env.REMINDER_EMAIL}\nSubject: ${subject}\nContent-Type: text/plain; charset=utf-8\n\n${body}`
+            ).toString('base64url');
             const payload = JSON.stringify({ raw });
             return new Promise((resolve, reject) => {
-              const req = https.request({ hostname: 'gmail.googleapis.com', path: '/gmail/v1/users/me/messages/send', method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, res => {
-                let data = ''; res.on('data', c => data += c); res.on('end', () => { console.log('Email sent:', res.statusCode, data); resolve(); });
-              }); req.on('error', reject); req.write(payload); req.end();
+              const req = https.request({
+                hostname: 'gmail.googleapis.com',
+                path: '/gmail/v1/users/me/messages/send',
+                method: 'POST',
+                headers: {
+                  'Authorization': 'Bearer ' + token,
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(payload)
+                }
+              }, res => {
+                let data = ''; res.on('data', c => data += c);
+                res.on('end', () => { console.log('Email sent:', res.statusCode); resolve(); });
+              });
+              req.on('error', reject); req.write(payload); req.end();
             });
           }
 
           async function main() {
-            console.log('Fetching overnight weather forecasts...');
-            const results = await Promise.all(HUBS.map(hub => getHubWeather(hub).catch(e => ({ ...hub, risk: 'unknown', desc: 'fetch error', wind: 0 }))));
-            
-            const hubResults = results.filter(r => r.id === 'mem' || r.id === 'sdf');
-            const regionResults = results.filter(r => r.id !== 'mem' && r.id !== 'sdf');
-            const highHubs = hubResults.filter(r => r.risk === 'high');
-            const medHubs = hubResults.filter(r => r.risk === 'medium');
+            const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const subject = `Reminder: Check overnight shipping weather — ${today}`;
+            const body = `Good morning,
 
-            // Only send email if there's something to flag (skip if all clear)
-            // Comment out the line below to get a daily email regardless
-            if (highHubs.length === 0 && medHubs.length === 0) { console.log('All clear — no email sent.'); return; }
+Quick reminder to check the overnight shipping weather dashboard before today's sort decisions go out.
 
-            const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-            const dateStr = tomorrow.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+Dashboard: https://prescriptionmart.github.io/weather-monitor
 
-            let subject;
-            if (highHubs.length > 0) subject = `ACTION: Hold next-day air — severe weather at ${highHubs.map(r=>r.name).join(', ')} — ${dateStr}`;
-            else subject = `CAUTION: Next-day air weather advisory — ${dateStr}`;
+The dashboard shows the next 3 sort windows (10pm-4am local) at FedEx Memphis and UPS Louisville, plus regional watch zones. If conditions warrant a hold, generate the team email directly from the dashboard.
 
-            let body = `Overnight shipping weather report\n${dateStr} — 10pm to 4am sort window\n\n`;
-            body += 'HUB STATUS:\n';
-            hubResults.forEach(r => body += `  ${r.name} (${r.label}): ${riskLabel(r.risk)} — ${r.desc}, wind ${r.wind} mph, ${r.temp}°F\n`);
-            body += '\nREGIONAL WATCH ZONES:\n';
-            regionResults.forEach(r => body += `  ${r.name} (${r.label}): ${riskLabel(r.risk)} — ${r.desc}\n`);
+— Prescription Mart Shipping Weather Monitor`;
 
-            if (highHubs.length > 0) {
-              body += '\nRECOMMENDATION:\nHold next-day air shipments. Notify patients of potential delays. Consider downgrading to 2-day or ground where clinically appropriate.';
-            } else {
-              body += '\nRECOMMENDATION:\nUse caution. Delays are possible. Flag time-sensitive shipments and consider proactive patient notification.';
-            }
-            body += '\n\n— Prescription Mart Shipping Weather Monitor\n   Dashboard: https://prescriptionmart.github.io/weather-monitor';
-
-            console.log('Sending alert email...');
-            await sendEmail(subject, body);
-            console.log('Done.');
+            const token = await getToken();
+            await sendEmail(token, subject, body);
+            console.log('Reminder sent.');
           }
 
           main().catch(e => { console.error('Error:', e); process.exit(1); });
