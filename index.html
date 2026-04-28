@@ -148,7 +148,7 @@
 
 <script>
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
-
+  
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
   { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
@@ -520,19 +520,6 @@ function renderRecommendation(results) {
       lines.push(`<strong>${hub.name}:</strong> Clear to ship tonight.`);
     }
   });
-
-  // SDF/IND overflow cross-reference: if SDF is impacted but IND is clear, flag it
-  const sdf = hubs.find(h => h.id === 'sdf');
-  const ind = hubs.find(h => h.id === 'ind');
-  if (sdf && ind && sdf.nights[0]) {
-    const sdfRisk = sdf.nights[0].risk;
-    const indRisk = ind.nights[0].risk;
-    if ((sdfRisk === 'high' || sdfRisk === 'medium') && (indRisk === 'low' || indRisk === 'borderline')) {
-      lines.push(`<div style="background:#E6F1FB; border-left: 3px solid #185FA5; padding: 8px 12px; margin-top: 6px; font-size: 13px;"><strong>UPS overflow note:</strong> SDF is impacted but IND is clear. UPS may automatically reroute through Indianapolis — packages already in network may still move, but expect tracking delays.</div>`);
-    } else if ((sdfRisk === 'high' || sdfRisk === 'medium') && (indRisk === 'high' || indRisk === 'medium')) {
-      lines.push(`<div style="background:#FCEBEB; border-left: 3px solid #A32D2D; padding: 8px 12px; margin-top: 6px; font-size: 13px;"><strong>UPS network alert:</strong> Both SDF and IND impacted. No reliable UPS overflow option tonight — strongly consider holding all UPS next-day shipments.</div>`);
-    }
-  }
 
   // Build top-line action
   const hubsHoldingTonight = hubs.filter(h => h.nights[0].risk === 'high');
