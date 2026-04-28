@@ -90,8 +90,20 @@
   <div class="actions">
     <button class="btn btn-primary" onclick="loadWeather()">&#8635; Refresh forecast</button>
     <button class="btn" onclick="generateEmailText()">&#9993; Generate alert email</button>
+    <button class="btn" onclick="generateTeamMessage()">&#128172; Generate team message</button>
   </div>
   <div id="status-msg" class="status-msg"></div>
+
+  <div id="team-output" style="display:none; margin-bottom: 1.5rem;">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div class="section-label" style="margin-bottom: 0;">Team message draft</div>
+        <button class="btn btn-primary" onclick="copyTeamMessage()">Copy message</button>
+      </div>
+      <pre id="team-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: #f5f5f3; padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.6;"></pre>
+      <div id="team-copy-status" style="font-size: 12px; color: #3B6D11; margin-top: 8px; height: 16px;"></div>
+    </div>
+  </div>
 
   <div id="email-output" style="display:none; margin-bottom: 1.5rem;">
     <div class="card">
@@ -148,7 +160,7 @@
 
 <script>
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
-  
+
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
   { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
@@ -709,6 +721,74 @@ function showStatus(msg, type) {
   el.textContent = msg;
   el.className = 'status-msg status-' + type;
   el.style.display = 'block';
+}
+
+function generateTeamMessage() {
+  const results = Object.values(weatherState);
+  if (results.length === 0) { showStatus('Load weather data first.', 'err'); return; }
+
+  const hubs = results.filter(r => r.hub);
+  const highRiskHubs = hubs.filter(h => h.nights[0] && h.nights[0].risk === 'high');
+  const cautionHubs = hubs.filter(h => h.nights[0] && h.nights[0].risk === 'medium');
+
+  let msg;
+
+  if (highRiskHubs.length > 0) {
+    // Find the first shippable night across the worst-case hub
+    // Use the hub with the latest "first shippable" night so we don't underpromise
+    let latestShippableIdx = 0;
+    highRiskHubs.forEach(h => {
+      const idx = findFirstShippableNight(h);
+      if (idx > latestShippableIdx) latestShippableIdx = idx;
+    });
+
+    let shipDayPhrase;
+    if (latestShippableIdx === -1) {
+      shipDayPhrase = 'as soon as conditions clear (currently no clear night in the 3-day forecast)';
+    } else if (latestShippableIdx === 1) {
+      // Tomorrow night's sort = Wednesday delivery
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfter = new Date();
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      shipDayPhrase = `tomorrow (${tomorrow.toLocaleDateString('en-US', { weekday: 'long' })}) for delivery ${dayAfter.toLocaleDateString('en-US', { weekday: 'long' })}`;
+    } else if (latestShippableIdx === 2) {
+      const inTwoDays = new Date();
+      inTwoDays.setDate(inTwoDays.getDate() + 2);
+      const inThreeDays = new Date();
+      inThreeDays.setDate(inThreeDays.getDate() + 3);
+      shipDayPhrase = `${inTwoDays.toLocaleDateString('en-US', { weekday: 'long' })} for delivery ${inThreeDays.toLocaleDateString('en-US', { weekday: 'long' })}`;
+    }
+
+    msg = `Team,\n\nDue to forecasted severe weather overnight at ${highRiskHubs.map(h => h.name).join(' and ')}, we are holding next-day air shipments today to avoid hub delays.\n\nPlease schedule deliveries to ship ${shipDayPhrase} whenever possible.\n\nThanks,\nBobby`;
+  } else if (cautionHubs.length > 0) {
+    msg = `Team,\n\nHeads up — forecasted weather conditions overnight at ${cautionHubs.map(h => h.name).join(' and ')} may cause delays on next-day air shipments going out tonight.\n\nPlease be prepared to advise patients of potential delays.\n\nThanks,\nBobby`;
+  } else {
+    msg = `Team,\n\nNo shipping concerns tonight — overnight conditions at all hubs look acceptable for next-day air. Standard operations.\n\nThanks,\nBobby`;
+  }
+
+  document.getElementById('team-body').textContent = msg;
+  document.getElementById('team-output').style.display = 'block';
+  document.getElementById('team-copy-status').textContent = '';
+  document.getElementById('team-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyTeamMessage() {
+  const text = document.getElementById('team-body').textContent;
+  const status = document.getElementById('team-copy-status');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      status.textContent = '✓ Message copied to clipboard';
+      setTimeout(() => { status.textContent = ''; }, 2500);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); status.textContent = '✓ Message copied'; setTimeout(() => { status.textContent = ''; }, 2500); }
+      catch(e) { status.textContent = 'Could not copy — select the text manually'; }
+      document.body.removeChild(ta);
+    });
+  }
 }
 
 function generateEmailText() {
