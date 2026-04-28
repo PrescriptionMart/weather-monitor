@@ -88,8 +88,7 @@
 
   <div class="actions">
     <button class="btn btn-primary" onclick="loadWeather()">&#8635; Refresh forecast</button>
-    <button class="btn" onclick="generateEmailText('ops')">&#9993; Generate ops team email</button>
-    <button class="btn" onclick="generateEmailText('full')">&#9993; Generate full leadership email</button>
+    <button class="btn" onclick="generateEmailText()">&#9993; Generate alert email</button>
   </div>
   <div id="status-msg" class="status-msg"></div>
 
@@ -98,14 +97,9 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <div class="section-label" style="margin-bottom: 0;">Email draft</div>
         <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="copyEmailField('to')">Copy recipients</button>
           <button class="btn" onclick="copyEmailField('subject')">Copy subject</button>
           <button class="btn btn-primary" onclick="copyEmailField('body')">Copy body</button>
         </div>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">To</div>
-        <div id="email-to" style="font-family: monospace; font-size: 12px; background: #f5f5f3; padding: 8px 10px; border-radius: 6px; word-break: break-all;"></div>
       </div>
       <div style="margin-bottom: 12px;">
         <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Subject</div>
@@ -147,8 +141,6 @@
 
 <script>
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
-const OPS_TEAM_EMAIL = 'BClay@scriptcare.com, bjansen@scriptcare.com, cverma@scriptcare.com, CLeBlanc@scriptcare.com, EFletcher@scriptcare.com, sgoff@scriptcare.com, TDerby@scriptcare.com';
-const FULL_LEADERSHIP_EMAIL = 'AByerly@scriptcare.com, BClay@scriptcare.com, bjansen@scriptcare.com, cverma@scriptcare.com, CLeBlanc@scriptcare.com, EFletcher@scriptcare.com, sgoff@scriptcare.com, TDerby@scriptcare.com';
 
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
@@ -522,12 +514,10 @@ function showStatus(msg, type) {
   el.style.display = 'block';
 }
 
-function generateEmailText(group) {
-  const recipients = group === 'full' ? FULL_LEADERSHIP_EMAIL : OPS_TEAM_EMAIL;
+function generateEmailText() {
   const results = Object.values(weatherState);
   if (results.length === 0) { showStatus('Load weather data first.', 'err'); return; }
   const { subject, body } = buildEmailContent(results);
-  document.getElementById('email-to').textContent = recipients;
   document.getElementById('email-subject').textContent = subject;
   document.getElementById('email-body').textContent = body;
   document.getElementById('email-output').style.display = 'block';
