@@ -2,10 +2,8 @@ name: Daily dashboard reminder
 
 on:
   schedule:
-    # Runs Monday-Friday at 8:00 AM Central (13:00 UTC)
-    # Skips weekends since shipping decisions are weekday operations
     - cron: '0 13 * * 1-5'
-  workflow_dispatch: # also allows manual trigger from Actions tab
+  workflow_dispatch:
 
 jobs:
   send-reminder:
@@ -68,13 +66,13 @@ jobs:
             const subject = `Reminder: Check overnight shipping weather — ${today}`;
             const body = `Good morning,
 
-Quick reminder to check the overnight shipping weather dashboard before today's sort decisions go out.
+          Quick reminder to check the overnight shipping weather dashboard before today's sort decisions go out.
 
-Dashboard: https://prescriptionmart.github.io/weather-monitor
+          Dashboard: https://prescriptionmart.github.io/weather-monitor
 
-The dashboard shows the next 3 sort windows (10pm-4am local) at FedEx Memphis and UPS Louisville, plus regional watch zones. If conditions warrant a hold, generate the team email directly from the dashboard.
+          The dashboard shows the next 3 sort windows (10pm-4am local) at FedEx Memphis and UPS Louisville, plus regional watch zones. If conditions warrant a hold, generate the team email directly from the dashboard.
 
-— Prescription Mart Shipping Weather Monitor`;
+          — Prescription Mart Shipping Weather Monitor`;
 
             const token = await getToken();
             await sendEmail(token, subject, body);
