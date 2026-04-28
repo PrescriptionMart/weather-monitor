@@ -278,7 +278,7 @@ async function fetchNWSAlerts(lat, lon) {
   // National Weather Service API — free, no key required, authoritative for US severe weather
   const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
   try {
-    const resp = await fetch(url, { headers: { 'User-Agent': 'PrescriptionMartWeatherMonitor (bclay@scriptcare.com)', 'Accept': 'application/geo+json' } });
+    const resp = await fetch(url, { headers: { 'Accept': 'application/geo+json' } });
     if (!resp.ok) return [];
     const data = await resp.json();
     return (data.features || []).map(f => ({
@@ -293,6 +293,48 @@ async function fetchNWSAlerts(lat, lon) {
     console.error('NWS alerts fetch failed:', e);
     return [];
   }
+}
+
+async function fetchNWSForecast(lat, lon) {
+  // NWS forecast — proactive plain-language forecast that often calls out severe weather
+  // before it triggers a formal watch/warning. Two-step: get the gridpoint, then the forecast.
+  try {
+    const pointResp = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } });
+    if (!pointResp.ok) return null;
+    const pointData = await pointResp.json();
+    const forecastUrl = pointData.properties.forecast;
+    if (!forecastUrl) return null;
+
+    const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
+    if (!fcResp.ok) return null;
+    const fcData = await fcResp.json();
+    return fcData.properties.periods || [];
+  } catch(e) {
+    console.error('NWS forecast fetch failed:', e);
+    return null;
+  }
+}
+
+// Severe weather phrases NWS uses in plain-language forecasts that should escalate risk
+const NWS_SEVERE_PHRASES = [
+  'severe', 'damaging wind', 'damaging winds', 'tornado', 'tornadoes',
+  'large hail', 'flash flood', 'flooding', 'blizzard', 'ice storm',
+  'freezing rain', 'heavy snow', 'extreme', 'destructive',
+  'thunderstorms could be severe', 'storms could be severe',
+  'hurricane', 'tropical storm', 'high wind warning'
+];
+
+const NWS_MODERATE_PHRASES = [
+  'thunderstorm', 'thunderstorms', 'heavy rain', 'gusty winds',
+  'wind gusts', 'snow likely', 'rain likely', 'showers likely'
+];
+
+function assessNWSForecastRisk(periodText) {
+  if (!periodText) return null;
+  const t = periodText.toLowerCase();
+  if (NWS_SEVERE_PHRASES.some(p => t.includes(p))) return 'high';
+  if (NWS_MODERATE_PHRASES.some(p => t.includes(p))) return 'medium';
+  return null;
 }
 
 // NWS event types that should automatically force HIGH risk for shipping decisions
@@ -331,16 +373,37 @@ let weatherState = {};
 async function fetchLocation(loc) {
   const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${loc.lat}&lon=${loc.lon}&appid=${WEATHER_API_KEY}&units=imperial`;
   try {
-    // Fetch both APIs in parallel
-    const [resp, nwsAlerts] = await Promise.all([
+    // Fetch all three sources in parallel
+    const [resp, nwsAlerts, nwsForecast] = await Promise.all([
       fetch(url),
-      fetchNWSAlerts(loc.lat, loc.lon)
+      fetchNWSAlerts(loc.lat, loc.lon),
+      fetchNWSForecast(loc.lat, loc.lon)
     ]);
     if (!resp.ok) throw new Error('bad response');
     const data = await resp.json();
 
     const sortNights = getNext3SortNights(loc.tz);
-    const nwsOverride = nwsAlertRiskOverride(nwsAlerts);
+    const nwsAlertOverride = nwsAlertRiskOverride(nwsAlerts);
+
+    // Build a map of NWS forecast risks per night by matching period names
+    // NWS periods come labeled like "Tonight", "Tuesday Night", "Wednesday Night", etc.
+    const nwsPeriodByNight = {};
+    if (nwsForecast) {
+      nwsForecast.forEach(period => {
+        const name = (period.name || '').toLowerCase();
+        if (name.includes('night') || name === 'overnight' || name === 'tonight') {
+          // Match this period to a sort night based on its startTime
+          const periodStart = new Date(period.startTime);
+          const periodDateKey = getLocalDateKey(periodStart, loc.tz);
+          nwsPeriodByNight[periodDateKey] = {
+            name: period.name,
+            shortForecast: period.shortForecast,
+            detailedForecast: period.detailedForecast,
+            risk: assessNWSForecastRisk(period.detailedForecast || period.shortForecast)
+          };
+        }
+      });
+    }
 
     const nights = sortNights.map((dateKey, idx) => {
       const [y, m, d] = dateKey.split('-').map(Number);
@@ -357,37 +420,57 @@ async function fetchLocation(loc) {
         return isLateNight || isEarlyMorning;
       });
 
-      if (slots.length === 0) return { dateKey, idx, risk: nwsOverride && idx === 0 ? nwsOverride : 'low', desc: 'no forecast data', wind: 0, slots: 0, noData: true, nwsOverride: idx === 0 ? nwsOverride : null };
+      const nwsPeriod = nwsPeriodByNight[dateKey];
+      const nwsForecastRisk = nwsPeriod ? nwsPeriod.risk : null;
 
-      let maxRisk = 'low', worstDesc = '', maxWind = 0, minVis = 10000, lowTemp = 999;
-      slots.forEach(s => {
-        const desc = s.weather[0].description;
-        const wind = s.wind ? s.wind.speed : 0;
-        const vis = s.visibility || 10000;
-        const temp = s.main ? s.main.temp : null;
-        const risk = assessRisk(desc, wind, vis, temp);
-        if (riskRank(risk) > riskRank(maxRisk)) { maxRisk = risk; worstDesc = desc; }
-        if (wind > maxWind) maxWind = wind;
-        if (vis < minVis) minVis = vis;
-        if (temp !== null && temp < lowTemp) lowTemp = temp;
-      });
-
-      // Apply NWS override only to TONIGHT (idx 0), since active alerts are time-bounded
-      let finalRisk = maxRisk;
-      let appliedOverride = null;
-      if (idx === 0 && nwsOverride && riskRank(nwsOverride) > riskRank(maxRisk)) {
-        finalRisk = nwsOverride;
-        appliedOverride = nwsOverride;
+      // Start with OpenWeather assessment
+      let owRisk = 'low', worstDesc = '', maxWind = 0, minVis = 10000, lowTemp = 999;
+      if (slots.length > 0) {
+        slots.forEach(s => {
+          const desc = s.weather[0].description;
+          const wind = s.wind ? s.wind.speed : 0;
+          const vis = s.visibility || 10000;
+          const temp = s.main ? s.main.temp : null;
+          const risk = assessRisk(desc, wind, vis, temp);
+          if (riskRank(risk) > riskRank(owRisk)) { owRisk = risk; worstDesc = desc; }
+          if (wind > maxWind) maxWind = wind;
+          if (vis < minVis) minVis = vis;
+          if (temp !== null && temp < lowTemp) lowTemp = temp;
+        });
       }
+
+      // Take the HIGHEST risk from any source
+      let finalRisk = owRisk;
+      let appliedOverride = null;
+      let overrideSource = null;
+
+      if (nwsForecastRisk && riskRank(nwsForecastRisk) > riskRank(finalRisk)) {
+        finalRisk = nwsForecastRisk;
+        appliedOverride = nwsForecastRisk;
+        overrideSource = 'NWS forecast';
+      }
+
+      // NWS active alerts only apply to tonight (idx 0)
+      if (idx === 0 && nwsAlertOverride && riskRank(nwsAlertOverride) > riskRank(finalRisk)) {
+        finalRisk = nwsAlertOverride;
+        appliedOverride = nwsAlertOverride;
+        overrideSource = 'NWS active alert';
+      }
+
+      const baseDesc = slots.length > 0 ? (worstDesc || slots[0].weather[0].description) : (nwsPeriod ? nwsPeriod.shortForecast : 'no forecast');
 
       return {
         dateKey, idx,
         risk: finalRisk,
-        desc: worstDesc || slots[0].weather[0].description,
+        desc: baseDesc,
         wind: Math.round(maxWind),
-        temp: Math.round(slots[0].main.temp),
+        temp: slots[0] ? Math.round(slots[0].main.temp) : null,
         slots: slots.length,
-        nwsOverride: appliedOverride
+        noData: slots.length === 0,
+        nwsOverride: appliedOverride,
+        overrideSource,
+        nwsForecastText: nwsPeriod ? (nwsPeriod.detailedForecast || nwsPeriod.shortForecast) : null,
+        nwsPeriodName: nwsPeriod ? nwsPeriod.name : null
       };
     });
 
@@ -447,15 +530,24 @@ function renderHub(hub) {
     const labels = nightLabel(night.dateKey || '', idx);
     const row = document.createElement('div');
     row.className = 'night-row';
+    const overrideTag = night.nwsOverride ? ` <span style="color:#A32D2D; font-size:11px; font-weight:500;">(${night.overrideSource})</span>` : '';
     row.innerHTML = `
       <div class="night-label">
         <strong>${labels.primary}</strong>
         ${labels.secondary ? `<div class="date">${labels.secondary}</div>` : ''}
       </div>
-      <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}${night.nwsOverride ? ' <span style="color:#A32D2D">(NWS alert)</span>' : ''}</div>
+      <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}${overrideTag}</div>
       <span class="${riskClass(night.risk)}">${riskLabel(night.risk)}</span>
     `;
     container.appendChild(row);
+
+    // Add NWS forecast text below the row when there's an override or severe wording
+    if (night.nwsForecastText && (night.nwsOverride || night.nwsForecastText.toLowerCase().includes('thunder') || night.nwsForecastText.toLowerCase().includes('severe'))) {
+      const fcRow = document.createElement('div');
+      fcRow.style.cssText = 'background:#F9F7E8; border-left: 3px solid #BA7517; padding: 6px 10px; margin: 0 0 8px 0; font-size: 11px; color: #5F5E5A; border-radius: 4px; line-height: 1.5;';
+      fcRow.innerHTML = `<strong style="color:#854F0B; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;">NWS forecast — ${night.nwsPeriodName}:</strong> ${night.nwsForecastText}`;
+      container.appendChild(fcRow);
+    }
   });
 }
 
@@ -580,7 +672,10 @@ function buildEmailContent(results) {
     }
     hub.nights.forEach((n, idx) => {
       const labels = nightLabel(n.dateKey || '', idx);
-      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}${n.nwsOverride ? ' [NWS alert override]' : ''}\n`;
+      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}${n.overrideSource ? ' [override: ' + n.overrideSource + ']' : ''}\n`;
+      if (n.nwsForecastText && n.nwsOverride) {
+        body += `    NWS: ${n.nwsForecastText}\n`;
+      }
     });
     body += '\n';
   });
