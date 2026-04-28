@@ -163,12 +163,14 @@ const LOCATIONS = [
 ];
 
 // Conservative risk tiers tuned for specialty pharma overnight shipping
+// Core principle: any thunderstorm in the forecast window = HIGH
+// (lightning halts ramp ops at FedEx/UPS hubs, packages don't move)
 // HIGH = Do not ship (severe weather likely to delay/cancel hub sort)
 // MEDIUM = Use caution (notify patients, ship time-sensitive only)
 // BORDERLINE = Monitor (conditions iffy but not concerning yet)
 // LOW = Clear
 
-const SEVERE_HIGH = ['thunderstorm','tornado','hurricane','blizzard','ice','freezing','severe','hail','sleet','heavy snow','heavy rain','extreme'];
+const SEVERE_HIGH = ['thunder','tornado','hurricane','blizzard','ice','freezing','severe','hail','sleet','heavy snow','heavy rain','extreme','storm'];
 const MEDIUM_WX = ['rain','snow','drizzle','shower','fog','mist'];
 const BORDERLINE_WX = ['light rain','light snow','overcast','wind','clouds','broken clouds','scattered clouds'];
 
@@ -316,17 +318,19 @@ async function fetchNWSForecast(lat, lon) {
 }
 
 // Severe weather phrases NWS uses in plain-language forecasts that should escalate risk
+// For specialty pharma overnight shipping: ANY thunderstorm = HIGH (lightning halts ramp ops)
 const NWS_SEVERE_PHRASES = [
   'severe', 'damaging wind', 'damaging winds', 'tornado', 'tornadoes',
-  'large hail', 'flash flood', 'flooding', 'blizzard', 'ice storm',
+  'large hail', 'hail', 'flash flood', 'flooding', 'blizzard', 'ice storm',
   'freezing rain', 'heavy snow', 'extreme', 'destructive',
-  'thunderstorms could be severe', 'storms could be severe',
-  'hurricane', 'tropical storm', 'high wind warning'
+  'thunderstorm', 'thunderstorms', // any thunderstorm = lightning risk = ramp ops shutdown
+  'hurricane', 'tropical storm', 'high wind warning',
+  'heavy rain', 'periods of heavy rain'
 ];
 
 const NWS_MODERATE_PHRASES = [
-  'thunderstorm', 'thunderstorms', 'heavy rain', 'gusty winds',
-  'wind gusts', 'snow likely', 'rain likely', 'showers likely'
+  'gusty winds', 'wind gusts', 'snow likely', 'rain likely', 'showers likely',
+  'rain', 'snow', 'showers'
 ];
 
 function assessNWSForecastRisk(periodText) {
