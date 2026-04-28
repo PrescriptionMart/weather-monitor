@@ -17,7 +17,7 @@
     .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem; }
     .alert-bar { background: #FCEBEB; border: 1px solid #F09595; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #A32D2D; display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
     .alert-bar.warning { background: #FAEEDA; border-color: #EF9F27; color: #854F0B; }
-    .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+    .hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
     .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; }
     .card-title { font-size: 15px; font-weight: 500; color: #1a1a1a; }
     .card-sub { font-size: 12px; color: #888; margin-top: 2px; }
@@ -56,7 +56,8 @@
     .status-ok { background: #EAF3DE; color: #3B6D11; border: 1px solid #97C459; }
     .status-err { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
     .status-info { background: #E6F1FB; color: #185FA5; border: 1px solid #85B7EB; }
-    @media (max-width: 600px) { .hub-grid { grid-template-columns: 1fr; } .header { flex-direction: column; align-items: flex-start; gap: 4px; } }
+    @media (max-width: 900px) { .hub-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { .header { flex-direction: column; align-items: flex-start; gap: 4px; } }
   </style>
 </head>
 <body>
@@ -64,7 +65,7 @@
 <div class="header">
   <div>
     <div class="h1">Overnight Shipping Weather Risk</div>
-    <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; FedEx Memphis &amp; UPS Louisville</div>
+    <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; FedEx Memphis, UPS Louisville &amp; Indianapolis</div>
   </div>
   <div class="updated" id="last-updated">Loading...</div>
 </div>
@@ -126,6 +127,12 @@
       </div>
       <div id="nights-sdf"></div>
     </div>
+    <div class="card" id="card-ind">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+        <div><div class="card-title">Indianapolis (IND)</div><div class="card-sub">UPS Secondary Hub &middot; Eastern time</div></div>
+      </div>
+      <div id="nights-ind"></div>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
@@ -146,6 +153,7 @@ const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
 const LOCATIONS = [
   { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
   { id: 'sdf', name: 'Louisville (SDF)', label: 'UPS Worldport', lat: 38.1741, lon: -85.7369, tz: 'America/Kentucky/Louisville', hub: true },
+  { id: 'ind', name: 'Indianapolis (IND)', label: 'UPS Secondary Hub', lat: 39.7173, lon: -86.2944, tz: 'America/Indiana/Indianapolis', hub: true },
   { id: 'ord', name: 'Chicago (ORD)', label: 'Midwest', lat: 41.9742, lon: -87.9073, tz: 'America/Chicago' },
   { id: 'dfw', name: 'Dallas (DFW)', label: 'South-Central', lat: 32.8998, lon: -97.0403, tz: 'America/Chicago' },
   { id: 'atl', name: 'Atlanta (ATL)', label: 'Southeast', lat: 33.6407, lon: -84.4277, tz: 'America/New_York' },
@@ -266,20 +274,75 @@ function nightLabel(dateKey, idx) {
   return { primary: labels[idx] || dayName, secondary: `${dayName} ${dateStr}` };
 }
 
+async function fetchNWSAlerts(lat, lon) {
+  // National Weather Service API — free, no key required, authoritative for US severe weather
+  const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
+  try {
+    const resp = await fetch(url, { headers: { 'User-Agent': 'PrescriptionMartWeatherMonitor (bclay@scriptcare.com)', 'Accept': 'application/geo+json' } });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.features || []).map(f => ({
+      event: f.properties.event,
+      severity: f.properties.severity,
+      headline: f.properties.headline,
+      description: f.properties.description,
+      onset: f.properties.onset,
+      ends: f.properties.ends || f.properties.expires,
+    }));
+  } catch(e) {
+    console.error('NWS alerts fetch failed:', e);
+    return [];
+  }
+}
+
+// NWS event types that should automatically force HIGH risk for shipping decisions
+const HIGH_RISK_NWS_EVENTS = [
+  'Tornado Warning', 'Tornado Watch',
+  'Severe Thunderstorm Warning', 'Severe Thunderstorm Watch',
+  'Flash Flood Warning', 'Flash Flood Watch',
+  'Flood Warning',
+  'Winter Storm Warning', 'Blizzard Warning', 'Ice Storm Warning',
+  'Hurricane Warning', 'Tropical Storm Warning',
+  'High Wind Warning', 'Wind Advisory',
+  'Freezing Rain Advisory', 'Freezing Fog Advisory',
+  'Special Weather Statement',
+  'Extreme Wind Warning',
+];
+
+const MEDIUM_RISK_NWS_EVENTS = [
+  'Winter Weather Advisory', 'Frost Advisory', 'Freeze Warning',
+  'Dense Fog Advisory', 'Hydrologic Outlook',
+];
+
+function nwsAlertRiskOverride(alerts) {
+  // Returns the highest risk override level from active NWS alerts
+  if (!alerts || alerts.length === 0) return null;
+  for (const a of alerts) {
+    if (HIGH_RISK_NWS_EVENTS.some(e => a.event && a.event.includes(e))) return 'high';
+  }
+  for (const a of alerts) {
+    if (MEDIUM_RISK_NWS_EVENTS.some(e => a.event && a.event.includes(e))) return 'medium';
+  }
+  return null;
+}
+
 let weatherState = {};
 
 async function fetchLocation(loc) {
   const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${loc.lat}&lon=${loc.lon}&appid=${WEATHER_API_KEY}&units=imperial`;
   try {
-    const resp = await fetch(url);
+    // Fetch both APIs in parallel
+    const [resp, nwsAlerts] = await Promise.all([
+      fetch(url),
+      fetchNWSAlerts(loc.lat, loc.lon)
+    ]);
     if (!resp.ok) throw new Error('bad response');
     const data = await resp.json();
 
     const sortNights = getNext3SortNights(loc.tz);
+    const nwsOverride = nwsAlertRiskOverride(nwsAlerts);
+
     const nights = sortNights.map((dateKey, idx) => {
-      // For each "night N", we want forecast slots that fall in:
-      // - night N's date, hour 22-23 (10pm-midnight), OR
-      // - night N+1's date, hour 0-3 (midnight-4am)
       const [y, m, d] = dateKey.split('-').map(Number);
       const nextDay = new Date(Date.UTC(y, m - 1, d));
       nextDay.setUTCDate(nextDay.getUTCDate() + 1);
@@ -294,7 +357,7 @@ async function fetchLocation(loc) {
         return isLateNight || isEarlyMorning;
       });
 
-      if (slots.length === 0) return { dateKey, idx, risk: 'low', desc: 'no forecast data', wind: 0, slots: 0, noData: true };
+      if (slots.length === 0) return { dateKey, idx, risk: nwsOverride && idx === 0 ? nwsOverride : 'low', desc: 'no forecast data', wind: 0, slots: 0, noData: true, nwsOverride: idx === 0 ? nwsOverride : null };
 
       let maxRisk = 'low', worstDesc = '', maxWind = 0, minVis = 10000, lowTemp = 999;
       slots.forEach(s => {
@@ -308,17 +371,27 @@ async function fetchLocation(loc) {
         if (vis < minVis) minVis = vis;
         if (temp !== null && temp < lowTemp) lowTemp = temp;
       });
+
+      // Apply NWS override only to TONIGHT (idx 0), since active alerts are time-bounded
+      let finalRisk = maxRisk;
+      let appliedOverride = null;
+      if (idx === 0 && nwsOverride && riskRank(nwsOverride) > riskRank(maxRisk)) {
+        finalRisk = nwsOverride;
+        appliedOverride = nwsOverride;
+      }
+
       return {
         dateKey, idx,
-        risk: maxRisk,
+        risk: finalRisk,
         desc: worstDesc || slots[0].weather[0].description,
         wind: Math.round(maxWind),
         temp: Math.round(slots[0].main.temp),
-        slots: slots.length
+        slots: slots.length,
+        nwsOverride: appliedOverride
       };
     });
 
-    return { id: loc.id, name: loc.name, label: loc.label, tz: loc.tz, hub: !!loc.hub, nights };
+    return { id: loc.id, name: loc.name, label: loc.label, tz: loc.tz, hub: !!loc.hub, nights, nwsAlerts };
   } catch(e) {
     console.error('Fetch error for', loc.id, e);
     return null;
@@ -328,16 +401,25 @@ async function fetchLocation(loc) {
 function useDemoData() {
   const memNights = getNext3SortNights('America/Chicago');
   const sdfNights = getNext3SortNights('America/Kentucky/Louisville');
+  const indNights = getNext3SortNights('America/Indiana/Indianapolis');
   return [
     { id:'mem', name:'Memphis (MEM)', label:'FedEx World Hub', tz:'America/Chicago', hub:true, nights: [
       { dateKey: memNights[0], idx:0, risk:'high', desc:'thunderstorm with heavy rain', wind:28, temp:62, slots:3 },
       { dateKey: memNights[1], idx:1, risk:'high', desc:'severe thunderstorms continuing', wind:30, temp:60, slots:3 },
       { dateKey: memNights[2], idx:2, risk:'low', desc:'clear sky', wind:8, temp:65, slots:3 },
     ]},
-    { id:'sdf', name:'Louisville (SDF)', label:'UPS Worldport', tz:'America/Kentucky/Louisville', hub:true, nights: [
-      { dateKey: sdfNights[0], idx:0, risk:'low', desc:'partly cloudy', wind:7, temp:58, slots:3 },
+    { id:'sdf', name:'Louisville (SDF)', label:'UPS Worldport', tz:'America/Kentucky/Louisville', hub:true, nwsAlerts: [
+      { event: 'Severe Thunderstorm Warning', headline: 'Severe Thunderstorms', ends: new Date(Date.now() + 6*60*60*1000).toISOString() },
+      { event: 'Flash Flood Warning', headline: 'Flash Flood', ends: new Date(Date.now() + 8*60*60*1000).toISOString() },
+    ], nights: [
+      { dateKey: sdfNights[0], idx:0, risk:'high', desc:'thunderstorms', wind:18, temp:64, slots:3, nwsOverride: 'high' },
       { dateKey: sdfNights[1], idx:1, risk:'medium', desc:'rain showers', wind:18, temp:55, slots:3 },
       { dateKey: sdfNights[2], idx:2, risk:'low', desc:'clear sky', wind:6, temp:60, slots:3 },
+    ]},
+    { id:'ind', name:'Indianapolis (IND)', label:'UPS Secondary Hub', tz:'America/Indiana/Indianapolis', hub:true, nights: [
+      { dateKey: indNights[0], idx:0, risk:'borderline', desc:'overcast clouds', wind:13, temp:50, slots:3 },
+      { dateKey: indNights[1], idx:1, risk:'low', desc:'clear sky', wind:6, temp:54, slots:3 },
+      { dateKey: indNights[2], idx:2, risk:'low', desc:'partly cloudy', wind:8, temp:58, slots:3 },
     ]},
     { id:'ord', name:'Chicago (ORD)', label:'Midwest', tz:'America/Chicago', nights:[{ risk:'medium', desc:'light snow', idx:0 }] },
     { id:'dfw', name:'Dallas (DFW)', label:'South-Central', tz:'America/Chicago', nights:[{ risk:'low', desc:'partly cloudy', idx:0 }] },
@@ -351,6 +433,16 @@ function useDemoData() {
 function renderHub(hub) {
   const container = document.getElementById('nights-' + hub.id);
   container.innerHTML = '';
+
+  // Show active NWS alerts at the top of the card if present
+  if (hub.nwsAlerts && hub.nwsAlerts.length > 0) {
+    const alertBanner = document.createElement('div');
+    alertBanner.style.cssText = 'background:#FCEBEB; border-left: 3px solid #A32D2D; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; border-radius: 4px;';
+    const alertTitles = hub.nwsAlerts.slice(0, 3).map(a => `<div style="margin-bottom: 2px;"><strong style="color:#A32D2D">⚠ ${a.event}</strong>${a.ends ? ` <span style="color:#777">until ${new Date(a.ends).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: hub.tz })}</span>` : ''}</div>`).join('');
+    alertBanner.innerHTML = '<div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #A32D2D; font-weight: 500; margin-bottom: 4px;">NWS Active Alerts</div>' + alertTitles;
+    container.appendChild(alertBanner);
+  }
+
   hub.nights.forEach((night, idx) => {
     const labels = nightLabel(night.dateKey || '', idx);
     const row = document.createElement('div');
@@ -360,7 +452,7 @@ function renderHub(hub) {
         <strong>${labels.primary}</strong>
         ${labels.secondary ? `<div class="date">${labels.secondary}</div>` : ''}
       </div>
-      <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}</div>
+      <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}${night.nwsOverride ? ' <span style="color:#A32D2D">(NWS alert)</span>' : ''}</div>
       <span class="${riskClass(night.risk)}">${riskLabel(night.risk)}</span>
     `;
     container.appendChild(row);
@@ -429,6 +521,19 @@ function renderRecommendation(results) {
     }
   });
 
+  // SDF/IND overflow cross-reference: if SDF is impacted but IND is clear, flag it
+  const sdf = hubs.find(h => h.id === 'sdf');
+  const ind = hubs.find(h => h.id === 'ind');
+  if (sdf && ind && sdf.nights[0]) {
+    const sdfRisk = sdf.nights[0].risk;
+    const indRisk = ind.nights[0].risk;
+    if ((sdfRisk === 'high' || sdfRisk === 'medium') && (indRisk === 'low' || indRisk === 'borderline')) {
+      lines.push(`<div style="background:#E6F1FB; border-left: 3px solid #185FA5; padding: 8px 12px; margin-top: 6px; font-size: 13px;"><strong>UPS overflow note:</strong> SDF is impacted but IND is clear. UPS may automatically reroute through Indianapolis — packages already in network may still move, but expect tracking delays.</div>`);
+    } else if ((sdfRisk === 'high' || sdfRisk === 'medium') && (indRisk === 'high' || indRisk === 'medium')) {
+      lines.push(`<div style="background:#FCEBEB; border-left: 3px solid #A32D2D; padding: 8px 12px; margin-top: 6px; font-size: 13px;"><strong>UPS network alert:</strong> Both SDF and IND impacted. No reliable UPS overflow option tonight — strongly consider holding all UPS next-day shipments.</div>`);
+    }
+  }
+
   // Build top-line action
   const hubsHoldingTonight = hubs.filter(h => h.nights[0].risk === 'high');
   const hubsCautionTonight = hubs.filter(h => h.nights[0].risk === 'medium');
@@ -480,9 +585,15 @@ function buildEmailContent(results) {
 
   hubs.forEach(hub => {
     body += `${hub.name} (${hub.label}):\n`;
+    if (hub.nwsAlerts && hub.nwsAlerts.length > 0) {
+      body += `  ACTIVE NWS ALERTS:\n`;
+      hub.nwsAlerts.forEach(a => {
+        body += `    - ${a.event}${a.ends ? ' (until ' + new Date(a.ends).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: hub.tz }) + ')' : ''}\n`;
+      });
+    }
     hub.nights.forEach((n, idx) => {
       const labels = nightLabel(n.dateKey || '', idx);
-      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}\n`;
+      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}${n.nwsOverride ? ' [NWS alert override]' : ''}\n`;
     });
     body += '\n';
   });
