@@ -7,10 +7,13 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
-    .header { background: #1B4F8A; color: #fff; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
-    .header h1 { font-size: 18px; font-weight: 500; }
+    .header { background: #1B4F8A; color: #fff; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 500; }
     .header .sub { font-size: 13px; opacity: 0.75; margin-top: 2px; }
     .header .updated { font-size: 12px; opacity: 0.7; }
+    .today-banner { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 1.5rem 2rem; text-align: center; }
+    .today-day { font-size: 36px; font-weight: 600; color: #1B4F8A; line-height: 1.1; }
+    .today-date { font-size: 16px; color: #666; margin-top: 4px; }
     .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem; }
     .alert-bar { background: #FCEBEB; border: 1px solid #F09595; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #A32D2D; display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
     .alert-bar.warning { background: #FAEEDA; border-color: #EF9F27; color: #854F0B; }
@@ -23,8 +26,11 @@
     .badge-medium { background: #FAEEDA; color: #854F0B; border: 1px solid #EF9F27; }
     .badge-low { background: #EAF3DE; color: #3B6D11; border: 1px solid #97C459; }
     .badge-loading { background: #f0f0f0; color: #888; border: 1px solid #ddd; }
-    .card-detail { font-size: 13px; color: #555; margin-top: 10px; line-height: 1.5; }
-    .pill { font-size: 11px; color: #888; background: #f5f5f3; border-radius: 6px; padding: 3px 8px; display: inline-block; margin-top: 8px; }
+    .night-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .night-row:last-child { border-bottom: none; }
+    .night-label { font-size: 13px; color: #1a1a1a; min-width: 100px; }
+    .night-label .date { color: #888; font-size: 12px; margin-left: 4px; }
+    .night-desc { font-size: 12px; color: #777; text-transform: capitalize; flex: 1; text-align: right; margin-right: 10px; }
     .section-label { font-size: 11px; font-weight: 500; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
     .region-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
     .region-row:last-child { border-bottom: none; }
@@ -38,6 +44,7 @@
     .region-desc { color: #777; font-size: 12px; text-transform: capitalize; }
     .rec-box { background: #f9f9f7; border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
     .rec-text { font-size: 14px; line-height: 1.7; color: #1a1a1a; }
+    .rec-action { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
     .actions { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
     .btn { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; display: inline-flex; align-items: center; gap: 6px; }
     .btn:hover { background: #f5f5f3; }
@@ -47,7 +54,6 @@
     .status-ok { background: #EAF3DE; color: #3B6D11; border: 1px solid #97C459; }
     .status-err { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
     .status-info { background: #E6F1FB; color: #185FA5; border: 1px solid #85B7EB; }
-    .last-run { font-size: 12px; color: #aaa; margin-top: 6px; }
     @media (max-width: 600px) { .hub-grid { grid-template-columns: 1fr; } .header { flex-direction: column; align-items: flex-start; gap: 4px; } }
   </style>
 </head>
@@ -56,9 +62,14 @@
 <div class="header">
   <div>
     <div class="h1">Overnight Shipping Weather Risk</div>
-    <div class="sub">Monitoring 10pm–4am sort window &nbsp;·&nbsp; FedEx Memphis &amp; UPS Louisville hubs</div>
+    <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; FedEx Memphis &amp; UPS Louisville</div>
   </div>
   <div class="updated" id="last-updated">Loading...</div>
+</div>
+
+<div class="today-banner">
+  <div class="today-day" id="today-day">Loading...</div>
+  <div class="today-date" id="today-date"></div>
 </div>
 
 <div class="container">
@@ -66,6 +77,11 @@
   <div id="alert-bar" style="display:none;" class="alert-bar">
     <span>&#9888;</span>
     <span id="alert-text"></span>
+  </div>
+
+  <div class="rec-box">
+    <div class="section-label">Today's recommendation</div>
+    <div id="recommendation"><div class="rec-text">Loading forecast data...</div></div>
   </div>
 
   <div class="actions">
@@ -76,35 +92,26 @@
 
   <div class="hub-grid" id="hub-grid">
     <div class="card" id="card-mem">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-        <div><div class="card-title">Memphis (MEM)</div><div class="card-sub">FedEx World Hub</div></div>
-        <span id="badge-mem" class="badge badge-loading">Loading</span>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+        <div><div class="card-title">Memphis (MEM)</div><div class="card-sub">FedEx World Hub &middot; Central time</div></div>
       </div>
-      <div id="detail-mem" class="card-detail"></div>
-      <div id="pill-mem"></div>
+      <div id="nights-mem"></div>
     </div>
     <div class="card" id="card-sdf">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-        <div><div class="card-title">Louisville (SDF)</div><div class="card-sub">UPS Worldport</div></div>
-        <span id="badge-sdf" class="badge badge-loading">Loading</span>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+        <div><div class="card-title">Louisville (SDF)</div><div class="card-sub">UPS Worldport &middot; Eastern time</div></div>
       </div>
-      <div id="detail-sdf" class="card-detail"></div>
-      <div id="pill-sdf"></div>
+      <div id="nights-sdf"></div>
     </div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
-    <div class="section-label">Regional watch zones</div>
+    <div class="section-label">Regional watch zones (next overnight only)</div>
     <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional forecasts...</div></div>
   </div>
 
-  <div class="rec-box">
-    <div class="section-label">Recommendation</div>
-    <div class="rec-text" id="recommendation">Fetching forecast data...</div>
-  </div>
-
   <div style="font-size:12px; color:#bbb; text-align:center; padding-bottom: 2rem;">
-    Weather data via OpenWeatherMap &nbsp;·&nbsp; Monitoring window: 10pm–4am local hub time &nbsp;·&nbsp; Prescription Mart
+    Weather data via OpenWeatherMap &nbsp;·&nbsp; Sort window: 10pm–4am local hub time &nbsp;·&nbsp; Prescription Mart
   </div>
 
 </div>
@@ -113,22 +120,23 @@
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
 const ALERT_EMAIL = 'bclay@scriptcare.com';
 
+// IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
-  { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, hub: true },
-  { id: 'sdf', name: 'Louisville (SDF)', label: 'UPS Worldport', lat: 38.1741, lon: -85.7369, hub: true },
-  { id: 'ord', name: 'Chicago (ORD)', label: 'Midwest regional', lat: 41.9742, lon: -87.9073, hub: false },
-  { id: 'dfw', name: 'Dallas (DFW)', label: 'South-Central regional', lat: 32.8998, lon: -97.0403, hub: false },
-  { id: 'atl', name: 'Atlanta (ATL)', label: 'Southeast regional', lat: 33.6407, lon: -84.4277, hub: false },
-  { id: 'den', name: 'Denver (DEN)', label: 'Mountain regional', lat: 39.8561, lon: -104.6737, hub: false },
-  { id: 'lax', name: 'Los Angeles (LAX)', label: 'West Coast regional', lat: 33.9425, lon: -118.408, hub: false },
-  { id: 'jfk', name: 'New York (JFK)', label: 'Northeast regional', lat: 40.6413, lon: -73.7781, hub: false },
+  { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
+  { id: 'sdf', name: 'Louisville (SDF)', label: 'UPS Worldport', lat: 38.1741, lon: -85.7369, tz: 'America/Kentucky/Louisville', hub: true },
+  { id: 'ord', name: 'Chicago (ORD)', label: 'Midwest', lat: 41.9742, lon: -87.9073, tz: 'America/Chicago' },
+  { id: 'dfw', name: 'Dallas (DFW)', label: 'South-Central', lat: 32.8998, lon: -97.0403, tz: 'America/Chicago' },
+  { id: 'atl', name: 'Atlanta (ATL)', label: 'Southeast', lat: 33.6407, lon: -84.4277, tz: 'America/New_York' },
+  { id: 'den', name: 'Denver (DEN)', label: 'Mountain', lat: 39.8561, lon: -104.6737, tz: 'America/Denver' },
+  { id: 'lax', name: 'Los Angeles (LAX)', label: 'West Coast', lat: 33.9425, lon: -118.408, tz: 'America/Los_Angeles' },
+  { id: 'jfk', name: 'New York (JFK)', label: 'Northeast', lat: 40.6413, lon: -73.7781, tz: 'America/New_York' },
 ];
 
-const SEVERE = ['thunderstorm','tornado','hurricane','blizzard','ice storm','freezing rain','severe','hail','sleet','heavy snow','extreme wind'];
-const MODERATE = ['rain','snow','drizzle','shower','mist','fog','wind','overcast','clouds'];
+const SEVERE = ['thunderstorm','tornado','hurricane','blizzard','ice storm','freezing rain','severe','hail','sleet','heavy snow','extreme'];
+const MODERATE = ['rain','snow','drizzle','shower','mist','fog','wind','overcast'];
 
 function assessRisk(desc, wind, vis) {
-  const d = desc.toLowerCase();
+  const d = (desc || '').toLowerCase();
   if (SEVERE.some(k => d.includes(k)) || wind > 25 || (vis && vis < 800)) return 'high';
   if (MODERATE.some(k => d.includes(k)) || wind > 15 || (vis && vis < 3000)) return 'medium';
   return 'low';
@@ -137,6 +145,65 @@ function assessRisk(desc, wind, vis) {
 function riskLabel(r) { return r === 'high' ? 'Do not ship' : r === 'medium' ? 'Use caution' : 'Clear to ship'; }
 function riskClass(r) { return 'badge badge-' + r; }
 function dotClass(r) { return 'dot dot-' + r; }
+function riskRank(r) { return r === 'high' ? 2 : r === 'medium' ? 1 : 0; }
+
+// Get the local hour at a given timezone for a given UTC date
+function getLocalHour(utcDate, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).formatToParts(utcDate);
+  const h = parts.find(p => p.type === 'hour').value;
+  return parseInt(h, 10);
+}
+
+// Get a YYYY-MM-DD string for the local date at a given timezone
+function getLocalDateKey(utcDate, tz) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(utcDate);
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
+}
+
+// Build the next 3 "sort nights" — each night is identified by its EVENING date in local hub time
+// Example: Tuesday sort window = Tue 10pm–4am Wed, identified as "Tue YYYY-MM-DD"
+function getNext3SortNights(tz) {
+  const now = new Date();
+  const todayKey = getLocalDateKey(now, tz);
+  const todayHour = getLocalHour(now, tz);
+  const nights = [];
+
+  // Start with today's night (if it hasn't passed) or tomorrow's night
+  // If it's already past 4am AND past noon, today's night is still upcoming
+  // If we're between midnight and 4am, we're still IN tonight's window — mark it as currently active
+  let startOffset = 0;
+  if (todayHour >= 4 && todayHour < 22) {
+    // We're in the day — tonight's window is upcoming
+    startOffset = 0;
+  } else if (todayHour >= 22) {
+    // We're already in tonight's window — still tonight
+    startOffset = 0;
+  } else {
+    // Between midnight and 4am — we're in last night's window. Treat next sort as tonight
+    startOffset = 0;
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + startOffset + i);
+    const key = getLocalDateKey(date, tz);
+    nights.push(key);
+  }
+  return nights;
+}
+
+function nightLabel(dateKey, idx) {
+  const labels = ['Tonight', 'Tomorrow night', 'Following night'];
+  // Parse the date key in a way that doesn't shift to UTC
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+  const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return { primary: labels[idx] || dayName, secondary: `${dayName} ${dateStr}` };
+}
 
 let weatherState = {};
 
@@ -146,102 +213,182 @@ async function fetchLocation(loc) {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('bad response');
     const data = await resp.json();
-    const now = new Date();
-    const slots = data.list.filter(item => {
-      const d = new Date(item.dt * 1000);
-      const h = d.getHours();
-      const isTonight = d.getDate() === now.getDate() && h >= 22;
-      const isTomorrow = d.getDate() === now.getDate() + 1 && h <= 4;
-      return isTonight || isTomorrow;
+
+    const sortNights = getNext3SortNights(loc.tz);
+    const nights = sortNights.map((dateKey, idx) => {
+      // For each "night N", we want forecast slots that fall in:
+      // - night N's date, hour 22-23 (10pm-midnight), OR
+      // - night N+1's date, hour 0-3 (midnight-4am)
+      const [y, m, d] = dateKey.split('-').map(Number);
+      const nextDay = new Date(Date.UTC(y, m - 1, d));
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const nextKey = `${nextDay.getUTCFullYear()}-${String(nextDay.getUTCMonth() + 1).padStart(2,'0')}-${String(nextDay.getUTCDate()).padStart(2,'0')}`;
+
+      const slots = data.list.filter(item => {
+        const utcDate = new Date(item.dt * 1000);
+        const localHour = getLocalHour(utcDate, loc.tz);
+        const localDate = getLocalDateKey(utcDate, loc.tz);
+        const isLateNight = localDate === dateKey && localHour >= 22;
+        const isEarlyMorning = localDate === nextKey && localHour <= 4;
+        return isLateNight || isEarlyMorning;
+      });
+
+      if (slots.length === 0) return { dateKey, idx, risk: 'low', desc: 'no forecast data', wind: 0, slots: 0, noData: true };
+
+      let maxRisk = 'low', worstDesc = '', maxWind = 0, minVis = 10000;
+      slots.forEach(s => {
+        const desc = s.weather[0].description;
+        const wind = s.wind ? s.wind.speed : 0;
+        const vis = s.visibility || 10000;
+        const risk = assessRisk(desc, wind, vis);
+        if (riskRank(risk) > riskRank(maxRisk)) { maxRisk = risk; worstDesc = desc; }
+        if (wind > maxWind) maxWind = wind;
+        if (vis < minVis) minVis = vis;
+      });
+      return {
+        dateKey, idx,
+        risk: maxRisk,
+        desc: worstDesc || slots[0].weather[0].description,
+        wind: Math.round(maxWind),
+        temp: Math.round(slots[0].main.temp),
+        slots: slots.length
+      };
     });
-    const useSlots = slots.length > 0 ? slots : data.list.slice(0, 3);
-    let maxRisk = 'low', worstDesc = '', maxWind = 0, minVis = 10000;
-    useSlots.forEach(s => {
-      const desc = s.weather[0].description;
-      const wind = s.wind ? s.wind.speed : 0;
-      const vis = s.visibility || 10000;
-      const risk = assessRisk(desc, wind, vis);
-      if (risk === 'high' || (risk === 'medium' && maxRisk === 'low')) { maxRisk = risk; worstDesc = desc; }
-      if (wind > maxWind) maxWind = wind;
-      if (vis < minVis) minVis = vis;
-    });
-    return { id: loc.id, name: loc.name, label: loc.label, risk: maxRisk, desc: worstDesc || useSlots[0].weather[0].description, wind: Math.round(maxWind), temp: useSlots[0] ? Math.round(useSlots[0].main.temp) : null, vis: minVis < 10000 ? Math.round(minVis / 1609) : null, slots: useSlots.length };
-  } catch(e) { return null; }
+
+    return { id: loc.id, name: loc.name, label: loc.label, tz: loc.tz, hub: !!loc.hub, nights };
+  } catch(e) {
+    console.error('Fetch error for', loc.id, e);
+    return null;
+  }
 }
 
 function useDemoData() {
+  const memNights = getNext3SortNights('America/Chicago');
+  const sdfNights = getNext3SortNights('America/Kentucky/Louisville');
   return [
-    { id:'mem', name:'Memphis (MEM)', label:'FedEx World Hub', risk:'high', desc:'thunderstorm with heavy rain', wind:28, temp:62, vis:0.4, slots:3 },
-    { id:'sdf', name:'Louisville (SDF)', label:'UPS Worldport', risk:'medium', desc:'heavy rain showers', wind:18, temp:55, vis:null, slots:3 },
-    { id:'ord', name:'Chicago (ORD)', label:'Midwest regional', risk:'medium', desc:'light snow', wind:20, temp:31, vis:null, slots:2 },
-    { id:'dfw', name:'Dallas (DFW)', label:'South-Central regional', risk:'low', desc:'partly cloudy', wind:10, temp:70, vis:null, slots:2 },
-    { id:'atl', name:'Atlanta (ATL)', label:'Southeast regional', risk:'low', desc:'clear sky', wind:7, temp:65, vis:null, slots:2 },
-    { id:'den', name:'Denver (DEN)', label:'Mountain regional', risk:'high', desc:'blizzard conditions', wind:35, temp:22, vis:0.2, slots:3 },
-    { id:'lax', name:'Los Angeles (LAX)', label:'West Coast regional', risk:'low', desc:'clear sky', wind:5, temp:72, vis:null, slots:2 },
-    { id:'jfk', name:'New York (JFK)', label:'Northeast regional', risk:'medium', desc:'freezing rain', wind:22, temp:33, vis:1.5, slots:2 },
+    { id:'mem', name:'Memphis (MEM)', label:'FedEx World Hub', tz:'America/Chicago', hub:true, nights: [
+      { dateKey: memNights[0], idx:0, risk:'high', desc:'thunderstorm with heavy rain', wind:28, temp:62, slots:3 },
+      { dateKey: memNights[1], idx:1, risk:'high', desc:'severe thunderstorms continuing', wind:30, temp:60, slots:3 },
+      { dateKey: memNights[2], idx:2, risk:'low', desc:'clear sky', wind:8, temp:65, slots:3 },
+    ]},
+    { id:'sdf', name:'Louisville (SDF)', label:'UPS Worldport', tz:'America/Kentucky/Louisville', hub:true, nights: [
+      { dateKey: sdfNights[0], idx:0, risk:'low', desc:'partly cloudy', wind:7, temp:58, slots:3 },
+      { dateKey: sdfNights[1], idx:1, risk:'medium', desc:'rain showers', wind:18, temp:55, slots:3 },
+      { dateKey: sdfNights[2], idx:2, risk:'low', desc:'clear sky', wind:6, temp:60, slots:3 },
+    ]},
+    { id:'ord', name:'Chicago (ORD)', label:'Midwest', tz:'America/Chicago', nights:[{ risk:'medium', desc:'light snow', idx:0 }] },
+    { id:'dfw', name:'Dallas (DFW)', label:'South-Central', tz:'America/Chicago', nights:[{ risk:'low', desc:'partly cloudy', idx:0 }] },
+    { id:'atl', name:'Atlanta (ATL)', label:'Southeast', tz:'America/New_York', nights:[{ risk:'low', desc:'clear sky', idx:0 }] },
+    { id:'den', name:'Denver (DEN)', label:'Mountain', tz:'America/Denver', nights:[{ risk:'high', desc:'blizzard conditions', idx:0 }] },
+    { id:'lax', name:'Los Angeles (LAX)', label:'West Coast', tz:'America/Los_Angeles', nights:[{ risk:'low', desc:'clear sky', idx:0 }] },
+    { id:'jfk', name:'New York (JFK)', label:'Northeast', tz:'America/New_York', nights:[{ risk:'medium', desc:'freezing rain', idx:0 }] },
   ];
 }
 
-function renderHub(r) {
-  const badge = document.getElementById('badge-' + r.id);
-  badge.className = riskClass(r.risk);
-  badge.textContent = riskLabel(r.risk);
-  const detail = document.getElementById('detail-' + r.id);
-  detail.innerHTML = `<span style="text-transform:capitalize">${r.desc}</span> &nbsp;&middot;&nbsp; Wind: ${r.wind} mph${r.temp !== null ? ' &nbsp;&middot;&nbsp; ' + r.temp + '&deg;F' : ''}${r.vis ? ' &nbsp;&middot;&nbsp; Vis: ' + r.vis + ' mi' : ''}`;
-  document.getElementById('pill-' + r.id).innerHTML = `<span class="pill">10pm&ndash;4am window &nbsp;&middot;&nbsp; ${r.slots} forecast period${r.slots !== 1 ? 's' : ''}</span>`;
+function renderHub(hub) {
+  const container = document.getElementById('nights-' + hub.id);
+  container.innerHTML = '';
+  hub.nights.forEach((night, idx) => {
+    const labels = nightLabel(night.dateKey || '', idx);
+    const row = document.createElement('div');
+    row.className = 'night-row';
+    row.innerHTML = `
+      <div class="night-label">
+        <strong>${labels.primary}</strong>
+        ${labels.secondary ? `<div class="date">${labels.secondary}</div>` : ''}
+      </div>
+      <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}</div>
+      <span class="${riskClass(night.risk)}">${riskLabel(night.risk)}</span>
+    `;
+    container.appendChild(row);
+  });
 }
 
 function renderRegions(results) {
-  const regions = results.filter(r => r.id !== 'mem' && r.id !== 'sdf');
+  const regions = results.filter(r => !r.hub);
   const list = document.getElementById('regions-list');
   list.innerHTML = '';
   regions.forEach(r => {
+    const tonight = r.nights[0] || { risk: 'low', desc: 'no data' };
     const row = document.createElement('div');
     row.className = 'region-row';
     row.innerHTML = `
       <div class="region-left">
-        <span class="${dotClass(r.risk)}"></span>
+        <span class="${dotClass(tonight.risk)}"></span>
         <span class="region-name">${r.name}</span>
         <span class="region-sub">&mdash; ${r.label}</span>
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
-        <span class="region-desc">${r.desc}</span>
-        <span class="${riskClass(r.risk)}">${riskLabel(r.risk)}</span>
+        <span class="region-desc">${tonight.desc}</span>
+        <span class="${riskClass(tonight.risk)}">${riskLabel(tonight.risk)}</span>
       </div>`;
     list.appendChild(row);
   });
 }
 
-function renderRecommendation(results) {
-  const hubs = results.filter(r => r.id === 'mem' || r.id === 'sdf');
-  const highHubs = hubs.filter(r => r.risk === 'high');
-  const medHubs = hubs.filter(r => r.risk === 'medium');
-  const highRegions = results.filter(r => r.id !== 'mem' && r.id !== 'sdf' && r.risk === 'high');
-  let text = '';
-  if (highHubs.length > 0) {
-    text = `<strong style="color:#A32D2D">Hold next-day air shipments.</strong> Severe weather is forecast during the overnight sort window at ${highHubs.map(r=>r.name).join(' and ')}. Significant delays or cancellations are likely. Notify patients of potential service disruption and consider downgrading to 2-day or ground where clinically appropriate.`;
-  } else if (medHubs.length > 0) {
-    text = `<strong style="color:#854F0B">Use caution with next-day air.</strong> Moderate weather is forecast overnight at ${medHubs.map(r=>r.name).join(' and ')}. Delays are possible. Flag time-sensitive shipments and consider proactive patient notification.`;
-  } else if (highRegions.length > 0) {
-    text = `<strong>Hub conditions are clear</strong>, but severe weather is forecast in regional delivery zones (${highRegions.map(r=>r.name).join(', ')}). Last-mile delivery may be impacted even if the hub sort runs on time.`;
-  } else {
-    text = `<strong style="color:#3B6D11">All clear for next-day air.</strong> No significant weather is forecast during the 10pm&ndash;4am sort window at Memphis or Louisville. Regional conditions are acceptable. Proceed with standard shipping decisions.`;
+function findFirstClearNight(hub) {
+  for (let i = 0; i < hub.nights.length; i++) {
+    if (hub.nights[i].risk === 'low') return i;
   }
-  document.getElementById('recommendation').innerHTML = text;
+  return -1;
+}
+
+function renderRecommendation(results) {
+  const hubs = results.filter(r => r.hub);
+  const recBox = document.getElementById('recommendation');
+  if (hubs.length === 0) { recBox.innerHTML = '<div class="rec-text">No hub data available.</div>'; return; }
+
+  const lines = [];
+  let actionLine = '';
+  let anyDelay = false;
+
+  hubs.forEach(hub => {
+    const tonight = hub.nights[0];
+    const firstClear = findFirstClearNight(hub);
+    const labels0 = nightLabel(tonight.dateKey || '', 0);
+
+    if (tonight.risk === 'high') {
+      anyDelay = true;
+      if (firstClear === -1) {
+        lines.push(`<strong>${hub.name}:</strong> Hold all next-day air. Severe weather forecast through the next 3 sort windows. Consider 2-day or ground for clinically appropriate shipments.`);
+      } else if (firstClear === 1) {
+        lines.push(`<strong>${hub.name}:</strong> Hold tonight's next-day air. Ship tomorrow night for delivery the day after — patients should expect a 1-day delay.`);
+      } else if (firstClear === 2) {
+        lines.push(`<strong>${hub.name}:</strong> Hold tonight AND tomorrow night's next-day air. Plan to ship the night after — patients should expect a 2-day delay.`);
+      }
+    } else if (tonight.risk === 'medium') {
+      lines.push(`<strong>${hub.name}:</strong> Tonight is borderline (${tonight.desc}). Ship if needed but flag time-sensitive packages and consider proactive patient notification.`);
+    } else {
+      lines.push(`<strong>${hub.name}:</strong> Clear to ship tonight.`);
+    }
+  });
+
+  // Build top-line action
+  const hubsHoldingTonight = hubs.filter(h => h.nights[0].risk === 'high');
+  if (hubsHoldingTonight.length === hubs.length) {
+    actionLine = `<div class="rec-action" style="color:#A32D2D">Hold next-day air at all hubs tonight.</div>`;
+  } else if (hubsHoldingTonight.length > 0) {
+    actionLine = `<div class="rec-action" style="color:#A32D2D">Hold next-day air through ${hubsHoldingTonight.map(h=>h.name).join(' and ')} tonight.</div>`;
+  } else if (hubs.some(h => h.nights[0].risk === 'medium')) {
+    actionLine = `<div class="rec-action" style="color:#854F0B">Ship with caution tonight.</div>`;
+  } else {
+    actionLine = `<div class="rec-action" style="color:#3B6D11">Clear to ship tonight at all hubs.</div>`;
+  }
+
+  recBox.innerHTML = actionLine + '<div class="rec-text">' + lines.map(l => '<div style="margin-bottom: 6px;">' + l + '</div>').join('') + '</div>';
 }
 
 function renderAlertBar(results) {
-  const high = results.filter(r => r.risk === 'high');
-  const med = results.filter(r => r.id !== 'mem' && r.id !== 'sdf' && r.risk === 'medium');
+  const hubsHoldingTonight = results.filter(r => r.hub && r.nights[0] && r.nights[0].risk === 'high');
+  const hubsCautionTonight = results.filter(r => r.hub && r.nights[0] && r.nights[0].risk === 'medium');
   const bar = document.getElementById('alert-bar');
-  const hubHigh = high.filter(r => r.id === 'mem' || r.id === 'sdf');
-  if (hubHigh.length > 0) {
+  if (hubsHoldingTonight.length > 0) {
     bar.className = 'alert-bar';
-    document.getElementById('alert-text').textContent = `Severe weather alert: ${hubHigh.map(r=>r.name).join(', ')} — next-day air not recommended for tonight's sort window`;
+    document.getElementById('alert-text').textContent = `Severe weather alert: ${hubsHoldingTonight.map(r=>r.name).join(', ')} — hold tonight's next-day air sort`;
     bar.style.display = 'flex';
-  } else if (high.length > 0) {
+  } else if (hubsCautionTonight.length > 0) {
     bar.className = 'alert-bar warning';
-    document.getElementById('alert-text').textContent = `Weather advisory: ${high.map(r=>r.name).join(', ')} — last-mile delivery may be impacted`;
+    document.getElementById('alert-text').textContent = `Weather advisory: ${hubsCautionTonight.map(r=>r.name).join(', ')} — delays possible tonight`;
     bar.style.display = 'flex';
   } else {
     bar.style.display = 'none';
@@ -249,23 +396,42 @@ function renderAlertBar(results) {
 }
 
 function buildEmailContent(results) {
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateStr = tomorrow.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
-  const hubs = results.filter(r => r.id === 'mem' || r.id === 'sdf');
-  const highHubs = hubs.filter(r => r.risk === 'high');
-  const medHubs = hubs.filter(r => r.risk === 'medium');
+  const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  const hubs = results.filter(r => r.hub);
+  const hubsHolding = hubs.filter(h => h.nights[0].risk === 'high');
+  const hubsCaution = hubs.filter(h => h.nights[0].risk === 'medium');
+
   let subject;
-  if (highHubs.length > 0) subject = `ACTION: Hold next-day air — severe weather at ${highHubs.map(r=>r.name).join(', ')} — ${dateStr}`;
-  else if (medHubs.length > 0) subject = `CAUTION: Next-day air weather advisory — ${dateStr}`;
-  else subject = `Clear to ship — overnight weather check — ${dateStr}`;
-  let body = `Overnight shipping weather report — ${dateStr}\nMonitoring window: 10pm–4am\n\nHUB STATUS:\n`;
-  hubs.forEach(r => body += `  ${r.name}: ${riskLabel(r.risk).toUpperCase()} — ${r.desc}, wind ${r.wind} mph${r.temp ? ', ' + r.temp + '°F' : ''}\n`);
-  body += '\nREGIONAL WATCH ZONES:\n';
-  results.filter(r => r.id !== 'mem' && r.id !== 'sdf').forEach(r => body += `  ${r.name}: ${riskLabel(r.risk).toUpperCase()} — ${r.desc}\n`);
-  if (highHubs.length > 0) body += '\nRECOMMENDATION: Hold next-day air. Notify patients of potential delays. Consider downgrading to 2-day or ground where clinically appropriate.';
-  else if (medHubs.length > 0) body += '\nRECOMMENDATION: Use caution. Flag time-sensitive shipments and consider proactive patient notification.';
-  else body += '\nRECOMMENDATION: All clear for next-day air. No significant weather concerns.';
-  body += '\n\n— Prescription Mart Shipping Weather Monitor';
+  if (hubsHolding.length > 0) subject = `ACTION: Hold next-day air tonight — ${hubsHolding.map(r=>r.name).join(', ')} — ${today}`;
+  else if (hubsCaution.length > 0) subject = `CAUTION: Next-day air weather advisory — ${today}`;
+  else subject = `Clear to ship tonight — ${today}`;
+
+  let body = `Overnight shipping weather forecast — ${today}\nReviewing next 3 sort windows (10pm-4am local hub time)\n\n`;
+
+  hubs.forEach(hub => {
+    body += `${hub.name} (${hub.label}):\n`;
+    hub.nights.forEach((n, idx) => {
+      const labels = nightLabel(n.dateKey || '', idx);
+      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}\n`;
+    });
+    body += '\n';
+  });
+
+  body += 'RECOMMENDATION:\n';
+  hubs.forEach(hub => {
+    const firstClear = findFirstClearNight(hub);
+    if (hub.nights[0].risk === 'high') {
+      if (firstClear === -1) body += `  ${hub.name}: Hold all next-day air. Severe weather through forecast horizon. Use 2-day or ground for time-sensitive shipments.\n`;
+      else if (firstClear === 1) body += `  ${hub.name}: Hold tonight. Ship tomorrow night — 1-day delay for patients.\n`;
+      else if (firstClear === 2) body += `  ${hub.name}: Hold tonight and tomorrow night. Ship the night after — 2-day delay for patients.\n`;
+    } else if (hub.nights[0].risk === 'medium') {
+      body += `  ${hub.name}: Tonight borderline. Ship time-sensitive only with patient notification.\n`;
+    } else {
+      body += `  ${hub.name}: Clear to ship tonight.\n`;
+    }
+  });
+
+  body += '\n— Prescription Mart Shipping Weather Monitor';
   return { subject, body };
 }
 
@@ -293,33 +459,35 @@ async function sendEmailAlert() {
       })
     });
     if (!response.ok) throw new Error();
-    const data = await response.json();
-    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
     showStatus('Email sent — ' + subject, 'ok');
   } catch(e) {
-    showStatus('Could not send automatically. Forward the recommendation above manually to ' + ALERT_EMAIL, 'err');
+    showStatus('Could not send automatically. Forward manually to ' + ALERT_EMAIL, 'err');
   }
 }
 
 async function loadWeather() {
+  // Set today's date display
+  const today = new Date();
+  document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
+  document.getElementById('today-date').textContent = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
   document.getElementById('last-updated').textContent = 'Refreshing...';
   weatherState = {};
   if (WEATHER_API_KEY === 'YOUR_OPENWEATHERMAP_KEY_HERE') {
     const demo = useDemoData();
     demo.forEach(r => { weatherState[r.id] = r; });
-    if (r => r.hub) { renderHub(weatherState['mem']); renderHub(weatherState['sdf']); }
-    demo.forEach(r => { if (r.id === 'mem' || r.id === 'sdf') renderHub(r); });
+    demo.filter(r => r.hub).forEach(renderHub);
     renderRegions(demo);
     renderRecommendation(demo);
     renderAlertBar(demo);
-    document.getElementById('last-updated').textContent = 'Demo mode — add API key to weather-monitor/index.html';
+    document.getElementById('last-updated').textContent = 'Demo mode — add API key';
     return;
   }
   const results = await Promise.all(LOCATIONS.map(loc => fetchLocation(loc)));
   const valid = results.filter(Boolean);
-  if (valid.length === 0) { document.getElementById('last-updated').textContent = 'Error loading — check API key'; return; }
+  if (valid.length === 0) { document.getElementById('last-updated').textContent = 'Error loading — API key may not be active yet (takes up to 1 hour)'; return; }
   valid.forEach(r => { weatherState[r.id] = r; });
-  valid.filter(r => r.id === 'mem' || r.id === 'sdf').forEach(renderHub);
+  valid.filter(r => r.hub).forEach(renderHub);
   renderRegions(valid);
   renderRecommendation(valid);
   renderAlertBar(valid);
