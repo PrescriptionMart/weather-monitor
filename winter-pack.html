@@ -180,6 +180,65 @@ const STATES_BY_FIPS = {
 // Get all states as a flat array
 const STATES = Object.entries(STATES_BY_FIPS).map(([fips, s]) => ({ ...s, fips }));
 
+// Hardcoded NWS gridpoint forecast URLs — saves an API call per state.
+// These URLs are stable; if NWS reorganizes their grid system in the future, regenerate this map.
+const NWS_FORECAST_URLS = {
+  'AL': 'https://api.weather.gov/gridpoints/BMX/52,80/forecast',
+  'AK': 'https://api.weather.gov/gridpoints/AJK/96,76/forecast',
+  'AZ': 'https://api.weather.gov/gridpoints/PSR/159,58/forecast',
+  'AR': 'https://api.weather.gov/gridpoints/LZK/33,68/forecast',
+  'CA': 'https://api.weather.gov/gridpoints/STO/47,71/forecast',
+  'CO': 'https://api.weather.gov/gridpoints/BOU/62,61/forecast',
+  'CT': 'https://api.weather.gov/gridpoints/BOX/23,45/forecast',
+  'DE': 'https://api.weather.gov/gridpoints/PHI/47,38/forecast',
+  'DC': 'https://api.weather.gov/gridpoints/LWX/97,71/forecast',
+  'FL': 'https://api.weather.gov/gridpoints/TAE/74,53/forecast',
+  'GA': 'https://api.weather.gov/gridpoints/FFC/52,87/forecast',
+  'HI': 'https://api.weather.gov/gridpoints/HFO/2,84/forecast',
+  'ID': 'https://api.weather.gov/gridpoints/BOI/126,89/forecast',
+  'IL': 'https://api.weather.gov/gridpoints/ILX/96,87/forecast',
+  'IN': 'https://api.weather.gov/gridpoints/IND/57,68/forecast',
+  'IA': 'https://api.weather.gov/gridpoints/DMX/73,73/forecast',
+  'KS': 'https://api.weather.gov/gridpoints/TOP/32,67/forecast',
+  'KY': 'https://api.weather.gov/gridpoints/LMK/65,86/forecast',
+  'LA': 'https://api.weather.gov/gridpoints/LIX/19,108/forecast',
+  'ME': 'https://api.weather.gov/gridpoints/GYX/74,80/forecast',
+  'MD': 'https://api.weather.gov/gridpoints/LWX/107,76/forecast',
+  'MA': 'https://api.weather.gov/gridpoints/BOX/71,90/forecast',
+  'MI': 'https://api.weather.gov/gridpoints/GRR/87,30/forecast',
+  'MN': 'https://api.weather.gov/gridpoints/MPX/107,71/forecast',
+  'MS': 'https://api.weather.gov/gridpoints/JAN/76,74/forecast',
+  'MO': 'https://api.weather.gov/gridpoints/LSX/29,73/forecast',
+  'MT': 'https://api.weather.gov/gridpoints/TFX/64,84/forecast',
+  'NE': 'https://api.weather.gov/gridpoints/OAX/47,67/forecast',
+  'NV': 'https://api.weather.gov/gridpoints/REV/35,65/forecast',
+  'NH': 'https://api.weather.gov/gridpoints/GYX/61,60/forecast',
+  'NJ': 'https://api.weather.gov/gridpoints/PHI/53,57/forecast',
+  'NM': 'https://api.weather.gov/gridpoints/ABQ/127,140/forecast',
+  'NY': 'https://api.weather.gov/gridpoints/ALY/57,82/forecast',
+  'NC': 'https://api.weather.gov/gridpoints/RAH/77,56/forecast',
+  'ND': 'https://api.weather.gov/gridpoints/BIS/126,75/forecast',
+  'OH': 'https://api.weather.gov/gridpoints/ILN/58,63/forecast',
+  'OK': 'https://api.weather.gov/gridpoints/OUN/95,89/forecast',
+  'OR': 'https://api.weather.gov/gridpoints/PQR/127,93/forecast',
+  'PA': 'https://api.weather.gov/gridpoints/CTP/77,60/forecast',
+  'RI': 'https://api.weather.gov/gridpoints/BOX/57,40/forecast',
+  'SC': 'https://api.weather.gov/gridpoints/CAE/72,59/forecast',
+  'SD': 'https://api.weather.gov/gridpoints/ABR/45,46/forecast',
+  'TN': 'https://api.weather.gov/gridpoints/OHX/52,57/forecast',
+  'TX': 'https://api.weather.gov/gridpoints/EWX/156,90/forecast',
+  'UT': 'https://api.weather.gov/gridpoints/SLC/100,176/forecast',
+  'VT': 'https://api.weather.gov/gridpoints/BTV/53,46/forecast',
+  'VA': 'https://api.weather.gov/gridpoints/AKQ/45,82/forecast',
+  'WA': 'https://api.weather.gov/gridpoints/SEW/118,57/forecast',
+  'WV': 'https://api.weather.gov/gridpoints/RLX/86,72/forecast',
+  'WI': 'https://api.weather.gov/gridpoints/MKX/40,53/forecast',
+  'WY': 'https://api.weather.gov/gridpoints/CYS/110,76/forecast',
+};
+
+const CACHE_KEY = 'winter-pack-forecast-cache';
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 let topoData = null; // loaded TopoJSON
 let stateData = {};  // forecast data keyed by state code
 let selectedDayIdx = 0;
@@ -192,13 +251,25 @@ async function loadTopoJSON() {
 
 async function fetchStateForecast(state) {
   try {
-    const pointResp = await fetch(`https://api.weather.gov/points/${state.lat},${state.lon}`, { headers: { 'Accept': 'application/geo+json' } });
-    if (!pointResp.ok) return null;
-    const pointData = await pointResp.json();
-    const forecastUrl = pointData.properties.forecast;
-    if (!forecastUrl) return null;
+    // Use hardcoded forecast URL when available (skips one API call)
+    let forecastUrl = NWS_FORECAST_URLS[state.code];
+    if (!forecastUrl) {
+      // Fallback: look it up via the points API
+      const pointResp = await fetch(`https://api.weather.gov/points/${state.lat},${state.lon}`, { headers: { 'Accept': 'application/geo+json' } });
+      if (!pointResp.ok) return null;
+      const pointData = await pointResp.json();
+      forecastUrl = pointData.properties.forecast;
+      if (!forecastUrl) return null;
+    }
     const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
-    if (!fcResp.ok) return null;
+    if (!fcResp.ok) {
+      // If hardcoded URL fails (maybe gridpoint changed), try the points lookup as fallback
+      if (NWS_FORECAST_URLS[state.code]) {
+        delete NWS_FORECAST_URLS[state.code];
+        return fetchStateForecast(state);
+      }
+      return null;
+    }
     const fcData = await fcResp.json();
     return fcData.properties.periods || [];
   } catch(e) {
@@ -229,6 +300,26 @@ function getDayHighs(periods, numDays) {
   return days;
 }
 
+function getCachedData() {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null;
+    // Re-hydrate Date objects
+    Object.values(parsed.stateData).forEach(s => {
+      s.days.forEach(d => { if (d.date) d.date = new Date(d.date); });
+    });
+    return parsed.stateData;
+  } catch(e) { return null; }
+}
+
+function saveCachedData(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), stateData: data }));
+  } catch(e) { /* localStorage may be full or disabled */ }
+}
+
 async function loadAll() {
   document.getElementById('last-updated').textContent = 'Refreshing...';
   const today = new Date();
@@ -236,22 +327,49 @@ async function loadAll() {
   document.getElementById('today-date').textContent = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   const progressEl = document.getElementById('loading-progress');
-  progressEl.textContent = 'Loading map...';
 
-  // Load map and forecasts in parallel
+  // Always start loading the map (small file)
   const topoPromise = loadTopoJSON();
+
+  // Try cache first
+  const cached = getCachedData();
+  if (cached) {
+    stateData = cached;
+    progressEl.textContent = 'Loaded from cache';
+    await topoPromise;
+    buildDayPicker();
+    renderDay(selectedDayIdx);
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (cached)';
+    setTimeout(() => { progressEl.textContent = ''; }, 2000);
+    return;
+  }
+
+  // No cache — fetch all forecasts with progressive rendering
+  await topoPromise;
+  buildDayPicker();
+  renderDay(selectedDayIdx); // render once with empty data so the map shows up
+
   let completed = 0;
+  let lastRenderTime = 0;
+
   const fcPromises = STATES.map(async (state) => {
     const periods = await fetchStateForecast(state);
     const days = getDayHighs(periods, NUM_DAYS);
     stateData[state.code] = { state, days };
     completed++;
     progressEl.textContent = `Loading: ${completed}/${STATES.length} states`;
+
+    // Re-render every ~10 states or on completion (throttled to avoid jank)
+    const now = Date.now();
+    if (completed === STATES.length || now - lastRenderTime > 800) {
+      lastRenderTime = now;
+      renderDay(selectedDayIdx);
+    }
   });
 
-  await Promise.all([topoPromise, ...fcPromises]);
+  await Promise.all(fcPromises);
+  saveCachedData(stateData);
   progressEl.textContent = '';
-  buildDayPicker();
   renderDay(selectedDayIdx);
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
