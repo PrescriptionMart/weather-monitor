@@ -159,25 +159,27 @@
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
-    <div class="section-label">Regional weather (informational only)</div>
-    <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional weather...</div></div>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <div class="section-label" style="margin-bottom: 4px;">Cross-reference with carrier alerts</div>
+        <div style="font-size: 12px; color: #888;">If carriers have declared a service disruption, expect delays even if conditions look clear here.</div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="https://www.fedex.com/en-us/service-alerts.html" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4D148C; margin-right: 4px;"></span>
+          FedEx alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+        </a>
+        <a href="https://www.ups.com/us/en/service-alerts.page" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8B5A2B; margin-right: 4px;"></span>
+          UPS alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+        </a>
+      </div>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
-    <div class="section-label">Carrier service alerts</div>
-    <div style="font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.5;">
-      Cross-reference our weather assessment with official carrier-issued operational alerts. If a carrier has declared a service disruption, expect delays even if our dashboard shows clear conditions.
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <a href="https://www.fedex.com/en-us/service-alerts.html" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4D148C; margin-right: 4px;"></span>
-        FedEx Service Alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
-      </a>
-      <a href="https://www.ups.com/us/en/service-alerts.page" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8B5A2B; margin-right: 4px;"></span>
-        UPS Service Alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
-      </a>
-    </div>
+    <div class="section-label">Regional weather (informational only)</div>
+    <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional weather...</div></div>
   </div>
 
   <div style="font-size:12px; color:#bbb; text-align:center; padding-bottom: 2rem;">
@@ -601,18 +603,25 @@ function renderRegions(results) {
   list.innerHTML = '';
   regions.forEach(r => {
     const tonight = r.nights[0] || { desc: 'no data', wind: 0 };
+    const nwsText = tonight.nwsForecastText || '';
+    const nwsPeriodName = tonight.nwsPeriodName || '';
     const row = document.createElement('div');
-    row.className = 'region-row';
+    row.style.cssText = 'padding: 12px 0; border-bottom: 1px solid #f0f0f0;';
     row.innerHTML = `
-      <div class="region-left">
-        <span class="region-name">${r.name}</span>
-        <span class="region-sub">&mdash; ${r.label}</span>
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+        <div>
+          <span style="font-weight: 500; color: #1a1a1a; font-size: 13px;">${r.name}</span>
+          <span style="color: #888; font-size: 12px; margin-left: 6px;">&mdash; ${r.label}</span>
+        </div>
+        <span style="font-size: 12px; color: #555; text-transform: capitalize;">${tonight.desc}${tonight.wind > 15 ? ' &middot; ' + tonight.wind + ' mph' : ''}${tonight.temp !== null && tonight.temp !== undefined ? ' &middot; ' + tonight.temp + '&deg;F' : ''}</span>
       </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span class="region-desc">${tonight.desc}${tonight.wind > 15 ? ' &middot; ' + tonight.wind + ' mph' : ''}</span>
-      </div>`;
+      ${nwsText ? `<div style="font-size: 12px; color: #777; line-height: 1.4; padding-right: 8px;"><span style="font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">${nwsPeriodName ? 'NWS — ' + nwsPeriodName : 'NWS'}:</span> ${nwsText}</div>` : ''}
+    `;
+    // Remove border from last row
     list.appendChild(row);
   });
+  // Strip the last border
+  if (list.lastChild) list.lastChild.style.borderBottom = 'none';
 }
 
 function findFirstShippableNight(hub) {
