@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Winter Packing Map — Prescription Mart</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
+    .header { background: #1B4F8A; color: #fff; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 500; }
+    .header .sub { font-size: 13px; opacity: 0.75; margin-top: 2px; }
+    .header .updated { font-size: 12px; opacity: 0.7; }
+    .today-banner { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 1.5rem 2rem; text-align: center; }
+    .today-day { font-size: 36px; font-weight: 600; color: #1B4F8A; line-height: 1.1; }
+    .today-date { font-size: 16px; color: #666; margin-top: 4px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .day-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+    .day-btn { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer; color: #1a1a1a; min-width: 90px; text-align: center; line-height: 1.3; }
+    .day-btn:hover { background: #f5f5f3; }
+    .day-btn.active { background: #1B4F8A; color: #fff; border-color: #1B4F8A; }
+    .day-btn .day-name { font-weight: 500; display: block; }
+    .day-btn .day-date { font-size: 11px; opacity: 0.75; }
+    .map-wrap { background: #fafaf8; border-radius: 8px; padding: 1rem; position: relative; }
+    .map-wrap svg { width: 100%; height: auto; display: block; }
+    .state-path { stroke: #fff; stroke-width: 1; transition: fill 0.2s; cursor: pointer; }
+    .state-path.no-data { fill: #f0f0ec; }
+    .state-path.standard { fill: #e8e6e0; }
+    .state-path.flagged { fill: #4A89D6; }
+    .state-path:hover { stroke: #1B4F8A; stroke-width: 2; }
+    .legend { display: flex; gap: 20px; align-items: center; font-size: 12px; color: #666; margin-top: 12px; flex-wrap: wrap; }
+    .legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+    .section-label { font-size: 11px; font-weight: 500; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .state-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+    .state-pill { background: #E6EFF8; color: #1B4F8A; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+    .state-pill .temp { color: #4A89D6; font-weight: 500; font-size: 12px; }
+    .btn { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: #f5f5f3; }
+    .btn-primary { background: #1B4F8A; color: #fff; border-color: #1B4F8A; }
+    .btn-primary:hover { background: #164070; }
+    .empty-state { padding: 2rem; text-align: center; color: #888; font-size: 14px; }
+    .copy-status { font-size: 12px; color: #3B6D11; margin-top: 8px; height: 16px; }
+    .tooltip { position: absolute; background: #1a1a1a; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100; white-space: nowrap; }
+    .ak-hi { display: flex; gap: 1rem; justify-content: center; margin-top: 12px; }
+    .ak-hi-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 14px; font-size: 13px; min-width: 140px; text-align: center; }
+    .ak-hi-card.flagged { background: #4A89D6; color: #fff; border-color: #4A89D6; }
+    .ak-hi-card .ak-name { font-weight: 500; }
+    .ak-hi-card .ak-temp { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="h1">Winter Packing Map</div>
+    <div class="sub">Daily highs by state &nbsp;·&nbsp; Refrigerated medication shipping</div>
+  </div>
+  <div class="updated" id="last-updated">Loading...</div>
+</div>
+
+<div class="today-banner">
+  <div class="today-day" id="today-day">Loading...</div>
+  <div class="today-date" id="today-date"></div>
+</div>
+
+<div style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 2rem;">
+  <div style="max-width: 1100px; margin: 0 auto; display: flex; gap: 0;">
+    <a href="index.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #888; border-bottom: 3px solid transparent; text-decoration: none;">Hub Forecasts</a>
+    <a href="winter-pack.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #1B4F8A; border-bottom: 3px solid #1B4F8A; text-decoration: none;">Winter Packing Map</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <div class="section-label">Select day</div>
+    <div class="day-picker" id="day-picker"></div>
+    <div style="font-size: 12px; color: #aaa; margin-top: 4px;" id="loading-progress"></div>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <div>
+        <div style="font-size: 16px; font-weight: 500;" id="map-title">Loading forecast data...</div>
+        <div style="font-size: 13px; color: #888;" id="map-subtitle"></div>
+      </div>
+      <div id="flagged-count" style="font-size: 13px; color: #4A89D6; font-weight: 500;"></div>
+    </div>
+    <div class="map-wrap" id="map-wrap">
+      <div class="empty-state">Loading state forecasts — this can take 20-30 seconds...</div>
+    </div>
+    <div class="ak-hi" id="ak-hi-display"></div>
+    <div class="legend">
+      <span><span class="legend-swatch" style="background: #4A89D6;"></span>Flagged for winter packing</span>
+      <span><span class="legend-swatch" style="background: #e8e6e0;"></span>Standard packing</span>
+      <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div class="section-label" style="margin-bottom: 0;">Flagged states (<span id="list-count">0</span>)</div>
+      <button class="btn btn-primary" onclick="copyStateList()" id="copy-btn" style="display: none;">Copy state list</button>
+    </div>
+    <div id="state-list-container">
+      <div class="empty-state">No states flagged for this day.</div>
+    </div>
+    <div class="copy-status" id="copy-status"></div>
+  </div>
+
+  <div style="font-size:12px; color:#bbb; text-align:center; padding-bottom: 2rem;">
+    Forecast data via National Weather Service &nbsp;·&nbsp; Daily refresh &nbsp;·&nbsp; Prescription Mart
+  </div>
+
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const FLAG_THRESHOLD_F = 30;
+const NUM_DAYS = 7;
+
+// State info — FIPS code (used by us-atlas) → state info (capital coords for NWS)
+const STATES_BY_FIPS = {
+  '01': { code: 'AL', name: 'Alabama', lat: 32.3617, lon: -86.2792 },
+  '02': { code: 'AK', name: 'Alaska', lat: 58.3019, lon: -134.4197 },
+  '04': { code: 'AZ', name: 'Arizona', lat: 33.4484, lon: -112.0740 },
+  '05': { code: 'AR', name: 'Arkansas', lat: 34.7465, lon: -92.2896 },
+  '06': { code: 'CA', name: 'California', lat: 38.5816, lon: -121.4944 },
+  '08': { code: 'CO', name: 'Colorado', lat: 39.7392, lon: -104.9903 },
+  '09': { code: 'CT', name: 'Connecticut', lat: 41.7637, lon: -72.6851 },
+  '10': { code: 'DE', name: 'Delaware', lat: 39.1582, lon: -75.5244 },
+  '11': { code: 'DC', name: 'District of Columbia', lat: 38.9072, lon: -77.0369 },
+  '12': { code: 'FL', name: 'Florida', lat: 30.4383, lon: -84.2807 },
+  '13': { code: 'GA', name: 'Georgia', lat: 33.7490, lon: -84.3880 },
+  '15': { code: 'HI', name: 'Hawaii', lat: 21.3070, lon: -157.8581 },
+  '16': { code: 'ID', name: 'Idaho', lat: 43.6150, lon: -116.2023 },
+  '17': { code: 'IL', name: 'Illinois', lat: 39.7817, lon: -89.6501 },
+  '18': { code: 'IN', name: 'Indiana', lat: 39.7684, lon: -86.1581 },
+  '19': { code: 'IA', name: 'Iowa', lat: 41.5868, lon: -93.6250 },
+  '20': { code: 'KS', name: 'Kansas', lat: 39.0473, lon: -95.6752 },
+  '21': { code: 'KY', name: 'Kentucky', lat: 38.2009, lon: -84.8733 },
+  '22': { code: 'LA', name: 'Louisiana', lat: 30.4515, lon: -91.1871 },
+  '23': { code: 'ME', name: 'Maine', lat: 44.3106, lon: -69.7795 },
+  '24': { code: 'MD', name: 'Maryland', lat: 38.9784, lon: -76.4922 },
+  '25': { code: 'MA', name: 'Massachusetts', lat: 42.3601, lon: -71.0589 },
+  '26': { code: 'MI', name: 'Michigan', lat: 42.7325, lon: -84.5555 },
+  '27': { code: 'MN', name: 'Minnesota', lat: 44.9537, lon: -93.0900 },
+  '28': { code: 'MS', name: 'Mississippi', lat: 32.2988, lon: -90.1848 },
+  '29': { code: 'MO', name: 'Missouri', lat: 38.5767, lon: -92.1735 },
+  '30': { code: 'MT', name: 'Montana', lat: 46.5891, lon: -112.0391 },
+  '31': { code: 'NE', name: 'Nebraska', lat: 40.8136, lon: -96.7026 },
+  '32': { code: 'NV', name: 'Nevada', lat: 39.1638, lon: -119.7674 },
+  '33': { code: 'NH', name: 'New Hampshire', lat: 43.2081, lon: -71.5376 },
+  '34': { code: 'NJ', name: 'New Jersey', lat: 40.2206, lon: -74.7699 },
+  '35': { code: 'NM', name: 'New Mexico', lat: 35.6870, lon: -105.9378 },
+  '36': { code: 'NY', name: 'New York', lat: 42.6526, lon: -73.7562 },
+  '37': { code: 'NC', name: 'North Carolina', lat: 35.7796, lon: -78.6382 },
+  '38': { code: 'ND', name: 'North Dakota', lat: 46.8208, lon: -100.7837 },
+  '39': { code: 'OH', name: 'Ohio', lat: 39.9612, lon: -82.9988 },
+  '40': { code: 'OK', name: 'Oklahoma', lat: 35.4676, lon: -97.5164 },
+  '41': { code: 'OR', name: 'Oregon', lat: 44.9429, lon: -123.0351 },
+  '42': { code: 'PA', name: 'Pennsylvania', lat: 40.2737, lon: -76.8844 },
+  '44': { code: 'RI', name: 'Rhode Island', lat: 41.8240, lon: -71.4128 },
+  '45': { code: 'SC', name: 'South Carolina', lat: 34.0007, lon: -81.0348 },
+  '46': { code: 'SD', name: 'South Dakota', lat: 44.3683, lon: -100.3510 },
+  '47': { code: 'TN', name: 'Tennessee', lat: 36.1627, lon: -86.7816 },
+  '48': { code: 'TX', name: 'Texas', lat: 30.2672, lon: -97.7431 },
+  '49': { code: 'UT', name: 'Utah', lat: 40.7608, lon: -111.8910 },
+  '50': { code: 'VT', name: 'Vermont', lat: 44.2601, lon: -72.5754 },
+  '51': { code: 'VA', name: 'Virginia', lat: 37.5407, lon: -77.4360 },
+  '53': { code: 'WA', name: 'Washington', lat: 47.0379, lon: -122.9007 },
+  '54': { code: 'WV', name: 'West Virginia', lat: 38.3498, lon: -81.6326 },
+  '55': { code: 'WI', name: 'Wisconsin', lat: 43.0731, lon: -89.4012 },
+  '56': { code: 'WY', name: 'Wyoming', lat: 41.1400, lon: -104.8202 },
+};
+
+// Get all states as a flat array
+const STATES = Object.entries(STATES_BY_FIPS).map(([fips, s]) => ({ ...s, fips }));
+
+let topoData = null; // loaded TopoJSON
+let stateData = {};  // forecast data keyed by state code
+let selectedDayIdx = 0;
+
+async function loadTopoJSON() {
+  // states-albers-10m has AK and HI repositioned as insets (perfect for our map)
+  const resp = await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json');
+  topoData = await resp.json();
+}
+
+async function fetchStateForecast(state) {
+  try {
+    const pointResp = await fetch(`https://api.weather.gov/points/${state.lat},${state.lon}`, { headers: { 'Accept': 'application/geo+json' } });
+    if (!pointResp.ok) return null;
+    const pointData = await pointResp.json();
+    const forecastUrl = pointData.properties.forecast;
+    if (!forecastUrl) return null;
+    const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
+    if (!fcResp.ok) return null;
+    const fcData = await fcResp.json();
+    return fcData.properties.periods || [];
+  } catch(e) {
+    console.error('Forecast failed for', state.code, e);
+    return null;
+  }
+}
+
+function getDayHighs(periods, numDays) {
+  if (!periods) return [];
+  const days = [];
+  const today = new Date();
+  for (let i = 0; i < numDays; i++) {
+    const targetDate = new Date(today);
+    targetDate.setDate(targetDate.getDate() + i);
+    const targetDateStr = targetDate.toISOString().split('T')[0];
+    const dayPeriod = periods.find(p => {
+      if (!p.isDaytime) return false;
+      const periodDate = new Date(p.startTime).toISOString().split('T')[0];
+      return periodDate === targetDateStr;
+    });
+    if (dayPeriod) {
+      days.push({ date: targetDate, high: dayPeriod.temperature, forecast: dayPeriod.shortForecast });
+    } else {
+      days.push({ date: targetDate, high: null });
+    }
+  }
+  return days;
+}
+
+async function loadAll() {
+  document.getElementById('last-updated').textContent = 'Refreshing...';
+  const today = new Date();
+  document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
+  document.getElementById('today-date').textContent = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  const progressEl = document.getElementById('loading-progress');
+  progressEl.textContent = 'Loading map...';
+
+  // Load map and forecasts in parallel
+  const topoPromise = loadTopoJSON();
+  let completed = 0;
+  const fcPromises = STATES.map(async (state) => {
+    const periods = await fetchStateForecast(state);
+    const days = getDayHighs(periods, NUM_DAYS);
+    stateData[state.code] = { state, days };
+    completed++;
+    progressEl.textContent = `Loading: ${completed}/${STATES.length} states`;
+  });
+
+  await Promise.all([topoPromise, ...fcPromises]);
+  progressEl.textContent = '';
+  buildDayPicker();
+  renderDay(selectedDayIdx);
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function buildDayPicker() {
+  const container = document.getElementById('day-picker');
+  container.innerHTML = '';
+  for (let i = 0; i < NUM_DAYS; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() + i);
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (i === selectedDayIdx ? ' active' : '');
+    btn.dataset.idx = i;
+    btn.innerHTML = `<span class="day-name">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'short' })}</span><span class="day-date">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+    btn.onclick = () => { selectedDayIdx = i; buildDayPicker(); renderDay(i); };
+    container.appendChild(btn);
+  }
+}
+
+function renderDay(dayIdx) {
+  const flaggedStates = [];
+  let dataCount = 0;
+  STATES.forEach(state => {
+    const data = stateData[state.code];
+    if (!data || !data.days[dayIdx] || data.days[dayIdx].high === null) return;
+    dataCount++;
+    const high = data.days[dayIdx].high;
+    if (high < FLAG_THRESHOLD_F) flaggedStates.push({ ...state, high, forecast: data.days[dayIdx].forecast });
+  });
+
+  const date = new Date();
+  date.setDate(date.getDate() + dayIdx);
+  document.getElementById('map-title').textContent = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  document.getElementById('map-subtitle').textContent = `${dataCount}/${STATES.length} states have forecast data`;
+  document.getElementById('flagged-count').textContent = flaggedStates.length > 0 ? `${flaggedStates.length} flagged` : 'None flagged';
+
+  renderMap(dayIdx);
+  renderAKHI(dayIdx);
+  renderStateList(flaggedStates);
+}
+
+function renderMap(dayIdx) {
+  if (!topoData) return;
+  const wrap = document.getElementById('map-wrap');
+  wrap.innerHTML = '';
+
+  const states = topojson.feature(topoData, topoData.objects.states);
+
+  const svg = d3.select(wrap).append('svg')
+    .attr('viewBox', '0 0 975 610')
+    .attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const path = d3.geoPath();
+  const tooltip = document.getElementById('tooltip');
+
+  svg.append('g')
+    .selectAll('path')
+    .data(states.features)
+    .join('path')
+    .attr('d', path)
+    .attr('class', d => {
+      const fips = String(d.id).padStart(2, '0');
+      const stateInfo = STATES_BY_FIPS[fips];
+      if (!stateInfo) return 'state-path no-data';
+      const data = stateData[stateInfo.code];
+      const dayData = data && data.days[dayIdx];
+      if (!dayData || dayData.high === null) return 'state-path no-data';
+      if (dayData.high < FLAG_THRESHOLD_F) return 'state-path flagged';
+      return 'state-path standard';
+    })
+    .attr('data-name', d => {
+      const fips = String(d.id).padStart(2, '0');
+      return STATES_BY_FIPS[fips] ? STATES_BY_FIPS[fips].name : 'Unknown';
+    })
+    .on('mouseenter', function(event, d) {
+      const fips = String(d.id).padStart(2, '0');
+      const stateInfo = STATES_BY_FIPS[fips];
+      if (!stateInfo) return;
+      const data = stateData[stateInfo.code];
+      const dayData = data && data.days[dayIdx];
+      const tempStr = dayData && dayData.high !== null ? dayData.high + '°F' : 'no data';
+      tooltip.textContent = `${stateInfo.name}: ${tempStr}`;
+      tooltip.style.opacity = '1';
+    })
+    .on('mousemove', function(event) {
+      tooltip.style.left = (event.pageX + 12) + 'px';
+      tooltip.style.top = (event.pageY + 12) + 'px';
+    })
+    .on('mouseleave', function() { tooltip.style.opacity = '0'; });
+}
+
+function renderAKHI(dayIdx) {
+  // The albers-10m projection already includes AK/HI as insets, so this is just a quick stats card
+  const container = document.getElementById('ak-hi-display');
+  container.innerHTML = '';
+  ['AK', 'HI'].forEach(code => {
+    const data = stateData[code];
+    const state = STATES.find(s => s.code === code);
+    const dayData = data && data.days[dayIdx];
+    const high = dayData && dayData.high !== null ? dayData.high : null;
+    const flagged = high !== null && high < FLAG_THRESHOLD_F;
+    const card = document.createElement('div');
+    card.className = 'ak-hi-card' + (flagged ? ' flagged' : '');
+    card.innerHTML = `<div class="ak-name">${state.name}</div><div class="ak-temp">${high !== null ? 'High: ' + high + '°F' : 'No data'}</div>`;
+    container.appendChild(card);
+  });
+}
+
+function renderStateList(flaggedStates) {
+  const container = document.getElementById('state-list-container');
+  document.getElementById('list-count').textContent = flaggedStates.length;
+  document.getElementById('copy-btn').style.display = flaggedStates.length > 0 ? 'inline-flex' : 'none';
+  if (flaggedStates.length === 0) {
+    container.innerHTML = '<div class="empty-state">No states flagged for this day. Standard packing across the board.</div>';
+    return;
+  }
+  flaggedStates.sort((a, b) => a.high - b.high);
+  let html = '<div class="state-list">';
+  flaggedStates.forEach(s => { html += `<div class="state-pill"><span>${s.name}</span><span class="temp">${s.high}°F</span></div>`; });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function copyStateList() {
+  const flaggedStates = STATES.filter(s => {
+    const data = stateData[s.code];
+    return data && data.days[selectedDayIdx] && data.days[selectedDayIdx].high !== null && data.days[selectedDayIdx].high < FLAG_THRESHOLD_F;
+  }).map(s => s.name);
+  if (flaggedStates.length === 0) return;
+  const text = flaggedStates.join(', ');
+  const status = document.getElementById('copy-status');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      status.textContent = '✓ State list copied to clipboard';
+      setTimeout(() => { status.textContent = ''; }, 2500);
+    });
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
