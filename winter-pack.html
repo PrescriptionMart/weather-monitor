@@ -122,121 +122,233 @@
 const FLAG_THRESHOLD_F = 30;
 const NUM_DAYS = 7;
 
-// State info — FIPS code (used by us-atlas) → state info (capital coords for NWS)
+// Each state has 1-3 representative populated cities — capital plus the coldest
+// commonly-populated areas. Excludes uninhabited high elevations (peaks, parks).
+// We take the LOWEST daily high across all cities to decide if the state flags.
 const STATES_BY_FIPS = {
-  '01': { code: 'AL', name: 'Alabama', lat: 32.3617, lon: -86.2792 },
-  '02': { code: 'AK', name: 'Alaska', lat: 58.3019, lon: -134.4197 },
-  '04': { code: 'AZ', name: 'Arizona', lat: 33.4484, lon: -112.0740 },
-  '05': { code: 'AR', name: 'Arkansas', lat: 34.7465, lon: -92.2896 },
-  '06': { code: 'CA', name: 'California', lat: 38.5816, lon: -121.4944 },
-  '08': { code: 'CO', name: 'Colorado', lat: 39.7392, lon: -104.9903 },
-  '09': { code: 'CT', name: 'Connecticut', lat: 41.7637, lon: -72.6851 },
-  '10': { code: 'DE', name: 'Delaware', lat: 39.1582, lon: -75.5244 },
-  '11': { code: 'DC', name: 'District of Columbia', lat: 38.9072, lon: -77.0369 },
-  '12': { code: 'FL', name: 'Florida', lat: 30.4383, lon: -84.2807 },
-  '13': { code: 'GA', name: 'Georgia', lat: 33.7490, lon: -84.3880 },
-  '15': { code: 'HI', name: 'Hawaii', lat: 21.3070, lon: -157.8581 },
-  '16': { code: 'ID', name: 'Idaho', lat: 43.6150, lon: -116.2023 },
-  '17': { code: 'IL', name: 'Illinois', lat: 39.7817, lon: -89.6501 },
-  '18': { code: 'IN', name: 'Indiana', lat: 39.7684, lon: -86.1581 },
-  '19': { code: 'IA', name: 'Iowa', lat: 41.5868, lon: -93.6250 },
-  '20': { code: 'KS', name: 'Kansas', lat: 39.0473, lon: -95.6752 },
-  '21': { code: 'KY', name: 'Kentucky', lat: 38.2009, lon: -84.8733 },
-  '22': { code: 'LA', name: 'Louisiana', lat: 30.4515, lon: -91.1871 },
-  '23': { code: 'ME', name: 'Maine', lat: 44.3106, lon: -69.7795 },
-  '24': { code: 'MD', name: 'Maryland', lat: 38.9784, lon: -76.4922 },
-  '25': { code: 'MA', name: 'Massachusetts', lat: 42.3601, lon: -71.0589 },
-  '26': { code: 'MI', name: 'Michigan', lat: 42.7325, lon: -84.5555 },
-  '27': { code: 'MN', name: 'Minnesota', lat: 44.9537, lon: -93.0900 },
-  '28': { code: 'MS', name: 'Mississippi', lat: 32.2988, lon: -90.1848 },
-  '29': { code: 'MO', name: 'Missouri', lat: 38.5767, lon: -92.1735 },
-  '30': { code: 'MT', name: 'Montana', lat: 46.5891, lon: -112.0391 },
-  '31': { code: 'NE', name: 'Nebraska', lat: 40.8136, lon: -96.7026 },
-  '32': { code: 'NV', name: 'Nevada', lat: 39.1638, lon: -119.7674 },
-  '33': { code: 'NH', name: 'New Hampshire', lat: 43.2081, lon: -71.5376 },
-  '34': { code: 'NJ', name: 'New Jersey', lat: 40.2206, lon: -74.7699 },
-  '35': { code: 'NM', name: 'New Mexico', lat: 35.6870, lon: -105.9378 },
-  '36': { code: 'NY', name: 'New York', lat: 42.6526, lon: -73.7562 },
-  '37': { code: 'NC', name: 'North Carolina', lat: 35.7796, lon: -78.6382 },
-  '38': { code: 'ND', name: 'North Dakota', lat: 46.8208, lon: -100.7837 },
-  '39': { code: 'OH', name: 'Ohio', lat: 39.9612, lon: -82.9988 },
-  '40': { code: 'OK', name: 'Oklahoma', lat: 35.4676, lon: -97.5164 },
-  '41': { code: 'OR', name: 'Oregon', lat: 44.9429, lon: -123.0351 },
-  '42': { code: 'PA', name: 'Pennsylvania', lat: 40.2737, lon: -76.8844 },
-  '44': { code: 'RI', name: 'Rhode Island', lat: 41.8240, lon: -71.4128 },
-  '45': { code: 'SC', name: 'South Carolina', lat: 34.0007, lon: -81.0348 },
-  '46': { code: 'SD', name: 'South Dakota', lat: 44.3683, lon: -100.3510 },
-  '47': { code: 'TN', name: 'Tennessee', lat: 36.1627, lon: -86.7816 },
-  '48': { code: 'TX', name: 'Texas', lat: 30.2672, lon: -97.7431 },
-  '49': { code: 'UT', name: 'Utah', lat: 40.7608, lon: -111.8910 },
-  '50': { code: 'VT', name: 'Vermont', lat: 44.2601, lon: -72.5754 },
-  '51': { code: 'VA', name: 'Virginia', lat: 37.5407, lon: -77.4360 },
-  '53': { code: 'WA', name: 'Washington', lat: 47.0379, lon: -122.9007 },
-  '54': { code: 'WV', name: 'West Virginia', lat: 38.3498, lon: -81.6326 },
-  '55': { code: 'WI', name: 'Wisconsin', lat: 43.0731, lon: -89.4012 },
-  '56': { code: 'WY', name: 'Wyoming', lat: 41.1400, lon: -104.8202 },
+  '01': { code: 'AL', name: 'Alabama', cities: [
+    { name: 'Montgomery', lat: 32.3617, lon: -86.2792 },
+    { name: 'Huntsville', lat: 34.7304, lon: -86.5861 },
+  ]},
+  '02': { code: 'AK', name: 'Alaska', cities: [
+    { name: 'Juneau', lat: 58.3019, lon: -134.4197 },
+    { name: 'Fairbanks', lat: 64.8378, lon: -147.7164 },
+    { name: 'Anchorage', lat: 61.2181, lon: -149.9003 },
+  ]},
+  '04': { code: 'AZ', name: 'Arizona', cities: [
+    { name: 'Phoenix', lat: 33.4484, lon: -112.0740 },
+    { name: 'Flagstaff', lat: 35.1983, lon: -111.6513 },
+  ]},
+  '05': { code: 'AR', name: 'Arkansas', cities: [
+    { name: 'Little Rock', lat: 34.7465, lon: -92.2896 },
+    { name: 'Fayetteville', lat: 36.0822, lon: -94.1719 },
+  ]},
+  '06': { code: 'CA', name: 'California', cities: [
+    { name: 'Sacramento', lat: 38.5816, lon: -121.4944 },
+    { name: 'South Lake Tahoe', lat: 38.9399, lon: -119.9772 },
+    { name: 'Susanville', lat: 40.4163, lon: -120.6530 },
+  ]},
+  '08': { code: 'CO', name: 'Colorado', cities: [
+    { name: 'Denver', lat: 39.7392, lon: -104.9903 },
+    { name: 'Steamboat Springs', lat: 40.4850, lon: -106.8317 },
+    { name: 'Alamosa', lat: 37.4694, lon: -105.8700 },
+  ]},
+  '09': { code: 'CT', name: 'Connecticut', cities: [
+    { name: 'Hartford', lat: 41.7637, lon: -72.6851 },
+  ]},
+  '10': { code: 'DE', name: 'Delaware', cities: [
+    { name: 'Dover', lat: 39.1582, lon: -75.5244 },
+  ]},
+  '11': { code: 'DC', name: 'District of Columbia', cities: [
+    { name: 'Washington', lat: 38.9072, lon: -77.0369 },
+  ]},
+  '12': { code: 'FL', name: 'Florida', cities: [
+    { name: 'Tallahassee', lat: 30.4383, lon: -84.2807 },
+    { name: 'Pensacola', lat: 30.4213, lon: -87.2169 },
+  ]},
+  '13': { code: 'GA', name: 'Georgia', cities: [
+    { name: 'Atlanta', lat: 33.7490, lon: -84.3880 },
+    { name: 'Blairsville', lat: 34.8762, lon: -83.9582 },
+  ]},
+  '15': { code: 'HI', name: 'Hawaii', cities: [
+    { name: 'Honolulu', lat: 21.3070, lon: -157.8581 },
+    { name: 'Hilo', lat: 19.7297, lon: -155.0900 },
+  ]},
+  '16': { code: 'ID', name: 'Idaho', cities: [
+    { name: 'Boise', lat: 43.6150, lon: -116.2023 },
+    { name: 'Sandpoint', lat: 48.2766, lon: -116.5535 },
+    { name: 'Idaho Falls', lat: 43.4666, lon: -112.0341 },
+  ]},
+  '17': { code: 'IL', name: 'Illinois', cities: [
+    { name: 'Springfield', lat: 39.7817, lon: -89.6501 },
+    { name: 'Rockford', lat: 42.2711, lon: -89.0940 },
+  ]},
+  '18': { code: 'IN', name: 'Indiana', cities: [
+    { name: 'Indianapolis', lat: 39.7684, lon: -86.1581 },
+    { name: 'South Bend', lat: 41.6764, lon: -86.2520 },
+  ]},
+  '19': { code: 'IA', name: 'Iowa', cities: [
+    { name: 'Des Moines', lat: 41.5868, lon: -93.6250 },
+    { name: 'Mason City', lat: 43.1536, lon: -93.2010 },
+  ]},
+  '20': { code: 'KS', name: 'Kansas', cities: [
+    { name: 'Topeka', lat: 39.0473, lon: -95.6752 },
+    { name: 'Goodland', lat: 39.3508, lon: -101.7102 },
+  ]},
+  '21': { code: 'KY', name: 'Kentucky', cities: [
+    { name: 'Frankfort', lat: 38.2009, lon: -84.8733 },
+    { name: 'Pikeville', lat: 37.4793, lon: -82.5188 },
+  ]},
+  '22': { code: 'LA', name: 'Louisiana', cities: [
+    { name: 'Baton Rouge', lat: 30.4515, lon: -91.1871 },
+    { name: 'Shreveport', lat: 32.5252, lon: -93.7502 },
+  ]},
+  '23': { code: 'ME', name: 'Maine', cities: [
+    { name: 'Augusta', lat: 44.3106, lon: -69.7795 },
+    { name: 'Caribou', lat: 46.8606, lon: -68.0125 },
+  ]},
+  '24': { code: 'MD', name: 'Maryland', cities: [
+    { name: 'Annapolis', lat: 38.9784, lon: -76.4922 },
+    { name: 'Cumberland', lat: 39.6529, lon: -78.7625 },
+  ]},
+  '25': { code: 'MA', name: 'Massachusetts', cities: [
+    { name: 'Boston', lat: 42.3601, lon: -71.0589 },
+    { name: 'Pittsfield', lat: 42.4501, lon: -73.2454 },
+  ]},
+  '26': { code: 'MI', name: 'Michigan', cities: [
+    { name: 'Lansing', lat: 42.7325, lon: -84.5555 },
+    { name: 'Marquette', lat: 46.5436, lon: -87.3954 },
+    { name: 'Houghton', lat: 47.1211, lon: -88.5694 },
+  ]},
+  '27': { code: 'MN', name: 'Minnesota', cities: [
+    { name: 'St. Paul', lat: 44.9537, lon: -93.0900 },
+    { name: 'International Falls', lat: 48.6010, lon: -93.4111 },
+    { name: 'Duluth', lat: 46.7867, lon: -92.1005 },
+  ]},
+  '28': { code: 'MS', name: 'Mississippi', cities: [
+    { name: 'Jackson', lat: 32.2988, lon: -90.1848 },
+    { name: 'Tupelo', lat: 34.2576, lon: -88.7034 },
+  ]},
+  '29': { code: 'MO', name: 'Missouri', cities: [
+    { name: 'Jefferson City', lat: 38.5767, lon: -92.1735 },
+    { name: 'Kirksville', lat: 40.1948, lon: -92.5832 },
+  ]},
+  '30': { code: 'MT', name: 'Montana', cities: [
+    { name: 'Helena', lat: 46.5891, lon: -112.0391 },
+    { name: 'Cut Bank', lat: 48.6336, lon: -112.3258 },
+    { name: 'Glasgow', lat: 48.1969, lon: -106.6364 },
+  ]},
+  '31': { code: 'NE', name: 'Nebraska', cities: [
+    { name: 'Lincoln', lat: 40.8136, lon: -96.7026 },
+    { name: 'Scottsbluff', lat: 41.8666, lon: -103.6672 },
+  ]},
+  '32': { code: 'NV', name: 'Nevada', cities: [
+    { name: 'Carson City', lat: 39.1638, lon: -119.7674 },
+    { name: 'Elko', lat: 40.8324, lon: -115.7631 },
+  ]},
+  '33': { code: 'NH', name: 'New Hampshire', cities: [
+    { name: 'Concord', lat: 43.2081, lon: -71.5376 },
+    { name: 'Berlin', lat: 44.4687, lon: -71.1856 },
+  ]},
+  '34': { code: 'NJ', name: 'New Jersey', cities: [
+    { name: 'Trenton', lat: 40.2206, lon: -74.7699 },
+    { name: 'Sussex', lat: 41.2087, lon: -74.6071 },
+  ]},
+  '35': { code: 'NM', name: 'New Mexico', cities: [
+    { name: 'Santa Fe', lat: 35.6870, lon: -105.9378 },
+    { name: 'Taos', lat: 36.4072, lon: -105.5734 },
+    { name: 'Farmington', lat: 36.7281, lon: -108.2087 },
+  ]},
+  '36': { code: 'NY', name: 'New York', cities: [
+    { name: 'Albany', lat: 42.6526, lon: -73.7562 },
+    { name: 'Watertown', lat: 43.9748, lon: -75.9108 },
+    { name: 'Saranac Lake', lat: 44.3295, lon: -74.1318 },
+  ]},
+  '37': { code: 'NC', name: 'North Carolina', cities: [
+    { name: 'Raleigh', lat: 35.7796, lon: -78.6382 },
+    { name: 'Boone', lat: 36.2168, lon: -81.6746 },
+  ]},
+  '38': { code: 'ND', name: 'North Dakota', cities: [
+    { name: 'Bismarck', lat: 46.8208, lon: -100.7837 },
+    { name: 'Williston', lat: 48.1469, lon: -103.6179 },
+    { name: 'Grand Forks', lat: 47.9253, lon: -97.0329 },
+  ]},
+  '39': { code: 'OH', name: 'Ohio', cities: [
+    { name: 'Columbus', lat: 39.9612, lon: -82.9988 },
+    { name: 'Cleveland', lat: 41.4993, lon: -81.6944 },
+  ]},
+  '40': { code: 'OK', name: 'Oklahoma', cities: [
+    { name: 'Oklahoma City', lat: 35.4676, lon: -97.5164 },
+    { name: 'Guymon', lat: 36.6828, lon: -101.4818 },
+  ]},
+  '41': { code: 'OR', name: 'Oregon', cities: [
+    { name: 'Salem', lat: 44.9429, lon: -123.0351 },
+    { name: 'Bend', lat: 44.0582, lon: -121.3153 },
+    { name: 'Burns', lat: 43.5862, lon: -119.0541 },
+  ]},
+  '42': { code: 'PA', name: 'Pennsylvania', cities: [
+    { name: 'Harrisburg', lat: 40.2737, lon: -76.8844 },
+    { name: 'Erie', lat: 42.1292, lon: -80.0851 },
+    { name: 'Bradford', lat: 41.9595, lon: -78.6442 },
+  ]},
+  '44': { code: 'RI', name: 'Rhode Island', cities: [
+    { name: 'Providence', lat: 41.8240, lon: -71.4128 },
+  ]},
+  '45': { code: 'SC', name: 'South Carolina', cities: [
+    { name: 'Columbia', lat: 34.0007, lon: -81.0348 },
+    { name: 'Greenville', lat: 34.8526, lon: -82.3940 },
+  ]},
+  '46': { code: 'SD', name: 'South Dakota', cities: [
+    { name: 'Pierre', lat: 44.3683, lon: -100.3510 },
+    { name: 'Aberdeen', lat: 45.4647, lon: -98.4863 },
+  ]},
+  '47': { code: 'TN', name: 'Tennessee', cities: [
+    { name: 'Nashville', lat: 36.1627, lon: -86.7816 },
+    { name: 'Mountain City', lat: 36.4762, lon: -81.8045 },
+  ]},
+  '48': { code: 'TX', name: 'Texas', cities: [
+    { name: 'Austin', lat: 30.2672, lon: -97.7431 },
+    { name: 'Amarillo', lat: 35.2220, lon: -101.8313 },
+    { name: 'Dalhart', lat: 36.0595, lon: -102.5142 },
+  ]},
+  '49': { code: 'UT', name: 'Utah', cities: [
+    { name: 'Salt Lake City', lat: 40.7608, lon: -111.8910 },
+    { name: 'Logan', lat: 41.7370, lon: -111.8338 },
+    { name: 'Vernal', lat: 40.4555, lon: -109.5287 },
+  ]},
+  '50': { code: 'VT', name: 'Vermont', cities: [
+    { name: 'Montpelier', lat: 44.2601, lon: -72.5754 },
+    { name: 'St. Johnsbury', lat: 44.4192, lon: -72.0151 },
+  ]},
+  '51': { code: 'VA', name: 'Virginia', cities: [
+    { name: 'Richmond', lat: 37.5407, lon: -77.4360 },
+    { name: 'Wise', lat: 36.9762, lon: -82.5754 },
+  ]},
+  '53': { code: 'WA', name: 'Washington', cities: [
+    { name: 'Olympia', lat: 47.0379, lon: -122.9007 },
+    { name: 'Spokane', lat: 47.6588, lon: -117.4260 },
+    { name: 'Omak', lat: 48.4112, lon: -119.5263 },
+  ]},
+  '54': { code: 'WV', name: 'West Virginia', cities: [
+    { name: 'Charleston', lat: 38.3498, lon: -81.6326 },
+    { name: 'Elkins', lat: 38.9259, lon: -79.8466 },
+  ]},
+  '55': { code: 'WI', name: 'Wisconsin', cities: [
+    { name: 'Madison', lat: 43.0731, lon: -89.4012 },
+    { name: 'Wausau', lat: 44.9591, lon: -89.6301 },
+    { name: 'Eau Claire', lat: 44.8113, lon: -91.4985 },
+  ]},
+  '56': { code: 'WY', name: 'Wyoming', cities: [
+    { name: 'Cheyenne', lat: 41.1400, lon: -104.8202 },
+    { name: 'Pinedale', lat: 42.8666, lon: -109.8606 },
+    { name: 'Sheridan', lat: 44.7972, lon: -106.9559 },
+  ]},
 };
 
 // Get all states as a flat array
 const STATES = Object.entries(STATES_BY_FIPS).map(([fips, s]) => ({ ...s, fips }));
 
-// Hardcoded NWS gridpoint forecast URLs — saves an API call per state.
-// These URLs are stable; if NWS reorganizes their grid system in the future, regenerate this map.
-const NWS_FORECAST_URLS = {
-  'AL': 'https://api.weather.gov/gridpoints/BMX/52,80/forecast',
-  'AK': 'https://api.weather.gov/gridpoints/AJK/96,76/forecast',
-  'AZ': 'https://api.weather.gov/gridpoints/PSR/159,58/forecast',
-  'AR': 'https://api.weather.gov/gridpoints/LZK/33,68/forecast',
-  'CA': 'https://api.weather.gov/gridpoints/STO/47,71/forecast',
-  'CO': 'https://api.weather.gov/gridpoints/BOU/62,61/forecast',
-  'CT': 'https://api.weather.gov/gridpoints/BOX/23,45/forecast',
-  'DE': 'https://api.weather.gov/gridpoints/PHI/47,38/forecast',
-  'DC': 'https://api.weather.gov/gridpoints/LWX/97,71/forecast',
-  'FL': 'https://api.weather.gov/gridpoints/TAE/74,53/forecast',
-  'GA': 'https://api.weather.gov/gridpoints/FFC/52,87/forecast',
-  'HI': 'https://api.weather.gov/gridpoints/HFO/2,84/forecast',
-  'ID': 'https://api.weather.gov/gridpoints/BOI/126,89/forecast',
-  'IL': 'https://api.weather.gov/gridpoints/ILX/96,87/forecast',
-  'IN': 'https://api.weather.gov/gridpoints/IND/57,68/forecast',
-  'IA': 'https://api.weather.gov/gridpoints/DMX/73,73/forecast',
-  'KS': 'https://api.weather.gov/gridpoints/TOP/32,67/forecast',
-  'KY': 'https://api.weather.gov/gridpoints/LMK/65,86/forecast',
-  'LA': 'https://api.weather.gov/gridpoints/LIX/19,108/forecast',
-  'ME': 'https://api.weather.gov/gridpoints/GYX/74,80/forecast',
-  'MD': 'https://api.weather.gov/gridpoints/LWX/107,76/forecast',
-  'MA': 'https://api.weather.gov/gridpoints/BOX/71,90/forecast',
-  'MI': 'https://api.weather.gov/gridpoints/GRR/87,30/forecast',
-  'MN': 'https://api.weather.gov/gridpoints/MPX/107,71/forecast',
-  'MS': 'https://api.weather.gov/gridpoints/JAN/76,74/forecast',
-  'MO': 'https://api.weather.gov/gridpoints/LSX/29,73/forecast',
-  'MT': 'https://api.weather.gov/gridpoints/TFX/64,84/forecast',
-  'NE': 'https://api.weather.gov/gridpoints/OAX/47,67/forecast',
-  'NV': 'https://api.weather.gov/gridpoints/REV/35,65/forecast',
-  'NH': 'https://api.weather.gov/gridpoints/GYX/61,60/forecast',
-  'NJ': 'https://api.weather.gov/gridpoints/PHI/53,57/forecast',
-  'NM': 'https://api.weather.gov/gridpoints/ABQ/127,140/forecast',
-  'NY': 'https://api.weather.gov/gridpoints/ALY/57,82/forecast',
-  'NC': 'https://api.weather.gov/gridpoints/RAH/77,56/forecast',
-  'ND': 'https://api.weather.gov/gridpoints/BIS/126,75/forecast',
-  'OH': 'https://api.weather.gov/gridpoints/ILN/58,63/forecast',
-  'OK': 'https://api.weather.gov/gridpoints/OUN/95,89/forecast',
-  'OR': 'https://api.weather.gov/gridpoints/PQR/127,93/forecast',
-  'PA': 'https://api.weather.gov/gridpoints/CTP/77,60/forecast',
-  'RI': 'https://api.weather.gov/gridpoints/BOX/57,40/forecast',
-  'SC': 'https://api.weather.gov/gridpoints/CAE/72,59/forecast',
-  'SD': 'https://api.weather.gov/gridpoints/ABR/45,46/forecast',
-  'TN': 'https://api.weather.gov/gridpoints/OHX/52,57/forecast',
-  'TX': 'https://api.weather.gov/gridpoints/EWX/156,90/forecast',
-  'UT': 'https://api.weather.gov/gridpoints/SLC/100,176/forecast',
-  'VT': 'https://api.weather.gov/gridpoints/BTV/53,46/forecast',
-  'VA': 'https://api.weather.gov/gridpoints/AKQ/45,82/forecast',
-  'WA': 'https://api.weather.gov/gridpoints/SEW/118,57/forecast',
-  'WV': 'https://api.weather.gov/gridpoints/RLX/86,72/forecast',
-  'WI': 'https://api.weather.gov/gridpoints/MKX/40,53/forecast',
-  'WY': 'https://api.weather.gov/gridpoints/CYS/110,76/forecast',
-};
-
-const CACHE_KEY = 'winter-pack-forecast-cache';
+const CACHE_KEY = 'winter-pack-forecast-cache-v2';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 let topoData = null; // loaded TopoJSON
@@ -249,36 +361,24 @@ async function loadTopoJSON() {
   topoData = await resp.json();
 }
 
-async function fetchStateForecast(state) {
+async function fetchCityForecast(city) {
   try {
-    // Use hardcoded forecast URL when available (skips one API call)
-    let forecastUrl = NWS_FORECAST_URLS[state.code];
-    if (!forecastUrl) {
-      // Fallback: look it up via the points API
-      const pointResp = await fetch(`https://api.weather.gov/points/${state.lat},${state.lon}`, { headers: { 'Accept': 'application/geo+json' } });
-      if (!pointResp.ok) return null;
-      const pointData = await pointResp.json();
-      forecastUrl = pointData.properties.forecast;
-      if (!forecastUrl) return null;
-    }
+    const pointResp = await fetch(`https://api.weather.gov/points/${city.lat},${city.lon}`, { headers: { 'Accept': 'application/geo+json' } });
+    if (!pointResp.ok) return null;
+    const pointData = await pointResp.json();
+    const forecastUrl = pointData.properties.forecast;
+    if (!forecastUrl) return null;
     const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
-    if (!fcResp.ok) {
-      // If hardcoded URL fails (maybe gridpoint changed), try the points lookup as fallback
-      if (NWS_FORECAST_URLS[state.code]) {
-        delete NWS_FORECAST_URLS[state.code];
-        return fetchStateForecast(state);
-      }
-      return null;
-    }
+    if (!fcResp.ok) return null;
     const fcData = await fcResp.json();
     return fcData.properties.periods || [];
   } catch(e) {
-    console.error('Forecast failed for', state.code, e);
+    console.error('Forecast failed for', city.name, e);
     return null;
   }
 }
 
-function getDayHighs(periods, numDays) {
+function getCityDayHighs(periods, numDays) {
   if (!periods) return [];
   const days = [];
   const today = new Date();
@@ -298,6 +398,44 @@ function getDayHighs(periods, numDays) {
     }
   }
   return days;
+}
+
+// For each state, fetch all cities and aggregate to the LOWEST daily high.
+// This catches the panhandle/cold-corner problem that single-city checks miss.
+async function fetchStateForecast(state) {
+  const cityResults = await Promise.all(state.cities.map(city => fetchCityForecast(city)));
+  const cityDayData = cityResults.map((periods, i) => ({
+    city: state.cities[i],
+    days: getCityDayHighs(periods, NUM_DAYS)
+  }));
+
+  // For each day, find the city with the lowest high
+  const aggregatedDays = [];
+  for (let i = 0; i < NUM_DAYS; i++) {
+    let lowestHigh = null;
+    let coldestCity = null;
+    let coldestForecast = null;
+    cityDayData.forEach(cd => {
+      const day = cd.days[i];
+      if (day && day.high !== null) {
+        if (lowestHigh === null || day.high < lowestHigh) {
+          lowestHigh = day.high;
+          coldestCity = cd.city.name;
+          coldestForecast = day.forecast;
+        }
+      }
+    });
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + i);
+    aggregatedDays.push({
+      date: targetDate,
+      high: lowestHigh,
+      forecast: coldestForecast,
+      coldestCity: coldestCity
+    });
+  }
+
+  return aggregatedDays;
 }
 
 function getCachedData() {
@@ -353,8 +491,7 @@ async function loadAll() {
   let lastRenderTime = 0;
 
   const fcPromises = STATES.map(async (state) => {
-    const periods = await fetchStateForecast(state);
-    const days = getDayHighs(periods, NUM_DAYS);
+    const days = await fetchStateForecast(state);
     stateData[state.code] = { state, days };
     completed++;
     progressEl.textContent = `Loading: ${completed}/${STATES.length} states`;
@@ -397,7 +534,7 @@ function renderDay(dayIdx) {
     if (!data || !data.days[dayIdx] || data.days[dayIdx].high === null) return;
     dataCount++;
     const high = data.days[dayIdx].high;
-    if (high < FLAG_THRESHOLD_F) flaggedStates.push({ ...state, high, forecast: data.days[dayIdx].forecast });
+    if (high < FLAG_THRESHOLD_F) flaggedStates.push({ ...state, high, forecast: data.days[dayIdx].forecast, coldestCity: data.days[dayIdx].coldestCity });
   });
 
   const date = new Date();
@@ -449,7 +586,7 @@ function renderMap(dayIdx) {
       if (!stateInfo) return;
       const data = stateData[stateInfo.code];
       const dayData = data && data.days[dayIdx];
-      const tempStr = dayData && dayData.high !== null ? dayData.high + '°F' : 'no data';
+      const tempStr = dayData && dayData.high !== null ? dayData.high + '°F' + (dayData.coldestCity ? ' (' + dayData.coldestCity + ')' : '') : 'no data';
       tooltip.textContent = `${stateInfo.name}: ${tempStr}`;
       tooltip.style.opacity = '1';
     })
@@ -470,7 +607,9 @@ function renderStateList(flaggedStates) {
   }
   flaggedStates.sort((a, b) => a.high - b.high);
   let html = '<div class="state-list">';
-  flaggedStates.forEach(s => { html += `<div class="state-pill"><span>${s.name}</span><span class="temp">${s.high}°F</span></div>`; });
+  flaggedStates.forEach(s => {
+    html += `<div class="state-pill"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.65; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}</span><span class="temp">${s.high}°F</span></div>`;
+  });
   html += '</div>';
   container.innerHTML = html;
 }
