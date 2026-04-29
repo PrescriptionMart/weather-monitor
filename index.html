@@ -685,48 +685,36 @@ function buildEmailContent(results) {
   const hubsHolding = hubs.filter(h => h.nights[0].risk === 'high');
   const hubsCaution = hubs.filter(h => h.nights[0].risk === 'medium');
 
-  let subject;
-  if (hubsHolding.length > 0) subject = `ACTION: Hold next-day air tonight — ${hubsHolding.map(r=>r.name).join(', ')} — ${today}`;
-  else if (hubsCaution.length > 0) subject = `CAUTION: Next-day air weather advisory — ${today}`;
-  else subject = `Clear to ship tonight — ${today}`;
+  let subject, body;
 
-  let body = `Overnight shipping weather forecast — ${today}\nReviewing next 3 sort windows (10pm-4am local hub time)\n\n`;
-
-  hubs.forEach(hub => {
-    body += `${hub.name} (${hub.label}):\n`;
-    if (hub.nwsAlerts && hub.nwsAlerts.length > 0) {
-      body += `  ACTIVE NWS ALERTS:\n`;
-      hub.nwsAlerts.forEach(a => {
-        body += `    - ${a.event}${a.ends ? ' (until ' + new Date(a.ends).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: hub.tz }) + ')' : ''}\n`;
-      });
-    }
-    hub.nights.forEach((n, idx) => {
-      const labels = nightLabel(n.dateKey || '', idx);
-      body += `  ${labels.primary} (${labels.secondary}): ${riskLabel(n.risk).toUpperCase()} — ${n.desc}${n.wind > 15 ? ', wind ' + n.wind + ' mph' : ''}${n.overrideSource ? ' [override: ' + n.overrideSource + ']' : ''}\n`;
-      if (n.nwsForecastText && n.nwsOverride) {
-        body += `    NWS: ${n.nwsForecastText}\n`;
-      }
+  if (hubsHolding.length > 0) {
+    // Find latest "first shippable" across affected hubs to set patient impact
+    let latestShippableIdx = 0;
+    let allBlocked = false;
+    hubsHolding.forEach(h => {
+      const idx = findFirstShippableNight(h);
+      if (idx === -1) allBlocked = true;
+      else if (idx > latestShippableIdx) latestShippableIdx = idx;
     });
-    body += '\n';
-  });
 
-  body += 'RECOMMENDATION:\n';
-  hubs.forEach(hub => {
-    const firstShippable = findFirstShippableNight(hub);
-    if (hub.nights[0].risk === 'high') {
-      if (firstShippable === -1) body += `  ${hub.name}: Hold all next-day air. Severe weather through forecast horizon. Use 2-day or ground for time-sensitive shipments.\n`;
-      else if (firstShippable === 1) body += `  ${hub.name}: Hold tonight. Ship tomorrow night — 1-day delay for patients.\n`;
-      else if (firstShippable === 2) body += `  ${hub.name}: Hold tonight and tomorrow night. Ship the night after — 2-day delay for patients.\n`;
-    } else if (hub.nights[0].risk === 'medium') {
-      body += `  ${hub.name}: Use caution. Ship time-sensitive only with proactive patient notification.\n`;
-    } else if (hub.nights[0].risk === 'borderline') {
-      body += `  ${hub.name}: Conditions borderline but shippable. Monitor for changes.\n`;
-    } else {
-      body += `  ${hub.name}: Clear to ship tonight.\n`;
-    }
-  });
+    let impactPhrase;
+    if (allBlocked) impactPhrase = 'Multi-day delay expected — no clear sort window in 3-day forecast.';
+    else if (latestShippableIdx === 1) impactPhrase = 'Patient delivery delayed by 1 day.';
+    else if (latestShippableIdx === 2) impactPhrase = 'Patient delivery delayed by 2 days.';
+    else impactPhrase = 'Standard delivery timing.';
 
-  body += '\n— Prescription Mart Shipping Weather Monitor';
+    subject = `Heads up: holding next-day air tonight — ${hubsHolding.map(r=>r.name).join(', ')}`;
+    body = `Quick update — forecasted severe weather overnight at ${hubsHolding.map(r=>r.name).join(' and ')}.\n\nWe're holding tonight's next-day air shipments to avoid hub delays. ${impactPhrase}\n\nWill share another update if the picture changes. Reach out with any questions.`;
+
+  } else if (hubsCaution.length > 0) {
+    subject = `Heads up: weather advisory tonight — ${hubsCaution.map(r=>r.name).join(', ')}`;
+    body = `Quick update — possible weather delays overnight at ${hubsCaution.map(r=>r.name).join(' and ')}.\n\nShipments are going out, but some packages may run behind. We're monitoring and will adjust if conditions worsen.\n\nWill share another update if the picture changes.`;
+
+  } else {
+    subject = `Update: clear to ship tonight — ${today}`;
+    body = `Quick update — overnight conditions look clear at all hubs. Standard operations tonight.`;
+  }
+
   return { subject, body };
 }
 
@@ -774,11 +762,9 @@ function generateTeamMessage() {
       shipDayPhrase = `${inTwoDays.toLocaleDateString('en-US', { weekday: 'long' })} for delivery ${inThreeDays.toLocaleDateString('en-US', { weekday: 'long' })}`;
     }
 
-    msg = `Team,\n\nDue to forecasted severe weather overnight at ${highRiskHubs.map(h => h.name).join(' and ')}, we are holding next-day air shipments today to avoid hub delays.\n\nPlease schedule deliveries to ship ${shipDayPhrase} whenever possible.`;
-  } else if (cautionHubs.length > 0) {
-    msg = `Team,\n\nHeads up — forecasted weather conditions overnight at ${cautionHubs.map(h => h.name).join(' and ')} may cause delays on next-day air shipments going out tonight.\n\nPlease be prepared to advise patients of potential delays.`;
+    msg = `Team,\n\nDue to forecasted severe weather overnight at ${highRiskHubs.map(h => h.name).join(' and ')}, we are holding next-day air shipments today to avoid hub delays.\n\nPlease schedule deliveries to ship ${shipDayPhrase} whenever possible.\n\nThanks`;
   } else {
-    msg = `Team,\n\nNo shipping concerns tonight — overnight conditions at all hubs look acceptable for next-day air. Standard operations.`;
+    msg = `Team,\n\nNo shipping concerns tonight — overnight conditions at all hubs look acceptable for next-day air. Standard operations.\n\nThanks`;
   }
 
   document.getElementById('team-body').textContent = msg;
