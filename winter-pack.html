@@ -28,15 +28,15 @@
     .map-wrap svg { width: 100%; height: auto; display: block; }
     .state-path { stroke: #fff; stroke-width: 1; transition: fill 0.2s; cursor: pointer; }
     .state-path.no-data { fill: #f0f0ec; }
-    .state-path.standard { fill: #e8e6e0; }
-    .state-path.flagged { fill: #4A89D6; }
-    .state-path:hover { stroke: #1B4F8A; stroke-width: 2; }
+    .state-path.standard { fill: #DCEDC8; }
+    .state-path.flagged { fill: #FFCDD2; }
+    .state-path:hover { stroke: #1a1a1a; stroke-width: 1.5; }
     .legend { display: flex; gap: 20px; align-items: center; font-size: 12px; color: #666; margin-top: 12px; flex-wrap: wrap; }
     .legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
     .section-label { font-size: 11px; font-weight: 500; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
     .state-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-    .state-pill { background: #E6EFF8; color: #1B4F8A; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
-    .state-pill .temp { color: #4A89D6; font-weight: 500; font-size: 12px; }
+    .state-pill { background: #FFEBEE; color: #B71C1C; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+    .state-pill .temp { color: #C62828; font-weight: 500; font-size: 12px; }
     .btn { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; display: inline-flex; align-items: center; gap: 6px; }
     .btn:hover { background: #f5f5f3; }
     .btn-primary { background: #1B4F8A; color: #fff; border-color: #1B4F8A; }
@@ -87,14 +87,14 @@
         <div style="font-size: 16px; font-weight: 500;" id="map-title">Loading forecast data...</div>
         <div style="font-size: 13px; color: #888;" id="map-subtitle"></div>
       </div>
-      <div id="flagged-count" style="font-size: 13px; color: #4A89D6; font-weight: 500;"></div>
+      <div id="flagged-count" style="font-size: 13px; color: #C62828; font-weight: 500;"></div>
     </div>
     <div class="map-wrap" id="map-wrap">
       <div class="empty-state">Loading state forecasts — this can take 20-30 seconds...</div>
     </div>
     <div class="legend">
-      <span><span class="legend-swatch" style="background: #4A89D6;"></span>Flagged for winter packing</span>
-      <span><span class="legend-swatch" style="background: #e8e6e0;"></span>Standard packing</span>
+      <span><span class="legend-swatch" style="background: #FFCDD2;"></span>Flagged for winter packing</span>
+      <span><span class="legend-swatch" style="background: #DCEDC8;"></span>Standard packing</span>
       <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
     </div>
   </div>
