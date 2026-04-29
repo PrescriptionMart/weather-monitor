@@ -774,11 +774,11 @@ function generateTeamMessage() {
       shipDayPhrase = `${inTwoDays.toLocaleDateString('en-US', { weekday: 'long' })} for delivery ${inThreeDays.toLocaleDateString('en-US', { weekday: 'long' })}`;
     }
 
-    msg = `Team,\n\nDue to forecasted severe weather overnight at ${highRiskHubs.map(h => h.name).join(' and ')}, we are holding next-day air shipments today to avoid hub delays.\n\nPlease schedule deliveries to ship ${shipDayPhrase} whenever possible.\n\nThanks,\nBobby`;
+    msg = `Team,\n\nDue to forecasted severe weather overnight at ${highRiskHubs.map(h => h.name).join(' and ')}, we are holding next-day air shipments today to avoid hub delays.\n\nPlease schedule deliveries to ship ${shipDayPhrase} whenever possible.`;
   } else if (cautionHubs.length > 0) {
-    msg = `Team,\n\nHeads up — forecasted weather conditions overnight at ${cautionHubs.map(h => h.name).join(' and ')} may cause delays on next-day air shipments going out tonight.\n\nPlease be prepared to advise patients of potential delays.\n\nThanks,\nBobby`;
+    msg = `Team,\n\nHeads up — forecasted weather conditions overnight at ${cautionHubs.map(h => h.name).join(' and ')} may cause delays on next-day air shipments going out tonight.\n\nPlease be prepared to advise patients of potential delays.`;
   } else {
-    msg = `Team,\n\nNo shipping concerns tonight — overnight conditions at all hubs look acceptable for next-day air. Standard operations.\n\nThanks,\nBobby`;
+    msg = `Team,\n\nNo shipping concerns tonight — overnight conditions at all hubs look acceptable for next-day air. Standard operations.`;
   }
 
   document.getElementById('team-body').textContent = msg;
