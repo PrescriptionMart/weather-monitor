@@ -70,9 +70,23 @@
   <div class="updated" id="last-updated">Loading...</div>
 </div>
 
+<div style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 2rem;">
+  <div style="display: flex; gap: 0;">
+    <a href="index.html" style="padding: 12px 20px; font-size: 14px; color: #1B4F8A; text-decoration: none; border-bottom: 2px solid #1B4F8A; font-weight: 500;">Hub Forecasts</a>
+    <a href="winter-pack.html" style="padding: 12px 20px; font-size: 14px; color: #888; text-decoration: none; border-bottom: 2px solid transparent;">Winter Packing Map</a>
+  </div>
+</div>
+
 <div class="today-banner">
   <div class="today-day" id="today-day">Loading...</div>
   <div class="today-date" id="today-date"></div>
+</div>
+
+<div style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 2rem;">
+  <div style="max-width: 1100px; margin: 0 auto; display: flex; gap: 0;">
+    <a href="index.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #1B4F8A; border-bottom: 3px solid #1B4F8A; text-decoration: none;">Hub Forecasts</a>
+    <a href="winter-pack.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #888; border-bottom: 3px solid transparent; text-decoration: none;">Winter Packing Map</a>
+  </div>
 </div>
 
 <div class="container">
@@ -160,7 +174,7 @@
 
 <script>
 const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
-
+  
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
   { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
