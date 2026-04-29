@@ -105,7 +105,10 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <div class="section-label" style="margin-bottom: 0;">Team message draft</div>
-        <button class="btn btn-primary" onclick="copyTeamMessage()">Copy message</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-primary" onclick="copyTeamMessage()">Copy message</button>
+          <button class="btn" onclick="document.getElementById('team-output').style.display='none'" style="padding: 6px 10px;" title="Close">&times;</button>
+        </div>
       </div>
       <pre id="team-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: #f5f5f3; padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.6;"></pre>
       <div id="team-copy-status" style="font-size: 12px; color: #3B6D11; margin-top: 8px; height: 16px;"></div>
@@ -116,9 +119,10 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <div class="section-label" style="margin-bottom: 0;">Email draft</div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
           <button class="btn" onclick="copyEmailField('subject')">Copy subject</button>
           <button class="btn btn-primary" onclick="copyEmailField('body')">Copy body</button>
+          <button class="btn" onclick="document.getElementById('email-output').style.display='none'" style="padding: 6px 10px;" title="Close">&times;</button>
         </div>
       </div>
       <div style="margin-bottom: 12px;">
@@ -155,8 +159,25 @@
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
-    <div class="section-label">Regional watch zones (next overnight only)</div>
-    <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional forecasts...</div></div>
+    <div class="section-label">Regional weather (informational only)</div>
+    <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional weather...</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div class="section-label">Carrier service alerts</div>
+    <div style="font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.5;">
+      Cross-reference our weather assessment with official carrier-issued operational alerts. If a carrier has declared a service disruption, expect delays even if our dashboard shows clear conditions.
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <a href="https://www.fedex.com/en-us/service-alerts.html" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4D148C; margin-right: 4px;"></span>
+        FedEx Service Alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+      </a>
+      <a href="https://www.ups.com/us/en/service-alerts.page" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8B5A2B; margin-right: 4px;"></span>
+        UPS Service Alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+      </a>
+    </div>
   </div>
 
   <div style="font-size:12px; color:#bbb; text-align:center; padding-bottom: 2rem;">
@@ -579,18 +600,16 @@ function renderRegions(results) {
   const list = document.getElementById('regions-list');
   list.innerHTML = '';
   regions.forEach(r => {
-    const tonight = r.nights[0] || { risk: 'low', desc: 'no data' };
+    const tonight = r.nights[0] || { desc: 'no data', wind: 0 };
     const row = document.createElement('div');
     row.className = 'region-row';
     row.innerHTML = `
       <div class="region-left">
-        <span class="${dotClass(tonight.risk)}"></span>
         <span class="region-name">${r.name}</span>
         <span class="region-sub">&mdash; ${r.label}</span>
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
-        <span class="region-desc">${tonight.desc}</span>
-        <span class="${riskClass(tonight.risk)}">${riskLabel(tonight.risk)}</span>
+        <span class="region-desc">${tonight.desc}${tonight.wind > 15 ? ' &middot; ' + tonight.wind + ' mph' : ''}</span>
       </div>`;
     list.appendChild(row);
   });
