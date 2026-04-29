@@ -92,7 +92,6 @@
     <div class="map-wrap" id="map-wrap">
       <div class="empty-state">Loading state forecasts — this can take 20-30 seconds...</div>
     </div>
-    <div class="ak-hi" id="ak-hi-display"></div>
     <div class="legend">
       <span><span class="legend-swatch" style="background: #4A89D6;"></span>Flagged for winter packing</span>
       <span><span class="legend-swatch" style="background: #e8e6e0;"></span>Standard packing</span>
@@ -290,7 +289,6 @@ function renderDay(dayIdx) {
   document.getElementById('flagged-count').textContent = flaggedStates.length > 0 ? `${flaggedStates.length} flagged` : 'None flagged';
 
   renderMap(dayIdx);
-  renderAKHI(dayIdx);
   renderStateList(flaggedStates);
 }
 
@@ -342,23 +340,6 @@ function renderMap(dayIdx) {
       tooltip.style.top = (event.pageY + 12) + 'px';
     })
     .on('mouseleave', function() { tooltip.style.opacity = '0'; });
-}
-
-function renderAKHI(dayIdx) {
-  // The albers-10m projection already includes AK/HI as insets, so this is just a quick stats card
-  const container = document.getElementById('ak-hi-display');
-  container.innerHTML = '';
-  ['AK', 'HI'].forEach(code => {
-    const data = stateData[code];
-    const state = STATES.find(s => s.code === code);
-    const dayData = data && data.days[dayIdx];
-    const high = dayData && dayData.high !== null ? dayData.high : null;
-    const flagged = high !== null && high < FLAG_THRESHOLD_F;
-    const card = document.createElement('div');
-    card.className = 'ak-hi-card' + (flagged ? ' flagged' : '');
-    card.innerHTML = `<div class="ak-name">${state.name}</div><div class="ak-temp">${high !== null ? 'High: ' + high + '°F' : 'No data'}</div>`;
-    container.appendChild(card);
-  });
 }
 
 function renderStateList(flaggedStates) {
