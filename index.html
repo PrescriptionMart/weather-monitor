@@ -178,6 +178,24 @@
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+      <div>
+        <div class="section-label" style="margin-bottom: 4px;">Flight operations &amp; FAA delays</div>
+        <div style="font-size: 12px; color: #888;">Live FAA ground stops and ground delay programs at our hubs.</div>
+      </div>
+      <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
+        FAA National Status &nbsp;<span style="font-size: 11px; color:#888;">↗</span>
+      </a>
+    </div>
+    <div id="faa-delays-list">
+      <div style="font-size: 13px; color: #aaa; padding: 8px 0;">Loading FAA delay data...</div>
+    </div>
+    <div style="font-size: 11px; color: #aaa; margin-top: 10px; line-height: 1.5;">
+      A <strong>ground stop</strong> halts all flights to an airport. A <strong>ground delay program</strong> meters arrivals when capacity drops. Either will affect overnight package sort timing.
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem;">
     <div class="section-label">Regional weather (informational only)</div>
     <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional weather...</div></div>
   </div>
@@ -902,6 +920,122 @@ function fallbackCopy(text, field, status) {
   document.body.removeChild(ta);
 }
 
+// =============================================================================
+// FAA DELAYS - airports we care about (matches our hub list)
+// =============================================================================
+const HUB_AIRPORTS = ['MEM', 'SDF', 'IND'];
+const HUB_NAMES = { 'MEM': 'Memphis (MEM)', 'SDF': 'Louisville (SDF)', 'IND': 'Indianapolis (IND)' };
+
+async function fetchFAADelays() {
+  try {
+    const resp = await fetch('https://nasstatus.faa.gov/api/airport-events');
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch(e) {
+    console.error('FAA fetch failed:', e);
+    return null;
+  }
+}
+
+function formatMinutes(mins) {
+  if (!mins && mins !== 0) return null;
+  const m = parseInt(mins, 10);
+  if (isNaN(m)) return null;
+  if (m < 60) return m + ' min';
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r > 0 ? `${h}h ${r}m` : `${h}h`;
+}
+
+function formatTimeRange(start, end, hubTz) {
+  if (!start) return '';
+  const tz = hubTz || 'America/New_York';
+  const s = new Date(start);
+  const e = end ? new Date(end) : null;
+  const fmt = { hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' };
+  if (e) {
+    const sFmt = { hour: 'numeric', minute: '2-digit', timeZone: tz };
+    return `${s.toLocaleString('en-US', sFmt)} – ${e.toLocaleString('en-US', fmt)}`;
+  }
+  return s.toLocaleString('en-US', fmt);
+}
+
+function renderFAADelays(allEvents) {
+  const list = document.getElementById('faa-delays-list');
+  if (!list) return;
+
+  if (allEvents === null) {
+    list.innerHTML = `<div style="font-size: 13px; color: #888; padding: 8px 0;">Could not load FAA data automatically. Check the <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" style="color:#1B4F8A;">FAA National Status</a> dashboard directly.</div>`;
+    return;
+  }
+
+  const hubTz = { 'MEM': 'America/Chicago', 'SDF': 'America/Kentucky/Louisville', 'IND': 'America/Indiana/Indianapolis' };
+  const hubEvents = HUB_AIRPORTS.map(code => {
+    const event = (allEvents || []).find(e => e.airportId === code);
+    return { code, event: event || null };
+  });
+
+  let html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">';
+
+  hubEvents.forEach(({ code, event }) => {
+    const name = HUB_NAMES[code];
+    const tz = hubTz[code];
+    let body = '';
+    let borderColor = '#e0e0e0';
+    let bgColor = '#fafaf8';
+
+    if (!event) {
+      body = `<div style="font-size: 12px; color: #3B6D11;"><strong>No active delays</strong></div>`;
+      borderColor = '#97C459';
+      bgColor = '#F4F8EB';
+    } else {
+      const items = [];
+
+      if (event.groundStop) {
+        const gs = event.groundStop;
+        const reason = gs.impactingCondition || 'unspecified';
+        const range = formatTimeRange(gs.startTime, gs.endTime, tz);
+        items.push(`<div style="background:#FCEBEB; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#A32D2D; text-transform: uppercase; letter-spacing: 0.04em;">⛔ Ground Stop</div><div style="font-size: 12px; color:#555; margin-top:2px;">Reason: ${reason}</div><div style="font-size: 11px; color:#777; margin-top:2px;">${range}</div></div>`);
+        borderColor = '#F09595';
+        bgColor = '#fff';
+      }
+
+      if (event.groundDelay) {
+        const gd = event.groundDelay;
+        const reason = gd.impactingCondition || 'unspecified';
+        const avg = formatMinutes(gd.avgDelay);
+        const max = formatMinutes(gd.maxDelay);
+        const range = formatTimeRange(gd.startTime, gd.endTime, tz);
+        items.push(`<div style="background:#FAEEDA; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#854F0B; text-transform: uppercase; letter-spacing: 0.04em;">⚠ Ground Delay Program</div><div style="font-size: 12px; color:#555; margin-top:2px;">Reason: ${reason}</div><div style="font-size: 12px; color:#555;">Avg: <strong>${avg || '—'}</strong>${max ? ', max ' + max : ''}</div><div style="font-size: 11px; color:#777; margin-top:2px;">${range}</div></div>`);
+        if (borderColor === '#e0e0e0') { borderColor = '#EF9F27'; bgColor = '#fff'; }
+      }
+
+      if (event.departureDelay) {
+        const dd = event.departureDelay;
+        const reason = dd.reason || 'unspecified';
+        const avg = formatMinutes(dd.averageDelay);
+        const trend = dd.trend ? ` (${dd.trend})` : '';
+        items.push(`<div style="background:#FAEEDA; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#854F0B; text-transform: uppercase; letter-spacing: 0.04em;">↗ Departure Delays</div><div style="font-size: 12px; color:#555; margin-top:2px;">${reason}</div><div style="font-size: 12px; color:#555;">Avg: <strong>${avg || '—'}</strong>${trend}</div></div>`);
+        if (borderColor === '#e0e0e0') { borderColor = '#EF9F27'; bgColor = '#fff'; }
+      }
+
+      if (items.length === 0) {
+        body = `<div style="font-size: 12px; color: #3B6D11;"><strong>No active delays</strong></div>`;
+        borderColor = '#97C459';
+        bgColor = '#F4F8EB';
+      } else {
+        body = items.join('');
+      }
+    }
+
+    html += `<div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 10px;"><div style="font-size: 13px; font-weight: 500; color: #1a1a1a; margin-bottom: 6px;">${name}</div>${body}</div>`;
+  });
+
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+// =============================================================================
 async function loadWeather() {
   // Set today's date display
   const today = new Date();
@@ -910,6 +1044,10 @@ async function loadWeather() {
 
   document.getElementById('last-updated').textContent = 'Refreshing...';
   weatherState = {};
+
+  // Kick off FAA delays fetch in parallel with weather (don't block on it)
+  fetchFAADelays().then(renderFAADelays);
+
   if (WEATHER_API_KEY === 'YOUR_OPENWEATHERMAP_KEY_HERE') {
     const demo = useDemoData();
     demo.forEach(r => { weatherState[r.id] = r; });
