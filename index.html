@@ -574,9 +574,14 @@ function renderHub(hub) {
 
   hub.nights.forEach((night, idx) => {
     const labels = nightLabel(night.dateKey || '', idx);
+    const overrideTag = night.nwsOverride ? ` <span style="color:#A32D2D; font-size:11px; font-weight:500;">(${night.overrideSource})</span>` : '';
+    const detailId = `detail-${hub.id}-${idx}`;
+
     const row = document.createElement('div');
     row.className = 'night-row';
-    const overrideTag = night.nwsOverride ? ` <span style="color:#A32D2D; font-size:11px; font-weight:500;">(${night.overrideSource})</span>` : '';
+    row.style.cursor = 'pointer';
+    row.style.transition = 'background 0.15s';
+    row.dataset.detailId = detailId;
     row.innerHTML = `
       <div class="night-label">
         <strong>${labels.primary}</strong>
@@ -584,16 +589,64 @@ function renderHub(hub) {
       </div>
       <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}${overrideTag}</div>
       <span class="${riskClass(night.risk)}">${riskLabel(night.risk)}</span>
+      <span class="expand-arrow" style="color:#aaa; font-size:10px; margin-left:6px; transition: transform 0.2s; display:inline-block;">▼</span>
     `;
+    row.onmouseenter = () => { row.style.background = '#fafaf8'; };
+    row.onmouseleave = () => { row.style.background = ''; };
     container.appendChild(row);
 
-    // Add NWS forecast text below the row when there's an override or severe wording
-    if (night.nwsForecastText && (night.nwsOverride || night.nwsForecastText.toLowerCase().includes('thunder') || night.nwsForecastText.toLowerCase().includes('severe'))) {
-      const fcRow = document.createElement('div');
-      fcRow.style.cssText = 'background:#F9F7E8; border-left: 3px solid #BA7517; padding: 6px 10px; margin: 0 0 8px 0; font-size: 11px; color: #5F5E5A; border-radius: 4px; line-height: 1.5;';
-      fcRow.innerHTML = `<strong style="color:#854F0B; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;">NWS forecast — ${night.nwsPeriodName}:</strong> ${night.nwsForecastText}`;
-      container.appendChild(fcRow);
+    // Build the detail panel (hidden by default)
+    const detail = document.createElement('div');
+    detail.id = detailId;
+    detail.style.cssText = 'display:none; background:#fafaf8; border-radius:6px; padding: 12px; margin: 4px 0 10px; font-size: 12px; line-height: 1.6;';
+
+    let detailHTML = '';
+
+    // Risk reasoning
+    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Risk assessment</span><div style="margin-top:4px;"><strong>${riskLabel(night.risk)}</strong>${night.overrideSource ? ' — driven by ' + night.overrideSource : ''}</div></div>`;
+
+    // Conditions detail
+    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Conditions (10pm-4am window)</span>`;
+    if (night.noData) {
+      detailHTML += `<div style="margin-top:4px; color:#888;">No forecast data available yet for this night.</div>`;
+    } else {
+      detailHTML += `<div style="margin-top:4px;">`;
+      detailHTML += `<div>Forecast: <span style="text-transform:capitalize">${night.desc}</span></div>`;
+      if (night.wind !== null && night.wind !== undefined) detailHTML += `<div>Max wind: ${night.wind} mph</div>`;
+      if (night.temp !== null && night.temp !== undefined) detailHTML += `<div>Low temp: ${night.temp}°F</div>`;
+      if (night.slots) detailHTML += `<div>Forecast periods sampled: ${night.slots}</div>`;
+      detailHTML += `</div>`;
     }
+    detailHTML += `</div>`;
+
+    // NWS forecast text (always show if available, not just on override)
+    if (night.nwsForecastText) {
+      detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">NWS forecast${night.nwsPeriodName ? ' — ' + night.nwsPeriodName : ''}</span><div style="margin-top:4px; padding: 8px 10px; background:#fff; border-radius:4px; border-left: 3px solid #BA7517;">${night.nwsForecastText}</div></div>`;
+    }
+
+    // Active NWS alerts (only relevant for tonight, idx 0)
+    if (idx === 0 && hub.nwsAlerts && hub.nwsAlerts.length > 0) {
+      detailHTML += `<div style="margin-bottom: 4px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Active alerts at this hub</span>`;
+      hub.nwsAlerts.forEach(a => {
+        detailHTML += `<div style="margin-top:6px; padding: 8px 10px; background:#FCEBEB; border-radius:4px; border-left: 3px solid #A32D2D;">`;
+        detailHTML += `<div style="font-weight:500; color:#A32D2D;">${a.event}</div>`;
+        if (a.headline) detailHTML += `<div style="margin-top:2px; color:#5F2828;">${a.headline}</div>`;
+        if (a.ends) detailHTML += `<div style="margin-top:4px; color:#777; font-size:11px;">In effect until ${new Date(a.ends).toLocaleString('en-US', { weekday:'short', hour:'numeric', minute:'2-digit', timeZone: hub.tz })}</div>`;
+        detailHTML += `</div>`;
+      });
+      detailHTML += `</div>`;
+    }
+
+    detail.innerHTML = detailHTML;
+    container.appendChild(detail);
+
+    // Wire up the click toggle
+    row.onclick = () => {
+      const isOpen = detail.style.display === 'block';
+      detail.style.display = isOpen ? 'none' : 'block';
+      const arrow = row.querySelector('.expand-arrow');
+      if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+    };
   });
 }
 
