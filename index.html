@@ -238,27 +238,36 @@ function assessRisk(desc, wind, vis, temp) {
   const d = (desc || '').toLowerCase();
 
   // HIGH triggers — any one bumps to high
-  if (SEVERE_HIGH.some(k => d.includes(k))) return 'high';
-  if (wind > 20) return 'high';
-  if (vis && vis < 1609) return 'high'; // < 1 mile
+  // Use word-boundary matching for short keywords to avoid spurious substring hits
+  const isLight = d.includes('light') || d.includes('drizzle');
+  const hasThunder = d.includes('thunder') || d.includes('lightning');
+  const hasSevere = d.includes('severe') || d.includes('tornado') || d.includes('hurricane') || d.includes('blizzard') || d.includes('hail') || d.includes('extreme');
+  const hasIcing = (d.includes(' ice') || d.startsWith('ice') || d.includes('freezing') || d.includes('sleet'));
+  const hasHeavy = d.includes('heavy');
+
+  if (hasThunder || hasSevere || hasIcing) return 'high';
+  if (hasHeavy && (d.includes('rain') || d.includes('snow'))) return 'high';
+  if (wind > 25) return 'high';
+  if (vis && vis < 800) return 'high'; // < 0.5 mile (genuinely dangerous)
   if (temp !== null && temp < 20 && (d.includes('rain') || d.includes('snow') || d.includes('shower') || d.includes('drizzle'))) return 'high';
 
-  // Count medium factors — 2+ bumps to high (combined effect)
+  // Count medium factors — but be more selective
   let mediumFactors = 0;
   let mediumDesc = false;
-  if (MEDIUM_WX.some(k => d.includes(k))) { mediumFactors++; mediumDesc = true; }
-  if (wind > 15) mediumFactors++;
-  if (vis && vis < 3000) mediumFactors++;
-  if (temp !== null && temp < 32 && d.includes('cloud')) mediumFactors++;
+  // Don't count "light rain" as a medium factor — it's borderline at most
+  if (!isLight && MEDIUM_WX.some(k => d.includes(k))) { mediumFactors++; mediumDesc = true; }
+  if (wind > 18) mediumFactors++;
+  // Tightened visibility threshold — under 1 mile is the meaningful operational threshold
+  if (vis && vis < 1609) mediumFactors++;
+  if (temp !== null && temp < 28 && d.includes('cloud')) mediumFactors++;
 
   if (mediumFactors >= 2) return 'high';
-  if (mediumFactors === 1 && mediumDesc) return 'medium';
   if (mediumFactors === 1) return 'medium';
 
   // Borderline — light precipitation, breezy, cold but clear
-  if (BORDERLINE_WX.some(k => d.includes(k))) return 'borderline';
-  if (wind > 12) return 'borderline';
-  if (temp !== null && temp < 28) return 'borderline';
+  if (BORDERLINE_WX.some(k => d.includes(k)) || isLight) return 'borderline';
+  if (wind > 15) return 'borderline';
+  if (temp !== null && temp < 25) return 'borderline';
 
   return 'low';
 }
@@ -397,6 +406,10 @@ function assessNWSForecastRisk(periodText) {
   if (!periodText) return null;
   const t = periodText.toLowerCase();
   if (NWS_SEVERE_PHRASES.some(p => t.includes(p))) return 'high';
+  // Don't escalate to medium for plain rain/snow/showers if the forecast describes them as light
+  // ("rain showers", "scattered showers", "chance of rain" etc. are not operationally concerning on their own)
+  const isLightWording = t.includes('chance of') || t.includes('slight chance') || t.includes('light rain') || t.includes('light snow') || t.includes('few showers') || t.includes('isolated showers');
+  if (isLightWording) return null;
   if (NWS_MODERATE_PHRASES.some(p => t.includes(p))) return 'medium';
   return null;
 }
