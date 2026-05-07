@@ -943,10 +943,19 @@ const HUB_AIRPORTS = ['MEM', 'SDF', 'IND'];
 const HUB_NAMES = { 'MEM': 'Memphis (MEM)', 'SDF': 'Louisville (SDF)', 'IND': 'Indianapolis (IND)' };
 
 async function fetchFAADelays() {
+  // The FAA endpoint blocks browser CORS, so we proxy via a GitHub Action
+  // that writes data/faa-events.json every 10 minutes.
+  // Cache-bust the URL so we always get the freshest version.
   try {
-    const resp = await fetch('https://nasstatus.faa.gov/api/airport-events');
+    const resp = await fetch('data/faa-events.json?_=' + Date.now());
     if (!resp.ok) return null;
-    return await resp.json();
+    const events = await resp.json();
+    let timestamp = null;
+    try {
+      const tsResp = await fetch('data/faa-events.timestamp?_=' + Date.now());
+      if (tsResp.ok) timestamp = (await tsResp.text()).trim();
+    } catch(e) { /* sidecar optional */ }
+    return { events, timestamp };
   } catch(e) {
     console.error('FAA fetch failed:', e);
     return null;
@@ -976,14 +985,17 @@ function formatTimeRange(start, end, hubTz) {
   return s.toLocaleString('en-US', fmt);
 }
 
-function renderFAADelays(allEvents) {
+function renderFAADelays(result) {
   const list = document.getElementById('faa-delays-list');
   if (!list) return;
 
-  if (allEvents === null) {
-    list.innerHTML = `<div style="font-size: 13px; color: #888; padding: 8px 0;">Could not load FAA data automatically. Check the <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" style="color:#1B4F8A;">FAA National Status</a> dashboard directly.</div>`;
+  if (!result || !result.events) {
+    list.innerHTML = `<div style="font-size: 13px; color: #888; padding: 8px 0;">FAA data not yet available — the proxy may still be initializing. Check the <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" style="color:#1B4F8A;">FAA National Status</a> dashboard directly in the meantime.</div>`;
     return;
   }
+
+  const allEvents = result.events;
+  const timestamp = result.timestamp;
 
   const hubTz = { 'MEM': 'America/Chicago', 'SDF': 'America/Kentucky/Louisville', 'IND': 'America/Indiana/Indianapolis' };
   const hubEvents = HUB_AIRPORTS.map(code => {
@@ -1048,6 +1060,12 @@ function renderFAADelays(allEvents) {
   });
 
   html += '</div>';
+  if (timestamp) {
+    const ts = new Date(timestamp);
+    const ago = Math.round((Date.now() - ts.getTime()) / 60000);
+    const agoText = ago < 1 ? 'just now' : ago === 1 ? '1 minute ago' : `${ago} minutes ago`;
+    html += `<div style="font-size: 10px; color: #aaa; margin-top: 8px; text-align: right;">FAA data refreshed ${agoText}</div>`;
+  }
   list.innerHTML = html;
 }
 
