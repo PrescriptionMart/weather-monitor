@@ -240,37 +240,40 @@ const BORDERLINE_WX = ['light rain','light snow','overcast','wind','clouds','bro
 function assessRisk(desc, wind, vis, temp) {
   const d = (desc || '').toLowerCase();
 
-  // HIGH triggers — any one bumps to high
-  // Use word-boundary matching for short keywords to avoid spurious substring hits
+  // HIGH triggers — only unambiguous, serious conditions
+  // These are things that genuinely halt hub ops or threaten package integrity.
   const isLight = d.includes('light') || d.includes('drizzle');
-  const hasThunder = d.includes('thunder') || d.includes('lightning');
-  const hasSevere = d.includes('severe') || d.includes('tornado') || d.includes('hurricane') || d.includes('blizzard') || d.includes('hail') || d.includes('extreme');
+  const hasTornado = d.includes('tornado');
+  const hasHurricane = d.includes('hurricane');
+  const hasBlizzard = d.includes('blizzard');
   const hasIcing = (d.includes(' ice') || d.startsWith('ice') || d.includes('freezing') || d.includes('sleet'));
   const hasHeavy = d.includes('heavy');
 
-  if (hasThunder || hasSevere || hasIcing) return 'high';
+  if (hasTornado || hasHurricane || hasBlizzard || hasIcing) return 'high';
   if (hasHeavy && (d.includes('rain') || d.includes('snow'))) return 'high';
-  if (wind > 25) return 'high';
-  if (vis && vis < 800) return 'high'; // < 0.5 mile (genuinely dangerous)
-  if (temp !== null && temp < 20 && (d.includes('rain') || d.includes('snow') || d.includes('shower') || d.includes('drizzle'))) return 'high';
+  if (wind > 35) return 'high'; // sustained high wind only
+  if (vis && vis < 400) return 'high'; // < 0.25 mile - genuinely dangerous
+  if (temp !== null && temp < 15 && (d.includes('rain') || d.includes('snow') || d.includes('shower') || d.includes('drizzle'))) return 'high';
 
-  // Count medium factors — but be more selective
+  // MEDIUM — operationally meaningful conditions that warrant caution but not stopping.
+  // Thunderstorms WITHOUT "severe" qualifier go here, not HIGH.
+  // The NWS forecast text and active alerts are the real source of truth for severe weather.
+  const hasThunder = d.includes('thunder') || d.includes('lightning');
+  if (hasThunder) return 'medium';
+
   let mediumFactors = 0;
-  let mediumDesc = false;
-  // Don't count "light rain" as a medium factor — it's borderline at most
-  if (!isLight && MEDIUM_WX.some(k => d.includes(k))) { mediumFactors++; mediumDesc = true; }
-  if (wind > 18) mediumFactors++;
-  // Tightened visibility threshold — under 1 mile is the meaningful operational threshold
-  if (vis && vis < 1609) mediumFactors++;
-  if (temp !== null && temp < 28 && d.includes('cloud')) mediumFactors++;
+  if (!isLight && MEDIUM_WX.some(k => d.includes(k))) mediumFactors++;
+  if (wind > 22) mediumFactors++;
+  if (vis && vis < 1200) mediumFactors++; // ~3/4 mile
+  if (temp !== null && temp < 25 && d.includes('cloud')) mediumFactors++;
 
-  if (mediumFactors >= 2) return 'high';
-  if (mediumFactors === 1) return 'medium';
+  if (mediumFactors >= 3) return 'high';
+  if (mediumFactors >= 1) return 'medium';
 
-  // Borderline — light precipitation, breezy, cold but clear
+  // Borderline — light precip, breezy, cold but clear
   if (BORDERLINE_WX.some(k => d.includes(k)) || isLight) return 'borderline';
-  if (wind > 15) return 'borderline';
-  if (temp !== null && temp < 25) return 'borderline';
+  if (wind > 18) return 'borderline';
+  if (temp !== null && temp < 22) return 'borderline';
 
   return 'low';
 }
@@ -389,51 +392,65 @@ async function fetchNWSForecast(lat, lon) {
   }
 }
 
-// Severe weather phrases NWS uses in plain-language forecasts that should escalate risk
-// For specialty pharma overnight shipping: ANY thunderstorm = HIGH (lightning halts ramp ops)
+// NWS forecast wording that justifies HIGH risk on its own.
+// These are operationally serious — things that will definitely affect hub sort.
+// "Thunderstorms likely/possible/chance" does NOT belong here — that's an everyday
+// summer forecast in the South and would block shipping all season.
 const NWS_SEVERE_PHRASES = [
-  'severe', 'damaging wind', 'damaging winds', 'tornado', 'tornadoes',
-  'large hail', 'hail', 'flash flood', 'flooding', 'blizzard', 'ice storm',
-  'freezing rain', 'heavy snow', 'extreme', 'destructive',
-  'thunderstorm', 'thunderstorms', // any thunderstorm = lightning risk = ramp ops shutdown
+  'severe thunderstorm', 'damaging wind', 'damaging winds',
+  'tornado', 'tornadoes',
+  'large hail',
+  'flash flood',
+  'blizzard', 'ice storm', 'freezing rain', 'heavy snow',
+  'extreme', 'destructive',
   'hurricane', 'tropical storm', 'high wind warning',
-  'heavy rain', 'periods of heavy rain'
+  'periods of heavy rain'
 ];
 
+// Things that should bump to medium (caution) but not high (do not ship).
+// Plain thunderstorms go here — at MEM/SDF/IND in summer, this is most nights.
 const NWS_MODERATE_PHRASES = [
-  'gusty winds', 'wind gusts', 'snow likely', 'rain likely', 'showers likely',
-  'rain', 'snow', 'showers'
+  'thunderstorm', 'thunderstorms',
+  'gusty winds', 'wind gusts',
+  'snow likely', 'rain likely', 'showers likely',
+  'heavy rain'
 ];
 
 function assessNWSForecastRisk(periodText) {
   if (!periodText) return null;
   const t = periodText.toLowerCase();
   if (NWS_SEVERE_PHRASES.some(p => t.includes(p))) return 'high';
-  // Don't escalate to medium for plain rain/snow/showers if the forecast describes them as light
-  // ("rain showers", "scattered showers", "chance of rain" etc. are not operationally concerning on their own)
+  // Don't escalate plain rain/snow/showers if the forecast describes them as light
   const isLightWording = t.includes('chance of') || t.includes('slight chance') || t.includes('light rain') || t.includes('light snow') || t.includes('few showers') || t.includes('isolated showers');
-  if (isLightWording) return null;
+  if (isLightWording && !t.includes('thunderstorm')) return null;
   if (NWS_MODERATE_PHRASES.some(p => t.includes(p))) return 'medium';
   return null;
 }
 
-// NWS event types that should automatically force HIGH risk for shipping decisions
+// NWS active alert event types that should force HIGH risk.
+// These are formal warnings/watches issued by NWS — operationally serious.
+// "Special Weather Statement" removed: too broad, NWS issues these for routine summer storms.
+// "Wind Advisory" removed: 25-39 mph sustained, doesn't typically halt hub ops.
 const HIGH_RISK_NWS_EVENTS = [
   'Tornado Warning', 'Tornado Watch',
-  'Severe Thunderstorm Warning', 'Severe Thunderstorm Watch',
-  'Flash Flood Warning', 'Flash Flood Watch',
-  'Flood Warning',
+  'Severe Thunderstorm Warning',
+  'Flash Flood Warning',
   'Winter Storm Warning', 'Blizzard Warning', 'Ice Storm Warning',
   'Hurricane Warning', 'Tropical Storm Warning',
-  'High Wind Warning', 'Wind Advisory',
-  'Freezing Rain Advisory', 'Freezing Fog Advisory',
-  'Special Weather Statement',
+  'High Wind Warning',
   'Extreme Wind Warning',
+  'Freezing Rain Advisory',
 ];
 
+// Watches and lower-severity alerts → medium (caution, not stop)
 const MEDIUM_RISK_NWS_EVENTS = [
+  'Severe Thunderstorm Watch',
+  'Flash Flood Watch',
+  'Flood Warning',
   'Winter Weather Advisory', 'Frost Advisory', 'Freeze Warning',
-  'Dense Fog Advisory', 'Hydrologic Outlook',
+  'Dense Fog Advisory',
+  'Wind Advisory',
+  'Special Weather Statement',
 ];
 
 function nwsAlertRiskOverride(alerts) {
@@ -537,7 +554,19 @@ async function fetchLocation(loc) {
         overrideSource = 'NWS active alert';
       }
 
-      const baseDesc = slots.length > 0 ? (worstDesc || slots[0].weather[0].description) : (nwsPeriod ? nwsPeriod.shortForecast : 'no forecast');
+      // Pick the description that best matches the call we're making.
+      // If NWS forecast drove the risk, show the NWS short forecast (it's why we're concerned).
+      // Otherwise show the OpenWeather summary.
+      let baseDesc;
+      if (overrideSource === 'NWS forecast' && nwsPeriod && nwsPeriod.shortForecast) {
+        baseDesc = nwsPeriod.shortForecast;
+      } else if (slots.length > 0) {
+        baseDesc = worstDesc || slots[0].weather[0].description;
+      } else if (nwsPeriod) {
+        baseDesc = nwsPeriod.shortForecast;
+      } else {
+        baseDesc = 'no forecast';
+      }
 
       return {
         dateKey, idx,
