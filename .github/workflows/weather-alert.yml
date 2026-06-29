@@ -1,0 +1,31 @@
+name: Proactive weather alert
+
+on:
+  schedule:
+    # 21:00 UTC on weekdays = ~4pm Central (CDT) / 3pm (CST) — afternoon, with
+    # time to act before tonight's 10pm–4am sort window.
+    - cron: '0 21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Evaluate and print the decision without sending email'
+        type: boolean
+        default: false
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Evaluate overnight risk and alert if needed
+        env:
+          OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          ALERT_EMAIL: BClay@scriptcare.com
+          DASHBOARD_URL: https://prescriptionmart.github.io/weather-monitor
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: node scripts/weather-alert.mjs

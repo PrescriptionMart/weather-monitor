@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Overnight Shipping Weather Risk — Prescription Mart</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1B4F8A" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ship Weather" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
@@ -196,6 +203,18 @@
     <div style="font-size: 11px; color: #aaa; margin-top: 10px; line-height: 1.5;">
       A <strong>ground stop</strong> halts all flights to an airport. A <strong>ground delay program</strong> meters arrivals when capacity drops. Either will affect overnight package sort timing.
     </div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div style="margin-bottom: 4px;" class="section-label">Check a delivery destination</div>
+    <div style="font-size: 12px; color: #888; margin-bottom: 12px;">A clear hub doesn't help if the destination is socked in. Enter a delivery ZIP to check weather where the package lands over the next two days.</div>
+    <form id="dest-form" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;" onsubmit="lookupDestination(); return false;">
+      <input id="dest-zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 80202"
+        style="flex:0 0 auto; width:130px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:8px;" />
+      <button class="btn btn-primary" id="dest-btn" type="submit">Check destination</button>
+      <span id="dest-status" style="font-size:12px; color:#888;"></span>
+    </form>
+    <div id="dest-result" style="margin-top:14px;"></div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
@@ -1119,6 +1138,94 @@ function renderFAADelays(result) {
 }
 
 // =============================================================================
+// DESTINATION LOOKUP — check delivery-side weather by ZIP
+// =============================================================================
+const DEST_ZIP_KEY = 'last-destination-zip';
+
+async function geocodeZip(zip) {
+  // OpenWeatherMap ZIP geocoding (US)
+  const r = await fetch(`https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${WEATHER_API_KEY}`);
+  if (!r.ok) throw new Error('ZIP not found');
+  const d = await r.json();
+  if (d.lat == null || d.lon == null) throw new Error('ZIP not found');
+  return { name: d.name || zip, lat: d.lat, lon: d.lon };
+}
+
+async function fetchDestination(loc) {
+  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${loc.lat}&lon=${loc.lon}&appid=${WEATHER_API_KEY}&units=imperial`;
+  const [resp, alerts] = await Promise.all([fetch(url), fetchNWSAlerts(loc.lat, loc.lon)]);
+  if (!resp.ok) throw new Error('forecast unavailable');
+  const data = await resp.json();
+  // Bucket the 3-hourly forecast into the destination's local calendar days
+  // (today / tomorrow) using the city's UTC offset, and keep the worst risk.
+  const offset = (data.city && data.city.timezone) || 0; // seconds
+  const nowLocalDay = Math.floor((Date.now() / 1000 + offset) / 86400);
+  const days = {};
+  (data.list || []).forEach(item => {
+    const di = Math.floor((item.dt + offset) / 86400) - nowLocalDay; // 0=today, 1=tomorrow
+    if (di < 0 || di > 1) return;
+    const desc = item.weather[0].description;
+    const wind = item.wind ? item.wind.speed : 0;
+    const vis = item.visibility || 10000;
+    const temp = item.main ? item.main.temp : null;
+    const risk = assessRisk(desc, wind, vis, temp);
+    const cur = days[di] || { risk: 'low', desc: '', wind: 0, temp: null };
+    if (riskRank(risk) > riskRank(cur.risk)) { cur.risk = risk; cur.desc = desc; }
+    if (wind > cur.wind) cur.wind = Math.round(wind);
+    if (temp != null && (cur.temp == null || temp < cur.temp)) cur.temp = Math.round(temp);
+    days[di] = cur;
+  });
+  return { days, alerts };
+}
+
+function renderDestination(loc, result) {
+  const el = document.getElementById('dest-result');
+  const labels = ['Today', 'Tomorrow'];
+  let rows = '';
+  for (let i = 0; i < 2; i++) {
+    const d = result.days[i];
+    if (!d) {
+      rows += `<div class="night-row"><div class="night-label"><strong>${labels[i]}</strong></div><div class="night-desc"><em>no forecast</em></div><span class="badge badge-loading">—</span></div>`;
+      continue;
+    }
+    const extra = (d.wind > 15 ? ` &middot; ${d.wind} mph` : '') + (d.temp != null ? ` &middot; ${d.temp}°F` : '');
+    rows += `<div class="night-row">
+      <div class="night-label"><strong>${labels[i]}</strong></div>
+      <div class="night-desc">${d.desc}${extra}</div>
+      <span class="${riskClass(d.risk)}">${riskLabel(d.risk)}</span>
+    </div>`;
+  }
+  let alertsHtml = '';
+  if (result.alerts && result.alerts.length > 0) {
+    alertsHtml = '<div style="margin-top:10px;">' + result.alerts.slice(0, 3).map(a =>
+      `<div style="background:#FCEBEB; border-left:3px solid #A32D2D; padding:6px 10px; border-radius:4px; margin-top:6px; font-size:12px;"><strong style="color:#A32D2D;">⚠ ${a.event}</strong>${a.headline ? `<div style="color:#5F2828; margin-top:2px;">${a.headline}</div>` : ''}</div>`
+    ).join('') + '</div>';
+  }
+  el.innerHTML = `<div style="font-weight:500; font-size:14px; margin-bottom:6px;">${loc.name} <span style="color:#888; font-weight:400;">— delivery-side outlook</span></div>${rows}${alertsHtml}`;
+}
+
+async function lookupDestination() {
+  const input = document.getElementById('dest-zip');
+  const status = document.getElementById('dest-status');
+  const zip = (input.value || '').trim();
+  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit US ZIP.'; status.style.color = '#A32D2D'; return; }
+  status.style.color = '#888';
+  status.textContent = 'Checking…';
+  try {
+    if (WEATHER_API_KEY === 'YOUR_OPENWEATHERMAP_KEY_HERE') throw new Error('API key not set');
+    const loc = await geocodeZip(zip);
+    const result = await fetchDestination(loc);
+    renderDestination(loc, result);
+    status.textContent = '';
+    try { localStorage.setItem(DEST_ZIP_KEY, zip); } catch(e) {}
+  } catch(e) {
+    status.style.color = '#A32D2D';
+    status.textContent = e.message === 'ZIP not found' ? 'ZIP not found — check the digits.' : 'Could not load — try again.';
+    console.error('Destination lookup failed:', e);
+  }
+}
+
+// =============================================================================
 let _loading = false;
 async function loadWeather() {
   if (_loading) return; // guard against overlapping refreshes
@@ -1164,7 +1271,18 @@ async function _loadWeather() {
   document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
 
+// Register the service worker for installability + offline fallback.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 loadWeather();
+
+// Restore the last delivery ZIP the user checked
+try {
+  const lastZip = localStorage.getItem(DEST_ZIP_KEY);
+  if (lastZip) document.getElementById('dest-zip').value = lastZip;
+} catch(e) {}
 
 // This is a monitoring dashboard people leave open, so keep it current:
 // refresh every 15 minutes, and again whenever the tab regains focus after
