@@ -48,17 +48,22 @@ jobs:
               json.dump(out, f, separators=(',', ':'), sort_keys=True)
           PY
           rm -f data/faa-events.raw.json
-          # Stamp the fetch time into a sidecar file
-          date -u +"%Y-%m-%dT%H:%M:%SZ" > data/faa-events.timestamp
 
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/faa-events.json data/faa-events.timestamp
-          if git diff --cached --quiet; then
-            echo "No changes — skipping commit"
+          git add data/faa-events.json
+          # Only commit (and bump the timestamp) when the delay data actually
+          # changed. The timestamp used to be rewritten every run, which forced
+          # a commit every 10 minutes even when nothing happened; keying the
+          # decision off the events file means the history records only real
+          # changes in ground stops / delays.
+          if git diff --cached --quiet -- data/faa-events.json; then
+            echo "No FAA data change — skipping commit"
           else
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > data/faa-events.timestamp
+            git add data/faa-events.timestamp
             git commit -m "chore: refresh FAA delay data"
             git push
           fi
