@@ -19,8 +19,11 @@ The site is two pages (tabs at the top):
 - A combined recommendation ("hold next-day air", "ship with caution", etc.)
   plus one-click **email** and **team-message** drafts.
 - **Live FAA delays** (ground stops / ground delay programs) at the three hubs.
+- **Delivery destination check** — enter a ZIP to see weather where the package lands over the next two days (a clear hub doesn't help if the destination is socked in).
 - Regional watch zones (ORD, DFW, ATL, DEN, LAX, JFK) for situational awareness.
 - Links out to FedEx/UPS service alerts and the FAA National Status board.
+
+Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" for an app-like, installable shortcut that still shows the last-loaded data when offline.
 
 **Winter Packing Map (`winter-pack.html`)**
 - A US map flagging states whose forecast low-of-the-day drops below the
@@ -31,6 +34,7 @@ The site is two pages (tabs at the top):
 | Source | Used for | Key required |
 |--------|----------|--------------|
 | OpenWeatherMap 5-day/3-hour forecast | Hub night-window conditions | Free API key (in `index.html`) |
+| OpenWeatherMap geocoding | Delivery-ZIP → coordinates | same key |
 | National Weather Service (api.weather.gov) | Active alerts + plain-language forecast + winter map | None |
 | FAA NAS Status (nasstatus.faa.gov) | Ground stops / ground delay programs | None (proxied via Action) |
 
@@ -74,6 +78,16 @@ the dashboard before sort decisions go out. This is an **unconditional
 reminder**, not a weather-triggered alert — the judgement call stays with the
 person looking at the dashboard.
 
+**`weather-alert.yml`** — weekday afternoons (`0 21 * * 1-5`, ~4pm Central),
+runs `scripts/weather-alert.mjs`, which evaluates the **same risk logic the
+dashboard uses** for tonight's 10pm–4am window at each hub and emails the team
+**only when a hub is high or medium** — with the recommended hold/ship call and
+expected patient-delay impact. This is the proactive, weather-triggered
+counterpart to the daily reminder. Trigger it manually from the Actions tab
+(with the **dry-run** option to preview the decision without sending). Keep
+`scripts/weather-alert.mjs` in sync with `assessRisk()` and the NWS phrase/event
+lists in `index.html`.
+
 ---
 
 ## Setup
@@ -94,11 +108,14 @@ runs in demo mode.
 > page source. Use a free-tier key dedicated to this dashboard so it can be
 > rotated without affecting anything else.
 
-### 3. Gmail secrets (for the daily reminder)
+### 3. Gmail secrets (for the email workflows)
 Add these repo secrets under Settings → Secrets and variables → Actions:
 - `GMAIL_CLIENT_ID`
 - `GMAIL_CLIENT_SECRET`
 - `GMAIL_REFRESH_TOKEN`
+- `OPENWEATHER_KEY` *(optional but recommended)* — used by `weather-alert.yml`. If
+  unset, the alert falls back to the same public key that's already in
+  `index.html`, so it still works; setting it lets you use a dedicated key.
 
 Generate them via Google Cloud Console (enable the Gmail API, create a Web
 OAuth client) and the OAuth Playground (scope `https://mail.google.com/`,
