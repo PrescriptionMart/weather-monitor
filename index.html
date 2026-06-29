@@ -1104,10 +1104,16 @@ function renderFAADelays(result) {
 
   html += '</div>';
   if (timestamp) {
-    const ts = new Date(timestamp);
-    const ago = Math.round((Date.now() - ts.getTime()) / 60000);
-    const agoText = ago < 1 ? 'just now' : ago === 1 ? '1 minute ago' : `${ago} minutes ago`;
-    html += `<div style="font-size: 10px; color: #aaa; margin-top: 8px; text-align: right;">FAA data refreshed ${agoText}</div>`;
+    // The committed timestamp now marks when the delay data last *changed*
+    // (the workflow only commits on a real change), so this can span hours or
+    // days during quiet periods — format it accordingly.
+    const mins = Math.round((Date.now() - new Date(timestamp).getTime()) / 60000);
+    let agoText;
+    if (mins < 1) agoText = 'just now';
+    else if (mins < 60) agoText = `${mins} minute${mins === 1 ? '' : 's'} ago`;
+    else if (mins < 1440) { const h = Math.round(mins / 60); agoText = `${h} hour${h === 1 ? '' : 's'} ago`; }
+    else { const d = Math.round(mins / 1440); agoText = `${d} day${d === 1 ? '' : 's'} ago`; }
+    html += `<div style="font-size: 10px; color: #aaa; margin-top: 8px; text-align: right;">FAA delay status last changed ${agoText} &middot; checked every 10 min</div>`;
   }
   list.innerHTML = html;
 }
