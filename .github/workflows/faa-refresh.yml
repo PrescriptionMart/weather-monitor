@@ -21,9 +21,33 @@ jobs:
           curl -sSf -m 30 \
             -H "User-Agent: Prescription-Mart-Dashboard (ops@prescriptionmart.com)" \
             "https://nasstatus.faa.gov/api/airport-events" \
-            -o data/faa-events.json
-          # Verify we got valid JSON
-          python3 -c "import json; json.load(open('data/faa-events.json'))"
+            -o data/faa-events.raw.json
+          # The raw API payload is ~13KB of fields the dashboard never reads
+          # (runway configs, per-sequence delay tables, included-facility lists).
+          # Slim it to just the fields the UI renders and to only airports that
+          # actually have a ground stop / ground delay / departure delay. This
+          # keeps the committed file tiny and makes each diff a real change
+          # rather than churn, while still validating that we got valid JSON.
+          python3 - <<'PY'
+          import json
+          with open('data/faa-events.raw.json') as f:
+              raw = json.load(f)
+
+          def pick(obj, keys):
+              return {k: obj.get(k) for k in keys} if obj else None
+
+          out = []
+          for e in raw:
+              gs = pick(e.get('groundStop'), ['impactingCondition', 'startTime', 'endTime'])
+              gd = pick(e.get('groundDelay'), ['impactingCondition', 'avgDelay', 'maxDelay', 'startTime', 'endTime'])
+              dd = pick(e.get('departureDelay'), ['reason', 'averageDelay', 'trend'])
+              if gs or gd or dd:
+                  out.append({'airportId': e.get('airportId'), 'groundStop': gs, 'groundDelay': gd, 'departureDelay': dd})
+
+          with open('data/faa-events.json', 'w') as f:
+              json.dump(out, f, separators=(',', ':'), sort_keys=True)
+          PY
+          rm -f data/faa-events.raw.json
           # Stamp the fetch time into a sidecar file
           date -u +"%Y-%m-%dT%H:%M:%SZ" > data/faa-events.timestamp
 

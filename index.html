@@ -233,7 +233,6 @@ const LOCATIONS = [
 // BORDERLINE = Monitor (conditions iffy but not concerning yet)
 // LOW = Clear
 
-const SEVERE_HIGH = ['thunder','tornado','hurricane','blizzard','ice','freezing','severe','hail','sleet','heavy snow','heavy rain','extreme','storm'];
 const MEDIUM_WX = ['rain','snow','drizzle','shower','fog','mist'];
 const BORDERLINE_WX = ['light rain','light snow','overcast','wind','clouds','broken clouds','scattered clouds'];
 
@@ -293,50 +292,43 @@ function riskRank(r) {
   return 0;
 }
 
+// Intl.DateTimeFormat construction is expensive and these helpers run inside
+// nested loops (locations × nights × forecast slots), so cache one formatter
+// per timezone instead of allocating a fresh one on every call.
+const _hourFmt = {};
+const _dateFmt = {};
+function hourFormatter(tz) {
+  return _hourFmt[tz] || (_hourFmt[tz] = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }));
+}
+function dateFormatter(tz) {
+  return _dateFmt[tz] || (_dateFmt[tz] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }));
+}
+
 // Get the local hour at a given timezone for a given UTC date
 function getLocalHour(utcDate, tz) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).formatToParts(utcDate);
-  const h = parts.find(p => p.type === 'hour').value;
+  const h = hourFormatter(tz).formatToParts(utcDate).find(p => p.type === 'hour').value;
   return parseInt(h, 10);
 }
 
-// Get a YYYY-MM-DD string for the local date at a given timezone
+// Get a YYYY-MM-DD string for the local date at a given timezone.
+// en-CA already formats as YYYY-MM-DD, so the single string is the key.
 function getLocalDateKey(utcDate, tz) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(utcDate);
-  const y = parts.find(p => p.type === 'year').value;
-  const m = parts.find(p => p.type === 'month').value;
-  const d = parts.find(p => p.type === 'day').value;
-  return `${y}-${m}-${d}`;
+  return dateFormatter(tz).format(utcDate);
 }
 
 // Build the next 3 "sort nights" — each night is identified by its EVENING date in local hub time
 // Example: Tuesday sort window = Tue 10pm–4am Wed, identified as "Tue YYYY-MM-DD"
 function getNext3SortNights(tz) {
+  // Each "sort night" is keyed by its evening date in local hub time. The
+  // upcoming window is always anchored to today's local date: before 4am we're
+  // still inside last evening's window, but the next decision the user cares
+  // about is tonight's, so "today" is the right anchor in every case.
   const now = new Date();
-  const todayKey = getLocalDateKey(now, tz);
-  const todayHour = getLocalHour(now, tz);
   const nights = [];
-
-  // Start with today's night (if it hasn't passed) or tomorrow's night
-  // If it's already past 4am AND past noon, today's night is still upcoming
-  // If we're between midnight and 4am, we're still IN tonight's window — mark it as currently active
-  let startOffset = 0;
-  if (todayHour >= 4 && todayHour < 22) {
-    // We're in the day — tonight's window is upcoming
-    startOffset = 0;
-  } else if (todayHour >= 22) {
-    // We're already in tonight's window — still tonight
-    startOffset = 0;
-  } else {
-    // Between midnight and 4am — we're in last night's window. Treat next sort as tonight
-    startOffset = 0;
-  }
-
   for (let i = 0; i < 3; i++) {
     const date = new Date(now);
-    date.setDate(date.getDate() + startOffset + i);
-    const key = getLocalDateKey(date, tz);
-    nights.push(key);
+    date.setDate(date.getDate() + i);
+    nights.push(getLocalDateKey(date, tz));
   }
   return nights;
 }
@@ -372,15 +364,37 @@ async function fetchNWSAlerts(lat, lon) {
   }
 }
 
+// The NWS /points/{lat,lon} → forecast-URL mapping never changes for fixed
+// coordinates, so resolve it once and persist it. This drops one request per
+// location on every load after the first.
+const NWS_POINTS_CACHE_KEY = 'nws-points-cache-v1';
+function getCachedForecastUrl(lat, lon) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(NWS_POINTS_CACHE_KEY) || '{}');
+    return cache[`${lat},${lon}`] || null;
+  } catch(e) { return null; }
+}
+function setCachedForecastUrl(lat, lon, url) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(NWS_POINTS_CACHE_KEY) || '{}');
+    cache[`${lat},${lon}`] = url;
+    localStorage.setItem(NWS_POINTS_CACHE_KEY, JSON.stringify(cache));
+  } catch(e) { /* localStorage may be full or disabled */ }
+}
+
 async function fetchNWSForecast(lat, lon) {
   // NWS forecast — proactive plain-language forecast that often calls out severe weather
   // before it triggers a formal watch/warning. Two-step: get the gridpoint, then the forecast.
   try {
-    const pointResp = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } });
-    if (!pointResp.ok) return null;
-    const pointData = await pointResp.json();
-    const forecastUrl = pointData.properties.forecast;
-    if (!forecastUrl) return null;
+    let forecastUrl = getCachedForecastUrl(lat, lon);
+    if (!forecastUrl) {
+      const pointResp = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } });
+      if (!pointResp.ok) return null;
+      const pointData = await pointResp.json();
+      forecastUrl = pointData.properties.forecast;
+      if (!forecastUrl) return null;
+      setCachedForecastUrl(lat, lon, forecastUrl);
+    }
 
     const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
     if (!fcResp.ok) return null;
@@ -1099,7 +1113,18 @@ function renderFAADelays(result) {
 }
 
 // =============================================================================
+let _loading = false;
 async function loadWeather() {
+  if (_loading) return; // guard against overlapping refreshes
+  _loading = true;
+  try {
+    await _loadWeather();
+  } finally {
+    _loading = false;
+  }
+}
+
+async function _loadWeather() {
   // Set today's date display
   const today = new Date();
   document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
@@ -1134,6 +1159,19 @@ async function loadWeather() {
 }
 
 loadWeather();
+
+// This is a monitoring dashboard people leave open, so keep it current:
+// refresh every 15 minutes, and again whenever the tab regains focus after
+// being hidden for a while (throttled so a quick tab-switch doesn't refetch).
+const AUTO_REFRESH_MS = 15 * 60 * 1000;
+let _lastLoad = Date.now();
+setInterval(() => { _lastLoad = Date.now(); loadWeather(); }, AUTO_REFRESH_MS);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - _lastLoad > AUTO_REFRESH_MS) {
+    _lastLoad = Date.now();
+    loadWeather();
+  }
+});
 </script>
 </body>
 </html>

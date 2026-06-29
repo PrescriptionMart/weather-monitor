@@ -1,124 +1,127 @@
 # Prescription Mart — Overnight Shipping Weather Monitor
 
-Monitors overnight weather (10pm–4am) at FedEx Memphis and UPS Louisville hubs, plus major regional zones. Sends an email alert the morning before severe weather is forecast.
+A zero-backend dashboard that helps the shipping team decide whether to send
+next-day-air specialty pharma overnight. It evaluates the **10pm–4am sort
+window** at the carrier hubs we depend on and surfaces anything that would
+delay the overnight package sort.
+
+Live dashboard: `https://prescriptionmart.github.io/weather-monitor`
 
 ---
 
-## Setup (about 15 minutes)
+## What it shows
 
-### Step 1 — Create the GitHub repo
+The site is two pages (tabs at the top):
 
-1. Log in to github.com
-2. Click the **+** icon (top right) → **New repository**
-3. Name it `weather-monitor`
-4. Set it to **Public** (required for free GitHub Pages)
-5. Click **Create repository**
+**Hub Forecasts (`index.html`)**
+- Next 3 sort windows at our hubs: **FedEx Memphis (MEM)**, **UPS Louisville
+  (SDF)**, and **UPS Indianapolis (IND)** — each evaluated in its own local time.
+- A combined recommendation ("hold next-day air", "ship with caution", etc.)
+  plus one-click **email** and **team-message** drafts.
+- **Live FAA delays** (ground stops / ground delay programs) at the three hubs.
+- Regional watch zones (ORD, DFW, ATL, DEN, LAX, JFK) for situational awareness.
+- Links out to FedEx/UPS service alerts and the FAA National Status board.
 
-### Step 2 — Upload these files
+**Winter Packing Map (`winter-pack.html`)**
+- A US map flagging states whose forecast low-of-the-day drops below the
+  cold-pack threshold over the next 7 days, aggregated to each state's coldest
+  city so panhandles/cold corners aren't missed.
 
-Upload the two files in this folder to your new repo:
-- `index.html` → root of the repo
-- `.github/workflows/daily-alert.yml` → create those folders and upload
+### Data sources
+| Source | Used for | Key required |
+|--------|----------|--------------|
+| OpenWeatherMap 5-day/3-hour forecast | Hub night-window conditions | Free API key (in `index.html`) |
+| National Weather Service (api.weather.gov) | Active alerts + plain-language forecast + winter map | None |
+| FAA NAS Status (nasstatus.faa.gov) | Ground stops / ground delay programs | None (proxied via Action) |
 
-The easiest way: use the GitHub web interface, click **Add file → Upload files**.
+The NWS API blocks no one but the FAA endpoint blocks browser CORS, so a
+GitHub Action fetches it server-side (see below).
 
-### Step 3 — Turn on GitHub Pages
+### Risk thresholds (hub forecasts)
+The dashboard takes the **highest** risk across OpenWeatherMap, the NWS
+plain-language forecast, and (for tonight only) active NWS alerts.
 
-1. In your repo, go to **Settings → Pages**
-2. Under **Source**, select **Deploy from a branch**
-3. Choose branch: `main`, folder: `/ (root)`
-4. Click Save
-5. Wait ~2 minutes, then your dashboard will be live at:
-   `https://prescriptionmart.github.io/weather-monitor`
+- **Do not ship (high):** tornado / hurricane / blizzard / ice / freezing /
+  sleet, heavy rain or snow, sustained wind > 35 mph, visibility < 0.25 mi, or
+  cold-precip below 15°F. NWS severe wording (severe thunderstorm, damaging
+  winds, large hail, flash flood, ice storm, etc.) or a matching active warning
+  also forces high.
+- **Use caution (medium):** plain thunderstorms, rain/snow/fog, wind > 22 mph,
+  visibility < 0.75 mi, or a watch-level NWS alert.
+- **Monitor (borderline):** light precip, breezy, or just cold-but-clear.
+- **Clear (low):** everything else.
 
-### Step 4 — Get a free OpenWeatherMap API key
-
-1. Go to openweathermap.org and create a free account
-2. Go to **API keys** in your profile
-3. Copy your key
-
-### Step 5 — Add the API key to the dashboard
-
-In `index.html`, find this line near the top of the `<script>` block:
-```
-const WEATHER_API_KEY = 'YOUR_OPENWEATHERMAP_KEY_HERE';
-```
-Replace `YOUR_OPENWEATHERMAP_KEY_HERE` with your actual key.
-
-### Step 6 — Set up Gmail for the daily email alert
-
-The GitHub Action sends email directly via the Gmail API. You need three values from Google:
-
-**Get a Client ID and Client Secret:**
-1. Go to console.cloud.google.com
-2. Create a new project (or use an existing one)
-3. Go to **APIs & Services → Library**, search for **Gmail API**, enable it
-4. Go to **APIs & Services → Credentials**
-5. Click **Create Credentials → OAuth 2.0 Client ID**
-6. Application type: **Web application**
-7. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI
-8. Save — copy your **Client ID** and **Client Secret**
-
-**Get a Refresh Token:**
-1. Go to developers.google.com/oauthplayground
-2. Click the gear icon (top right) → check **Use your own OAuth credentials**
-3. Enter your Client ID and Client Secret
-4. In the left panel, find **Gmail API v1**, select `https://mail.google.com/`
-5. Click **Authorize APIs** → sign in with the Gmail account you want to send from
-6. Click **Exchange authorization code for tokens**
-7. Copy the **Refresh token**
-
-**Add the secrets to GitHub:**
-1. In your GitHub repo, go to **Settings → Secrets and variables → Actions**
-2. Click **New repository secret** and add each of these:
-   - `OPENWEATHER_KEY` — your OpenWeatherMap API key
-   - `GMAIL_CLIENT_ID` — from Google Cloud Console
-   - `GMAIL_CLIENT_SECRET` — from Google Cloud Console
-   - `GMAIL_REFRESH_TOKEN` — from OAuth Playground
-
-### Step 7 — Update the dashboard URL in the workflow
-
-In `.github/workflows/daily-alert.yml`, find this line near the bottom:
-```
-Dashboard: https://prescriptionmart.github.io/weather-monitor
-```
+> Thunderstorms are deliberately **medium**, not high — at MEM/SDF/IND in
+> summer that's most nights, and treating every storm as a hard stop would
+> block shipping all season. Formal NWS warnings are the source of truth for
+> genuinely severe weather.
 
 ---
 
-## How it works
+## How the automation works
 
-**Dashboard (`index.html`):**
-- Loads live weather from OpenWeatherMap for each hub and regional zone
-- Evaluates the 10pm–4am forecast window specifically
-- Shows risk level: Clear to ship / Use caution / Do not ship
-- "Email alert" button sends a manual alert via Gmail
-- Bookmark the Pages URL and check it anytime
+Two GitHub Actions workflows, plus GitHub Pages serving the static files from
+`main`.
 
-**Daily alert (GitHub Actions):**
-- Runs automatically every morning at 8am Central
-- Checks the next overnight forecast window
-- Sends an email to bclay@scriptcare.com **only if** there's a weather concern
-- To get a daily email regardless (even when clear), comment out line 78 in the workflow
-- You can also trigger it manually from the **Actions** tab in GitHub
+**`faa-refresh.yml`** — every 10 minutes, fetches FAA airport events, slims the
+payload down to the few fields the dashboard renders (only airports with an
+active ground stop / ground delay / departure delay), and commits
+`data/faa-events.json` + a `data/faa-events.timestamp` sidecar when it changes.
 
-**Risk thresholds:**
-- High / Do not ship: severe weather keywords (thunderstorm, blizzard, ice storm, etc.), wind > 25 mph, or visibility < 0.5 mi
-- Medium / Use caution: moderate weather (rain, snow, fog, etc.), wind > 15 mph, or visibility < 2 mi
-- Low / Clear: everything else
+**`daily-reminder.yml`** — weekday mornings (`0 13 * * 1-5`, i.e. 8am Central
+in summer / 7am in winter), sends a reminder email via the Gmail API to check
+the dashboard before sort decisions go out. This is an **unconditional
+reminder**, not a weather-triggered alert — the judgement call stays with the
+person looking at the dashboard.
 
 ---
 
-## Adding recipients
+## Setup
 
-To add Cricket or others to the daily email, edit the `ALERT_EMAIL` line in `daily-alert.yml`:
+### 1. GitHub Pages
+Settings → Pages → **Deploy from a branch** → `main` / `/ (root)`. Pages
+publishes the static files directly; no build step.
+
+### 2. OpenWeatherMap key
+Create a free key at openweathermap.org and set it in `index.html`:
+```js
+const WEATHER_API_KEY = 'your-key-here';
 ```
-ALERT_EMAIL: bclay@scriptcare.com,cricket@prescriptionmart.com
-```
+A new key can take up to an hour to activate. Until a key is set, the dashboard
+runs in demo mode.
+
+> Note: because the dashboard is fully client-side, this key is visible in the
+> page source. Use a free-tier key dedicated to this dashboard so it can be
+> rotated without affecting anything else.
+
+### 3. Gmail secrets (for the daily reminder)
+Add these repo secrets under Settings → Secrets and variables → Actions:
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+
+Generate them via Google Cloud Console (enable the Gmail API, create a Web
+OAuth client) and the OAuth Playground (scope `https://mail.google.com/`,
+exchange for a refresh token). The recipient is set by the `REMINDER_EMAIL`
+value in `daily-reminder.yml`.
 
 ---
+
+## Common edits
+
+- **Add/remove a hub or region:** edit the `LOCATIONS` array in `index.html`
+  (set `hub: true` for a primary hub card). Add the airport code to
+  `HUB_AIRPORTS`/`HUB_NAMES` to show its FAA delays too.
+- **Change the reminder recipient or time:** edit `REMINDER_EMAIL` and the
+  `cron` in `daily-reminder.yml`.
+- **Tune risk thresholds:** see `assessRisk()` and the NWS phrase/event lists
+  in `index.html`.
 
 ## Troubleshooting
-
-- **Dashboard shows demo data** — API key not set in `index.html`
-- **Email not sending** — check the Actions tab in GitHub for error logs; most common issue is secrets not set correctly
-- **GitHub Pages not loading** — make sure repo is Public and Pages is enabled in Settings
+- **Dashboard shows demo data** — the OpenWeatherMap key isn't set (or isn't
+  active yet).
+- **FAA panel says data isn't available** — the `faa-refresh` Action hasn't run
+  yet; trigger it manually from the Actions tab.
+- **Reminder email not sending** — check the `daily-reminder` run logs; the
+  usual cause is a missing/expired Gmail secret.
+- **Pages not loading** — the repo must be public and Pages enabled.

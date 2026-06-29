@@ -497,13 +497,35 @@ async function loadTopoJSON() {
   topoData = await resp.json();
 }
 
+// The NWS /points/{lat,lon} → forecast-URL mapping is static per coordinate.
+// Persisting it lets a cold forecast load skip ~250 point lookups (one per
+// city), roughly halving the request count on the first visit of the day.
+const NWS_POINTS_CACHE_KEY = 'nws-points-cache-v1';
+function getCachedForecastUrl(lat, lon) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(NWS_POINTS_CACHE_KEY) || '{}');
+    return cache[`${lat},${lon}`] || null;
+  } catch(e) { return null; }
+}
+function setCachedForecastUrl(lat, lon, url) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(NWS_POINTS_CACHE_KEY) || '{}');
+    cache[`${lat},${lon}`] = url;
+    localStorage.setItem(NWS_POINTS_CACHE_KEY, JSON.stringify(cache));
+  } catch(e) { /* localStorage may be full or disabled */ }
+}
+
 async function fetchCityForecast(city) {
   try {
-    const pointResp = await fetch(`https://api.weather.gov/points/${city.lat},${city.lon}`, { headers: { 'Accept': 'application/geo+json' } });
-    if (!pointResp.ok) return null;
-    const pointData = await pointResp.json();
-    const forecastUrl = pointData.properties.forecast;
-    if (!forecastUrl) return null;
+    let forecastUrl = getCachedForecastUrl(city.lat, city.lon);
+    if (!forecastUrl) {
+      const pointResp = await fetch(`https://api.weather.gov/points/${city.lat},${city.lon}`, { headers: { 'Accept': 'application/geo+json' } });
+      if (!pointResp.ok) return null;
+      const pointData = await pointResp.json();
+      forecastUrl = pointData.properties.forecast;
+      if (!forecastUrl) return null;
+      setCachedForecastUrl(city.lat, city.lon, forecastUrl);
+    }
     const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
     if (!fcResp.ok) return null;
     const fcData = await fcResp.json();
