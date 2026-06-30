@@ -1,1 +1,1 @@
-[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":48.0,"endTime":"2026-06-30T19:59:00Z","impactingCondition":"other","maxDelay":97,"startTime":"2026-06-30T15:15:00Z"},"groundStop":null}]
+[{"airportId":"MCO","departureDelay":{"averageDelay":"30","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":{"endTime":"2026-06-30T19:45:00Z","impactingCondition":"thunderstorms","startTime":"2026-06-30T17:30:00Z"}}]
