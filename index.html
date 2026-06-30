@@ -12,60 +12,170 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Ship Weather" />
   <style>
+    /* ---- design tokens ------------------------------------------------ */
+    :root {
+      --bg: #f4f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f7f5;
+      --inset: #f0f0ec;
+      --border: #e4e4df;
+      --border-2: #efefea;
+      --text: #1a1a1a;
+      --text-muted: #6b6b66;
+      --text-faint: #9a9a93;
+      --brand: #1B4F8A;
+      --brand-strong: #164070;
+      --header-bg: #1B4F8A;
+      --header-fg: #ffffff;
+      --on-accent: #ffffff;
+      --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.07);
+      --radius: 10px;
+      --radius-lg: 14px;
+      /* risk palette */
+      --high-bg: #FCEBEB; --high-fg: #A32D2D; --high-bd: #F09595; --high-dot: #E24B4A;
+      --med-bg: #FAEEDA;  --med-fg: #854F0B;  --med-bd: #EF9F27;  --med-dot: #EF9F27;
+      --bl-bg: #FAF6E0;   --bl-fg: #7A6314;   --bl-bd: #D4C76A;   --bl-dot: #D4C76A;
+      --low-bg: #EAF3DE;  --low-fg: #3B6D11;  --low-bd: #97C459;  --low-dot: #639922;
+      --info-bg: #E6F1FB; --info-fg: #185FA5; --info-bd: #85B7EB;
+    }
+    /* dark theme: follow system unless the user forces light; explicit toggle wins */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+        --border: #2e323a; --border-2: #282c33;
+        --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+        --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4);
+        --high-bg: #3a1f22; --high-fg: #f3a3a2; --high-bd: #6e3236; --high-dot: #e2605f;
+        --med-bg: #3a2e1a; --med-fg: #f0c485; --med-bd: #6e5526; --med-dot: #efab3f;
+        --bl-bg: #34311c; --bl-fg: #ddd08a; --bl-bd: #5f5828; --bl-dot: #d4c76a;
+        --low-bg: #213017; --low-fg: #a7d178; --low-bd: #3f5f28; --low-dot: #7fb443;
+        --info-bg: #16293c; --info-fg: #8fc1f0; --info-bd: #2d5170;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+      --border: #2e323a; --border-2: #282c33;
+      --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+      --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4);
+      --high-bg: #3a1f22; --high-fg: #f3a3a2; --high-bd: #6e3236; --high-dot: #e2605f;
+      --med-bg: #3a2e1a; --med-fg: #f0c485; --med-bd: #6e5526; --med-dot: #efab3f;
+      --bl-bg: #34311c; --bl-fg: #ddd08a; --bl-bd: #5f5828; --bl-dot: #d4c76a;
+      --low-bg: #213017; --low-fg: #a7d178; --low-bd: #3f5f28; --low-dot: #7fb443;
+      --info-bg: #16293c; --info-fg: #8fc1f0; --info-bd: #2d5170;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
-    .header { background: #1B4F8A; color: #fff; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-    .header .h1 { font-size: 18px; font-weight: 500; }
-    .header .sub { font-size: 13px; opacity: 0.75; margin-top: 2px; }
-    .header .updated { font-size: 12px; opacity: 0.7; }
-    .today-banner { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 1.5rem 2rem; text-align: center; }
-    .today-day { font-size: 36px; font-weight: 600; color: #1B4F8A; line-height: 1.1; }
-    .today-date { font-size: 16px; color: #666; margin-top: 4px; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem; }
-    .alert-bar { background: #FCEBEB; border: 1px solid #F09595; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #A32D2D; display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
-    .alert-bar.warning { background: #FAEEDA; border-color: #EF9F27; color: #854F0B; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background .2s, color .2s; }
+
+    .header { background: var(--header-bg); color: var(--header-fg); padding: 1.1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+    .header .sub { font-size: 13px; opacity: 0.78; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .header .updated { font-size: 12px; opacity: 0.72; }
+    .theme-toggle { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: var(--header-fg); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .theme-toggle:hover { background: rgba(255,255,255,.2); }
+
+    .today-banner { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.25rem 2rem; text-align: center; }
+    .today-day { font-size: 32px; font-weight: 650; color: var(--brand); line-height: 1.1; letter-spacing: -.02em; }
+    .today-date { font-size: 15px; color: var(--text-muted); margin-top: 3px; }
+
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; }
+    .tabs-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 4px; }
+    .tab { padding: 13px 18px; font-size: 14px; font-weight: 500; color: var(--text-muted); border-bottom: 3px solid transparent; text-decoration: none; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+    .alert-bar { background: var(--high-bg); border: 1px solid var(--high-bd); border-radius: var(--radius); padding: 12px 16px; font-size: 14px; color: var(--high-fg); display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; }
+    .alert-bar.warning { background: var(--med-bg); border-color: var(--med-bd); color: var(--med-fg); }
+
+    /* ---- answer-first hero ------------------------------------------- */
+    .hero { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-lg); padding: 1.4rem 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); border-left: 5px solid var(--border); }
+    .hero-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 7px; }
+    .hero.status-high     { background: var(--high-bg); border-color: var(--high-bd); border-left-color: var(--high-dot); }
+    .hero.status-medium   { background: var(--med-bg);  border-color: var(--med-bd);  border-left-color: var(--med-dot); }
+    .hero.status-borderline { background: var(--bl-bg); border-color: var(--bl-bd);   border-left-color: var(--bl-dot); }
+    .hero.status-low      { background: var(--low-bg);  border-color: var(--low-bd);  border-left-color: var(--low-dot); }
+    .hero.status-high .hero-eyebrow { color: var(--high-fg); }
+    .hero.status-medium .hero-eyebrow { color: var(--med-fg); }
+    .hero.status-borderline .hero-eyebrow { color: var(--bl-fg); }
+    .hero.status-low .hero-eyebrow { color: var(--low-fg); }
+    .rec-action { font-size: 23px; font-weight: 650; margin-bottom: 10px; line-height: 1.2; letter-spacing: -.01em; }
+    .hero.status-high .rec-action { color: var(--high-fg); }
+    .hero.status-medium .rec-action { color: var(--med-fg); }
+    .hero.status-borderline .rec-action { color: var(--bl-fg); }
+    .hero.status-low .rec-action { color: var(--low-fg); }
+    .rec-text { font-size: 13.5px; line-height: 1.65; color: var(--text); }
+    .rec-text > div { margin-bottom: 6px; }
+
     .hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
-    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; }
-    .card-title { font-size: 15px; font-weight: 500; color: #1a1a1a; }
-    .card-sub { font-size: 12px; color: #888; margin-top: 2px; }
-    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 6px; white-space: nowrap; }
-    .badge-high { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
-    .badge-medium { background: #FAEEDA; color: #854F0B; border: 1px solid #EF9F27; }
-    .badge-borderline { background: #FAF6E0; color: #7A6314; border: 1px solid #D4C76A; }
-    .badge-low { background: #EAF3DE; color: #3B6D11; border: 1px solid #97C459; }
-    .badge-loading { background: #f0f0f0; color: #888; border: 1px solid #ddd; }
-    .night-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow); }
+    .card--muted { background: var(--surface-2); box-shadow: none; }
+    .card-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .card-sub { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; white-space: nowrap; }
+    .badge-high { background: var(--high-bg); color: var(--high-fg); border: 1px solid var(--high-bd); }
+    .badge-medium { background: var(--med-bg); color: var(--med-fg); border: 1px solid var(--med-bd); }
+    .badge-borderline { background: var(--bl-bg); color: var(--bl-fg); border: 1px solid var(--bl-bd); }
+    .badge-low { background: var(--low-bg); color: var(--low-fg); border: 1px solid var(--low-bd); }
+    .badge-loading { background: var(--inset); color: var(--text-faint); border: 1px solid var(--border); }
+
+    .night-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-2); gap: 8px; }
     .night-row:last-child { border-bottom: none; }
-    .night-label { font-size: 13px; color: #1a1a1a; min-width: 100px; }
-    .night-label .date { color: #888; font-size: 12px; margin-left: 4px; }
-    .night-desc { font-size: 12px; color: #777; text-transform: capitalize; flex: 1; text-align: right; margin-right: 10px; }
-    .section-label { font-size: 11px; font-weight: 500; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
-    .region-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .night-label { font-size: 13px; color: var(--text); min-width: 100px; }
+    .night-label .date { color: var(--text-faint); font-size: 12px; margin-left: 4px; }
+    .night-desc { font-size: 12px; color: var(--text-muted); text-transform: capitalize; flex: 1; text-align: right; margin-right: 10px; }
+
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+
+    .region-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-2); font-size: 13px; }
     .region-row:last-child { border-bottom: none; }
     .region-left { display: flex; align-items: center; gap: 10px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .dot-high { background: #E24B4A; }
-    .dot-medium { background: #EF9F27; }
-    .dot-borderline { background: #D4C76A; }
-    .dot-low { background: #639922; }
-    .region-name { color: #1a1a1a; font-weight: 500; }
-    .region-sub { color: #888; margin-left: 4px; }
-    .region-desc { color: #777; font-size: 12px; text-transform: capitalize; }
-    .rec-box { background: #f9f9f7; border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
-    .rec-text { font-size: 14px; line-height: 1.7; color: #1a1a1a; }
-    .rec-action { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
-    .actions { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .btn { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; display: inline-flex; align-items: center; gap: 6px; }
-    .btn:hover { background: #f5f5f3; }
-    .btn-primary { background: #1B4F8A; color: #fff; border-color: #1B4F8A; }
-    .btn-primary:hover { background: #164070; }
+    .dot-high { background: var(--high-dot); }
+    .dot-medium { background: var(--med-dot); }
+    .dot-borderline { background: var(--bl-dot); }
+    .dot-low { background: var(--low-dot); }
+    .region-name { color: var(--text); font-weight: 500; }
+    .region-sub { color: var(--text-faint); margin-left: 4px; }
+    .region-desc { color: var(--text-muted); font-size: 12px; text-transform: capitalize; }
+
+    .actions { display: flex; gap: 10px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--surface-2); }
+    .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
+    .btn-primary:hover { background: var(--brand-strong); }
+
     .status-msg { font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-top: 12px; display: none; }
-    .status-ok { background: #EAF3DE; color: #3B6D11; border: 1px solid #97C459; }
-    .status-err { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
-    .status-info { background: #E6F1FB; color: #185FA5; border: 1px solid #85B7EB; }
+    .status-ok { background: var(--low-bg); color: var(--low-fg); border: 1px solid var(--low-bd); }
+    .status-err { background: var(--high-bg); color: var(--high-fg); border: 1px solid var(--high-bd); }
+    .status-info { background: var(--info-bg); color: var(--info-fg); border: 1px solid var(--info-bd); }
+
+    .muted-link { color: var(--brand); }
+    input, textarea { background: var(--surface); color: var(--text); border-color: var(--border); }
+
     @media (max-width: 900px) { .hub-grid { grid-template-columns: 1fr; } }
-    @media (max-width: 600px) { .header { flex-direction: column; align-items: flex-start; gap: 4px; } }
+    @media (max-width: 600px) {
+      .header { flex-direction: column; align-items: flex-start; gap: 6px; padding: 1rem 1.1rem; }
+      .header-right { width: 100%; justify-content: space-between; }
+      .today-banner { padding: 1rem 1.1rem; }
+      .today-day { font-size: 27px; }
+      .tabs { padding: 0 1.1rem; }
+      .container { padding: 1.1rem; }
+      .rec-action { font-size: 20px; }
+      .card { padding: 1.1rem; }
+      /* FAA hub grid (built inline by JS) stacks on phones */
+      #faa-delays-list > div { grid-template-columns: 1fr !important; }
+    }
   </style>
+  <script>
+    // Apply saved theme before paint to avoid a flash of the wrong mode.
+    (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
+  </script>
 </head>
 <body>
 
@@ -74,7 +184,10 @@
     <div class="h1">Overnight Shipping Weather Risk</div>
     <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; FedEx Memphis, UPS Louisville &amp; Indianapolis</div>
   </div>
-  <div class="updated" id="last-updated">Loading...</div>
+  <div class="header-right">
+    <div class="updated" id="last-updated">Loading...</div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark" aria-label="Toggle light/dark theme">🌙</button>
+  </div>
 </div>
 
 <div class="today-banner">
@@ -82,10 +195,10 @@
   <div class="today-date" id="today-date"></div>
 </div>
 
-<div style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 2rem;">
-  <div style="max-width: 1100px; margin: 0 auto; display: flex; gap: 0;">
-    <a href="index.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #1B4F8A; border-bottom: 3px solid #1B4F8A; text-decoration: none;">Hub Forecasts</a>
-    <a href="winter-pack.html" style="padding: 14px 20px; font-size: 14px; font-weight: 500; color: #888; border-bottom: 3px solid transparent; text-decoration: none;">Winter Packing Map</a>
+<div class="tabs">
+  <div class="tabs-inner">
+    <a href="index.html" class="tab active">Hub Forecasts</a>
+    <a href="winter-pack.html" class="tab">Winter Packing Map</a>
   </div>
 </div>
 
@@ -96,9 +209,9 @@
     <span id="alert-text"></span>
   </div>
 
-  <div class="rec-box">
-    <div class="section-label">Today's recommendation</div>
-    <div id="recommendation"><div class="rec-text">Loading forecast data...</div></div>
+  <div class="hero" id="hero">
+    <div class="hero-eyebrow">Tonight's call</div>
+    <div id="recommendation"><div class="rec-text">Loading forecast data…</div></div>
   </div>
 
   <div class="actions">
@@ -117,8 +230,8 @@
           <button class="btn" onclick="document.getElementById('team-output').style.display='none'" style="padding: 6px 10px;" title="Close">&times;</button>
         </div>
       </div>
-      <pre id="team-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: #f5f5f3; padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.6;"></pre>
-      <div id="team-copy-status" style="font-size: 12px; color: #3B6D11; margin-top: 8px; height: 16px;"></div>
+      <pre id="team-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; background: var(--surface-2); padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.6;"></pre>
+      <div id="team-copy-status" style="font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px;"></div>
     </div>
   </div>
 
@@ -133,14 +246,14 @@
         </div>
       </div>
       <div style="margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Subject</div>
-        <div id="email-subject" style="font-family: monospace; font-size: 13px; background: #f5f5f3; padding: 8px 10px; border-radius: 6px;"></div>
+        <div style="font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Subject</div>
+        <div id="email-subject" style="font-family: monospace; font-size: 13px; background: var(--surface-2); padding: 8px 10px; border-radius: 6px;"></div>
       </div>
       <div>
-        <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Body</div>
-        <pre id="email-body" style="font-family: monospace; font-size: 13px; background: #f5f5f3; padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.5; max-height: 400px; overflow-y: auto;"></pre>
+        <div style="font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;">Body</div>
+        <pre id="email-body" style="font-family: monospace; font-size: 13px; background: var(--surface-2); padding: 12px; border-radius: 6px; white-space: pre-wrap; line-height: 1.5; max-height: 400px; overflow-y: auto;"></pre>
       </div>
-      <div id="copy-status" style="font-size: 12px; color: #3B6D11; margin-top: 8px; height: 16px;"></div>
+      <div id="copy-status" style="font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px;"></div>
     </div>
   </div>
 
@@ -148,40 +261,40 @@
     <div class="card" id="card-mem">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
         <div><div class="card-title">Memphis (MEM)</div><div class="card-sub">FedEx World Hub &middot; Central time</div></div>
-        <a href="https://www.windy.com/?35.0421,-89.9765,8" target="_blank" rel="noopener" style="font-size: 11px; color: #1B4F8A; text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
+        <a href="https://www.windy.com/?35.0421,-89.9765,8" target="_blank" rel="noopener" style="font-size: 11px; color: var(--brand); text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
       </div>
       <div id="nights-mem"></div>
     </div>
     <div class="card" id="card-sdf">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
         <div><div class="card-title">Louisville (SDF)</div><div class="card-sub">UPS Worldport &middot; Eastern time</div></div>
-        <a href="https://www.windy.com/?38.1741,-85.7369,8" target="_blank" rel="noopener" style="font-size: 11px; color: #1B4F8A; text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
+        <a href="https://www.windy.com/?38.1741,-85.7369,8" target="_blank" rel="noopener" style="font-size: 11px; color: var(--brand); text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
       </div>
       <div id="nights-sdf"></div>
     </div>
     <div class="card" id="card-ind">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
         <div><div class="card-title">Indianapolis (IND)</div><div class="card-sub">UPS Secondary Hub &middot; Eastern time</div></div>
-        <a href="https://www.windy.com/?39.7173,-86.2944,8" target="_blank" rel="noopener" style="font-size: 11px; color: #1B4F8A; text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
+        <a href="https://www.windy.com/?39.7173,-86.2944,8" target="_blank" rel="noopener" style="font-size: 11px; color: var(--brand); text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
       </div>
       <div id="nights-ind"></div>
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:1.5rem;">
+  <div class="card card--muted" style="margin-bottom:1.5rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
       <div>
         <div class="section-label" style="margin-bottom: 4px;">Cross-reference with carrier alerts</div>
-        <div style="font-size: 12px; color: #888;">If carriers have declared a service disruption, expect delays even if conditions look clear here.</div>
+        <div style="font-size: 12px; color: var(--text-faint);">If carriers have declared a service disruption, expect delays even if conditions look clear here.</div>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <a href="https://www.fedex.com/en-us/service-alerts.html" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4D148C; margin-right: 4px;"></span>
-          FedEx alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+          FedEx alerts &nbsp;<span style="color:var(--text-faint); font-size: 11px;">↗</span>
         </a>
         <a href="https://www.ups.com/us/en/service-alerts.page" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8B5A2B; margin-right: 4px;"></span>
-          UPS alerts &nbsp;<span style="color:#888; font-size: 11px;">↗</span>
+          UPS alerts &nbsp;<span style="color:var(--text-faint); font-size: 11px;">↗</span>
         </a>
       </div>
     </div>
@@ -191,38 +304,38 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
       <div>
         <div class="section-label" style="margin-bottom: 4px;">Flight operations &amp; FAA delays</div>
-        <div style="font-size: 12px; color: #888;">Live FAA ground stops and ground delay programs at our hubs.</div>
+        <div style="font-size: 12px; color: var(--text-faint);">Live FAA ground stops and ground delay programs at our hubs.</div>
       </div>
       <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" class="btn" style="text-decoration: none;">
-        FAA National Status &nbsp;<span style="font-size: 11px; color:#888;">↗</span>
+        FAA National Status &nbsp;<span style="font-size: 11px; color:var(--text-faint);">↗</span>
       </a>
     </div>
     <div id="faa-delays-list">
-      <div style="font-size: 13px; color: #aaa; padding: 8px 0;">Loading FAA delay data...</div>
+      <div style="font-size: 13px; color: var(--text-faint); padding: 8px 0;">Loading FAA delay data...</div>
     </div>
-    <div style="font-size: 11px; color: #aaa; margin-top: 10px; line-height: 1.5;">
+    <div style="font-size: 11px; color: var(--text-faint); margin-top: 10px; line-height: 1.5;">
       A <strong>ground stop</strong> halts all flights to an airport. A <strong>ground delay program</strong> meters arrivals when capacity drops. Either will affect overnight package sort timing.
     </div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem;">
     <div style="margin-bottom: 4px;" class="section-label">Check a delivery destination</div>
-    <div style="font-size: 12px; color: #888; margin-bottom: 12px;">A clear hub doesn't help if the destination is socked in. Enter a delivery ZIP to check weather where the package lands over the next two days.</div>
+    <div style="font-size: 12px; color: var(--text-faint); margin-bottom: 12px;">A clear hub doesn't help if the destination is socked in. Enter a delivery ZIP to check weather where the package lands over the next two days.</div>
     <form id="dest-form" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;" onsubmit="lookupDestination(); return false;">
       <input id="dest-zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 80202"
-        style="flex:0 0 auto; width:130px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:8px;" />
+        style="flex:0 0 auto; width:130px; padding:8px 12px; font-size:14px; border:1px solid var(--border); border-radius:8px;" />
       <button class="btn btn-primary" id="dest-btn" type="submit">Check destination</button>
-      <span id="dest-status" style="font-size:12px; color:#888;"></span>
+      <span id="dest-status" style="font-size:12px; color:var(--text-faint);"></span>
     </form>
     <div id="dest-result" style="margin-top:14px;"></div>
   </div>
 
-  <div class="card" style="margin-bottom:1.5rem;">
+  <div class="card card--muted" style="margin-bottom:1.5rem;">
     <div class="section-label">Regional weather (informational only)</div>
-    <div id="regions-list"><div style="color:#aaa; font-size:13px;">Loading regional weather...</div></div>
+    <div id="regions-list"><div style="color:var(--text-faint); font-size:13px;">Loading regional weather...</div></div>
   </div>
 
-  <div style="font-size:12px; color:#bbb; text-align:center; padding-bottom: 2rem;">
+  <div style="font-size:12px; color:var(--text-faint); text-align:center; padding-bottom: 2rem;">
     Weather data via OpenWeatherMap &nbsp;·&nbsp; Sort window: 10pm–4am local hub time &nbsp;·&nbsp; Prescription Mart
   </div>
 
@@ -662,15 +775,15 @@ function renderHub(hub) {
   // Show active NWS alerts at the top of the card if present
   if (hub.nwsAlerts && hub.nwsAlerts.length > 0) {
     const alertBanner = document.createElement('div');
-    alertBanner.style.cssText = 'background:#FCEBEB; border-left: 3px solid #A32D2D; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; border-radius: 4px;';
-    const alertTitles = hub.nwsAlerts.slice(0, 3).map(a => `<div style="margin-bottom: 2px;"><strong style="color:#A32D2D">⚠ ${a.event}</strong>${a.ends ? ` <span style="color:#777">until ${new Date(a.ends).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: hub.tz })}</span>` : ''}</div>`).join('');
-    alertBanner.innerHTML = '<div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #A32D2D; font-weight: 500; margin-bottom: 4px;">NWS Active Alerts</div>' + alertTitles;
+    alertBanner.style.cssText = 'background:var(--high-bg); border-left: 3px solid var(--high-fg); padding: 8px 10px; margin-bottom: 10px; font-size: 12px; border-radius: 4px;';
+    const alertTitles = hub.nwsAlerts.slice(0, 3).map(a => `<div style="margin-bottom: 2px;"><strong style="color:var(--high-fg)">⚠ ${a.event}</strong>${a.ends ? ` <span style="color:var(--text-muted)">until ${new Date(a.ends).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: hub.tz })}</span>` : ''}</div>`).join('');
+    alertBanner.innerHTML = '<div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--high-fg); font-weight: 500; margin-bottom: 4px;">NWS Active Alerts</div>' + alertTitles;
     container.appendChild(alertBanner);
   }
 
   hub.nights.forEach((night, idx) => {
     const labels = nightLabel(night.dateKey || '', idx);
-    const overrideTag = night.nwsOverride ? ` <span style="color:#A32D2D; font-size:11px; font-weight:500;">(${night.overrideSource})</span>` : '';
+    const overrideTag = night.nwsOverride ? ` <span style="color:var(--high-fg); font-size:11px; font-weight:500;">(${night.overrideSource})</span>` : '';
     const detailId = `detail-${hub.id}-${idx}`;
 
     const row = document.createElement('div');
@@ -685,26 +798,26 @@ function renderHub(hub) {
       </div>
       <div class="night-desc">${night.noData ? '<em>no forecast yet</em>' : night.desc}${night.wind > 15 ? ` &middot; ${night.wind} mph` : ''}${overrideTag}</div>
       <span class="${riskClass(night.risk)}">${riskLabel(night.risk)}</span>
-      <span class="expand-arrow" style="color:#aaa; font-size:10px; margin-left:6px; transition: transform 0.2s; display:inline-block;">▼</span>
+      <span class="expand-arrow" style="color:var(--text-faint); font-size:10px; margin-left:6px; transition: transform 0.2s; display:inline-block;">▼</span>
     `;
-    row.onmouseenter = () => { row.style.background = '#fafaf8'; };
+    row.onmouseenter = () => { row.style.background = 'var(--surface-2)'; };
     row.onmouseleave = () => { row.style.background = ''; };
     container.appendChild(row);
 
     // Build the detail panel (hidden by default)
     const detail = document.createElement('div');
     detail.id = detailId;
-    detail.style.cssText = 'display:none; background:#fafaf8; border-radius:6px; padding: 12px; margin: 4px 0 10px; font-size: 12px; line-height: 1.6;';
+    detail.style.cssText = 'display:none; background:var(--surface-2); border-radius:6px; padding: 12px; margin: 4px 0 10px; font-size: 12px; line-height: 1.6;';
 
     let detailHTML = '';
 
     // Risk reasoning
-    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Risk assessment</span><div style="margin-top:4px;"><strong>${riskLabel(night.risk)}</strong>${night.overrideSource ? ' — driven by ' + night.overrideSource : ''}</div></div>`;
+    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); font-weight:500;">Risk assessment</span><div style="margin-top:4px;"><strong>${riskLabel(night.risk)}</strong>${night.overrideSource ? ' — driven by ' + night.overrideSource : ''}</div></div>`;
 
     // Conditions detail
-    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Conditions (10pm-4am window)</span>`;
+    detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); font-weight:500;">Conditions (10pm-4am window)</span>`;
     if (night.noData) {
-      detailHTML += `<div style="margin-top:4px; color:#888;">No forecast data available yet for this night.</div>`;
+      detailHTML += `<div style="margin-top:4px; color:var(--text-faint);">No forecast data available yet for this night.</div>`;
     } else {
       detailHTML += `<div style="margin-top:4px;">`;
       detailHTML += `<div>Forecast: <span style="text-transform:capitalize">${night.desc}</span></div>`;
@@ -717,17 +830,17 @@ function renderHub(hub) {
 
     // NWS forecast text (always show if available, not just on override)
     if (night.nwsForecastText) {
-      detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">NWS forecast${night.nwsPeriodName ? ' — ' + night.nwsPeriodName : ''}</span><div style="margin-top:4px; padding: 8px 10px; background:#fff; border-radius:4px; border-left: 3px solid #BA7517;">${night.nwsForecastText}</div></div>`;
+      detailHTML += `<div style="margin-bottom: 10px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); font-weight:500;">NWS forecast${night.nwsPeriodName ? ' — ' + night.nwsPeriodName : ''}</span><div style="margin-top:4px; padding: 8px 10px; background:var(--surface); border-radius:4px; border-left: 3px solid var(--med-bd);">${night.nwsForecastText}</div></div>`;
     }
 
     // Active NWS alerts (only relevant for tonight, idx 0)
     if (idx === 0 && hub.nwsAlerts && hub.nwsAlerts.length > 0) {
-      detailHTML += `<div style="margin-bottom: 4px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#999; font-weight:500;">Active alerts at this hub</span>`;
+      detailHTML += `<div style="margin-bottom: 4px;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); font-weight:500;">Active alerts at this hub</span>`;
       hub.nwsAlerts.forEach(a => {
-        detailHTML += `<div style="margin-top:6px; padding: 8px 10px; background:#FCEBEB; border-radius:4px; border-left: 3px solid #A32D2D;">`;
-        detailHTML += `<div style="font-weight:500; color:#A32D2D;">${a.event}</div>`;
-        if (a.headline) detailHTML += `<div style="margin-top:2px; color:#5F2828;">${a.headline}</div>`;
-        if (a.ends) detailHTML += `<div style="margin-top:4px; color:#777; font-size:11px;">In effect until ${new Date(a.ends).toLocaleString('en-US', { weekday:'short', hour:'numeric', minute:'2-digit', timeZone: hub.tz })}</div>`;
+        detailHTML += `<div style="margin-top:6px; padding: 8px 10px; background:var(--high-bg); border-radius:4px; border-left: 3px solid var(--high-fg);">`;
+        detailHTML += `<div style="font-weight:500; color:var(--high-fg);">${a.event}</div>`;
+        if (a.headline) detailHTML += `<div style="margin-top:2px; color:var(--high-fg);">${a.headline}</div>`;
+        if (a.ends) detailHTML += `<div style="margin-top:4px; color:var(--text-muted); font-size:11px;">In effect until ${new Date(a.ends).toLocaleString('en-US', { weekday:'short', hour:'numeric', minute:'2-digit', timeZone: hub.tz })}</div>`;
         detailHTML += `</div>`;
       });
       detailHTML += `</div>`;
@@ -755,16 +868,16 @@ function renderRegions(results) {
     const nwsText = tonight.nwsForecastText || '';
     const nwsPeriodName = tonight.nwsPeriodName || '';
     const row = document.createElement('div');
-    row.style.cssText = 'padding: 12px 0; border-bottom: 1px solid #f0f0f0;';
+    row.style.cssText = 'padding: 12px 0; border-bottom: 1px solid var(--border-2);';
     row.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
         <div>
-          <span style="font-weight: 500; color: #1a1a1a; font-size: 13px;">${r.name}</span>
-          <span style="color: #888; font-size: 12px; margin-left: 6px;">&mdash; ${r.label}</span>
+          <span style="font-weight: 500; color: var(--text); font-size: 13px;">${r.name}</span>
+          <span style="color: var(--text-faint); font-size: 12px; margin-left: 6px;">&mdash; ${r.label}</span>
         </div>
-        <span style="font-size: 12px; color: #555; text-transform: capitalize;">${tonight.desc}${tonight.wind > 15 ? ' &middot; ' + tonight.wind + ' mph' : ''}${tonight.temp !== null && tonight.temp !== undefined ? ' &middot; ' + tonight.temp + '&deg;F' : ''}</span>
+        <span style="font-size: 12px; color: var(--text-muted); text-transform: capitalize;">${tonight.desc}${tonight.wind > 15 ? ' &middot; ' + tonight.wind + ' mph' : ''}${tonight.temp !== null && tonight.temp !== undefined ? ' &middot; ' + tonight.temp + '&deg;F' : ''}</span>
       </div>
-      ${nwsText ? `<div style="font-size: 12px; color: #777; line-height: 1.4; padding-right: 8px;"><span style="font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">${nwsPeriodName ? 'NWS — ' + nwsPeriodName : 'NWS'}:</span> ${nwsText}</div>` : ''}
+      ${nwsText ? `<div style="font-size: 12px; color: var(--text-muted); line-height: 1.4; padding-right: 8px;"><span style="font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;">${nwsPeriodName ? 'NWS — ' + nwsPeriodName : 'NWS'}:</span> ${nwsText}</div>` : ''}
     `;
     // Remove border from last row
     list.appendChild(row);
@@ -813,23 +926,31 @@ function renderRecommendation(results) {
     }
   });
 
-  // Build top-line action
+  // Build top-line action + overall status (drives the hero's flood color)
   const hubsHoldingTonight = hubs.filter(h => h.nights[0].risk === 'high');
   const hubsCautionTonight = hubs.filter(h => h.nights[0].risk === 'medium');
   const hubsBorderlineTonight = hubs.filter(h => h.nights[0].risk === 'borderline');
+  let status;
   if (hubsHoldingTonight.length === hubs.length) {
-    actionLine = `<div class="rec-action" style="color:#A32D2D">Hold next-day air at all hubs tonight.</div>`;
+    status = 'high';
+    actionLine = `<div class="rec-action">Hold next-day air at all hubs tonight.</div>`;
   } else if (hubsHoldingTonight.length > 0) {
-    actionLine = `<div class="rec-action" style="color:#A32D2D">Hold next-day air through ${hubsHoldingTonight.map(h=>h.name).join(' and ')} tonight.</div>`;
+    status = 'high';
+    actionLine = `<div class="rec-action">Hold next-day air through ${hubsHoldingTonight.map(h=>h.name).join(' and ')} tonight.</div>`;
   } else if (hubsCautionTonight.length > 0) {
-    actionLine = `<div class="rec-action" style="color:#854F0B">Ship with caution tonight.</div>`;
+    status = 'medium';
+    actionLine = `<div class="rec-action">Ship with caution tonight.</div>`;
   } else if (hubsBorderlineTonight.length > 0) {
-    actionLine = `<div class="rec-action" style="color:#7A6314">Ship tonight with monitoring.</div>`;
+    status = 'borderline';
+    actionLine = `<div class="rec-action">Ship tonight with monitoring.</div>`;
   } else {
-    actionLine = `<div class="rec-action" style="color:#3B6D11">Clear to ship tonight at all hubs.</div>`;
+    status = 'low';
+    actionLine = `<div class="rec-action">Clear to ship tonight at all hubs.</div>`;
   }
 
-  recBox.innerHTML = actionLine + '<div class="rec-text">' + lines.map(l => '<div style="margin-bottom: 6px;">' + l + '</div>').join('') + '</div>';
+  const hero = document.getElementById('hero');
+  if (hero) hero.className = 'hero status-' + status;
+  recBox.innerHTML = actionLine + '<div class="rec-text">' + lines.map(l => '<div>' + l + '</div>').join('') + '</div>';
 }
 
 function renderAlertBar(results) {
@@ -1052,7 +1173,7 @@ function renderFAADelays(result) {
   if (!list) return;
 
   if (!result || !result.events) {
-    list.innerHTML = `<div style="font-size: 13px; color: #888; padding: 8px 0;">FAA data not yet available — the proxy may still be initializing. Check the <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" style="color:#1B4F8A;">FAA National Status</a> dashboard directly in the meantime.</div>`;
+    list.innerHTML = `<div style="font-size: 13px; color: var(--text-faint); padding: 8px 0;">FAA data not yet available — the proxy may still be initializing. Check the <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener" style="color:var(--brand);">FAA National Status</a> dashboard directly in the meantime.</div>`;
     return;
   }
 
@@ -1071,13 +1192,13 @@ function renderFAADelays(result) {
     const name = HUB_NAMES[code];
     const tz = hubTz[code];
     let body = '';
-    let borderColor = '#e0e0e0';
-    let bgColor = '#fafaf8';
+    let borderColor = 'var(--border)';
+    let bgColor = 'var(--surface-2)';
 
     if (!event) {
-      body = `<div style="font-size: 12px; color: #3B6D11;"><strong>No active delays</strong></div>`;
-      borderColor = '#97C459';
-      bgColor = '#F4F8EB';
+      body = `<div style="font-size: 12px; color: var(--low-fg);"><strong>No active delays</strong></div>`;
+      borderColor = 'var(--low-bd)';
+      bgColor = 'var(--low-bg)';
     } else {
       const items = [];
 
@@ -1085,9 +1206,9 @@ function renderFAADelays(result) {
         const gs = event.groundStop;
         const reason = gs.impactingCondition || 'unspecified';
         const range = formatTimeRange(gs.startTime, gs.endTime, tz);
-        items.push(`<div style="background:#FCEBEB; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#A32D2D; text-transform: uppercase; letter-spacing: 0.04em;">⛔ Ground Stop</div><div style="font-size: 12px; color:#555; margin-top:2px;">Reason: ${reason}</div><div style="font-size: 11px; color:#777; margin-top:2px;">${range}</div></div>`);
-        borderColor = '#F09595';
-        bgColor = '#fff';
+        items.push(`<div style="background:var(--high-bg); border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:var(--high-fg); text-transform: uppercase; letter-spacing: 0.04em;">⛔ Ground Stop</div><div style="font-size: 12px; color:var(--text-muted); margin-top:2px;">Reason: ${reason}</div><div style="font-size: 11px; color:var(--text-muted); margin-top:2px;">${range}</div></div>`);
+        borderColor = 'var(--high-bd)';
+        bgColor = 'var(--surface)';
       }
 
       if (event.groundDelay) {
@@ -1096,8 +1217,8 @@ function renderFAADelays(result) {
         const avg = formatMinutes(gd.avgDelay);
         const max = formatMinutes(gd.maxDelay);
         const range = formatTimeRange(gd.startTime, gd.endTime, tz);
-        items.push(`<div style="background:#FAEEDA; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#854F0B; text-transform: uppercase; letter-spacing: 0.04em;">⚠ Ground Delay Program</div><div style="font-size: 12px; color:#555; margin-top:2px;">Reason: ${reason}</div><div style="font-size: 12px; color:#555;">Avg: <strong>${avg || '—'}</strong>${max ? ', max ' + max : ''}</div><div style="font-size: 11px; color:#777; margin-top:2px;">${range}</div></div>`);
-        if (borderColor === '#e0e0e0') { borderColor = '#EF9F27'; bgColor = '#fff'; }
+        items.push(`<div style="background:var(--med-bg); border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:var(--med-fg); text-transform: uppercase; letter-spacing: 0.04em;">⚠ Ground Delay Program</div><div style="font-size: 12px; color:var(--text-muted); margin-top:2px;">Reason: ${reason}</div><div style="font-size: 12px; color:var(--text-muted);">Avg: <strong>${avg || '—'}</strong>${max ? ', max ' + max : ''}</div><div style="font-size: 11px; color:var(--text-muted); margin-top:2px;">${range}</div></div>`);
+        if (borderColor === 'var(--border)') { borderColor = 'var(--med-bd)'; bgColor = 'var(--surface)'; }
       }
 
       if (event.departureDelay) {
@@ -1105,20 +1226,20 @@ function renderFAADelays(result) {
         const reason = dd.reason || 'unspecified';
         const avg = formatMinutes(dd.averageDelay);
         const trend = dd.trend ? ` (${dd.trend})` : '';
-        items.push(`<div style="background:#FAEEDA; border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:#854F0B; text-transform: uppercase; letter-spacing: 0.04em;">↗ Departure Delays</div><div style="font-size: 12px; color:#555; margin-top:2px;">${reason}</div><div style="font-size: 12px; color:#555;">Avg: <strong>${avg || '—'}</strong>${trend}</div></div>`);
-        if (borderColor === '#e0e0e0') { borderColor = '#EF9F27'; bgColor = '#fff'; }
+        items.push(`<div style="background:var(--med-bg); border-radius:4px; padding: 6px 8px;"><div style="font-size: 11px; font-weight:500; color:var(--med-fg); text-transform: uppercase; letter-spacing: 0.04em;">↗ Departure Delays</div><div style="font-size: 12px; color:var(--text-muted); margin-top:2px;">${reason}</div><div style="font-size: 12px; color:var(--text-muted);">Avg: <strong>${avg || '—'}</strong>${trend}</div></div>`);
+        if (borderColor === 'var(--border)') { borderColor = 'var(--med-bd)'; bgColor = 'var(--surface)'; }
       }
 
       if (items.length === 0) {
-        body = `<div style="font-size: 12px; color: #3B6D11;"><strong>No active delays</strong></div>`;
-        borderColor = '#97C459';
-        bgColor = '#F4F8EB';
+        body = `<div style="font-size: 12px; color: var(--low-fg);"><strong>No active delays</strong></div>`;
+        borderColor = 'var(--low-bd)';
+        bgColor = 'var(--low-bg)';
       } else {
         body = items.join('');
       }
     }
 
-    html += `<div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 10px;"><div style="font-size: 13px; font-weight: 500; color: #1a1a1a; margin-bottom: 6px;">${name}</div>${body}</div>`;
+    html += `<div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 10px;"><div style="font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px;">${name}</div>${body}</div>`;
   });
 
   html += '</div>';
@@ -1132,7 +1253,7 @@ function renderFAADelays(result) {
     else if (mins < 60) agoText = `${mins} minute${mins === 1 ? '' : 's'} ago`;
     else if (mins < 1440) { const h = Math.round(mins / 60); agoText = `${h} hour${h === 1 ? '' : 's'} ago`; }
     else { const d = Math.round(mins / 1440); agoText = `${d} day${d === 1 ? '' : 's'} ago`; }
-    html += `<div style="font-size: 10px; color: #aaa; margin-top: 8px; text-align: right;">FAA delay status last changed ${agoText} &middot; checked every 10 min</div>`;
+    html += `<div style="font-size: 10px; color: var(--text-faint); margin-top: 8px; text-align: right;">FAA delay status last changed ${agoText} &middot; checked every 10 min</div>`;
   }
   list.innerHTML = html;
 }
@@ -1198,18 +1319,18 @@ function renderDestination(loc, result) {
   let alertsHtml = '';
   if (result.alerts && result.alerts.length > 0) {
     alertsHtml = '<div style="margin-top:10px;">' + result.alerts.slice(0, 3).map(a =>
-      `<div style="background:#FCEBEB; border-left:3px solid #A32D2D; padding:6px 10px; border-radius:4px; margin-top:6px; font-size:12px;"><strong style="color:#A32D2D;">⚠ ${a.event}</strong>${a.headline ? `<div style="color:#5F2828; margin-top:2px;">${a.headline}</div>` : ''}</div>`
+      `<div style="background:var(--high-bg); border-left:3px solid var(--high-fg); padding:6px 10px; border-radius:4px; margin-top:6px; font-size:12px;"><strong style="color:var(--high-fg);">⚠ ${a.event}</strong>${a.headline ? `<div style="color:var(--high-fg); margin-top:2px;">${a.headline}</div>` : ''}</div>`
     ).join('') + '</div>';
   }
-  el.innerHTML = `<div style="font-weight:500; font-size:14px; margin-bottom:6px;">${loc.name} <span style="color:#888; font-weight:400;">— delivery-side outlook</span></div>${rows}${alertsHtml}`;
+  el.innerHTML = `<div style="font-weight:500; font-size:14px; margin-bottom:6px;">${loc.name} <span style="color:var(--text-faint); font-weight:400;">— delivery-side outlook</span></div>${rows}${alertsHtml}`;
 }
 
 async function lookupDestination() {
   const input = document.getElementById('dest-zip');
   const status = document.getElementById('dest-status');
   const zip = (input.value || '').trim();
-  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit US ZIP.'; status.style.color = '#A32D2D'; return; }
-  status.style.color = '#888';
+  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit US ZIP.'; status.style.color = 'var(--high-fg)'; return; }
+  status.style.color = 'var(--text-faint)';
   status.textContent = 'Checking…';
   try {
     if (WEATHER_API_KEY === 'YOUR_OPENWEATHERMAP_KEY_HERE') throw new Error('API key not set');
@@ -1219,7 +1340,7 @@ async function lookupDestination() {
     status.textContent = '';
     try { localStorage.setItem(DEST_ZIP_KEY, zip); } catch(e) {}
   } catch(e) {
-    status.style.color = '#A32D2D';
+    status.style.color = 'var(--high-fg)';
     status.textContent = e.message === 'ZIP not found' ? 'ZIP not found — check the digits.' : 'Could not load — try again.';
     console.error('Destination lookup failed:', e);
   }
@@ -1270,6 +1391,24 @@ async function _loadWeather() {
   const now = new Date();
   document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
+
+// ---- light/dark theme toggle ----
+function currentTheme() {
+  const forced = document.documentElement.getAttribute('data-theme');
+  if (forced) return forced;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function syncThemeIcon() {
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = currentTheme() === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch(e) {}
+  syncThemeIcon();
+}
+syncThemeIcon();
 
 // Register the service worker for installability + offline fallback.
 if ('serviceWorker' in navigator) {
