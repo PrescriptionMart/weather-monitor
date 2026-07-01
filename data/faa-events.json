@@ -1,1 +1,1 @@
-[{"airportId":"DEN","departureDelay":{"averageDelay":"15","reason":"WX:Wind","trend":"increasing"},"groundDelay":null,"groundStop":{"endTime":"2026-07-01T00:15:00Z","impactingCondition":"wind","startTime":"2026-06-30T23:02:00Z"}},{"airportId":"SEA","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[{"airportId":"SEA","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":null,"groundStop":null}]
