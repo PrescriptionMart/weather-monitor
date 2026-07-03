@@ -64,29 +64,21 @@ plain-language forecast, and (for tonight only) active NWS alerts.
 
 ## How the automation works
 
-Two GitHub Actions workflows, plus GitHub Pages serving the static files from
-`main`.
+GitHub Actions keeps data fresh and deploys the site; GitHub Pages serves the
+static files from `main`.
 
 **`faa-refresh.yml`** — every 10 minutes, fetches FAA airport events, slims the
 payload down to the few fields the dashboard renders (only airports with an
 active ground stop / ground delay / departure delay), and commits
 `data/faa-events.json` + a `data/faa-events.timestamp` sidecar when it changes.
 
-**`daily-reminder.yml`** — weekday mornings (`0 13 * * 1-5`, i.e. 8am Central
-in summer / 7am in winter), sends a reminder email via the Gmail API to check
-the dashboard before sort decisions go out. This is an **unconditional
-reminder**, not a weather-triggered alert — the judgement call stays with the
-person looking at the dashboard.
+**`deploy-pages.yml`** — on every push to `main`, publishes the site to GitHub
+Pages so changes go live automatically.
 
-**`weather-alert.yml`** — weekday afternoons (`0 21 * * 1-5`, ~4pm Central),
-runs `scripts/weather-alert.mjs`, which evaluates the **same risk logic the
-dashboard uses** for tonight's 10pm–4am window at each hub and emails the team
-**only when a hub is high or medium** — with the recommended hold/ship call and
-expected patient-delay impact. This is the proactive, weather-triggered
-counterpart to the daily reminder. Trigger it manually from the Actions tab
-(with the **dry-run** option to preview the decision without sending). Keep
-`scripts/weather-alert.mjs` in sync with `assessRisk()` and the NWS phrase/event
-lists in `index.html`.
+> **Email automation was removed.** A daily reminder and a proactive
+> weather-alert workflow used to send email via the Gmail API; both were turned
+> off. The dashboard's on-screen **Generate alert email** and **Generate team
+> message** buttons still work — they produce copy-paste drafts, they don't send.
 
 ---
 
@@ -108,20 +100,6 @@ runs in demo mode.
 > page source. Use a free-tier key dedicated to this dashboard so it can be
 > rotated without affecting anything else.
 
-### 3. Gmail secrets (for the email workflows)
-Add these repo secrets under Settings → Secrets and variables → Actions:
-- `GMAIL_CLIENT_ID`
-- `GMAIL_CLIENT_SECRET`
-- `GMAIL_REFRESH_TOKEN`
-- `OPENWEATHER_KEY` *(optional but recommended)* — used by `weather-alert.yml`. If
-  unset, the alert falls back to the same public key that's already in
-  `index.html`, so it still works; setting it lets you use a dedicated key.
-
-Generate them via Google Cloud Console (enable the Gmail API, create a Web
-OAuth client) and the OAuth Playground (scope `https://mail.google.com/`,
-exchange for a refresh token). The recipient is set by the `REMINDER_EMAIL`
-value in `daily-reminder.yml`.
-
 ---
 
 ## Common edits
@@ -129,8 +107,6 @@ value in `daily-reminder.yml`.
 - **Add/remove a hub or region:** edit the `LOCATIONS` array in `index.html`
   (set `hub: true` for a primary hub card). Add the airport code to
   `HUB_AIRPORTS`/`HUB_NAMES` to show its FAA delays too.
-- **Change the reminder recipient or time:** edit `REMINDER_EMAIL` and the
-  `cron` in `daily-reminder.yml`.
 - **Tune risk thresholds:** see `assessRisk()` and the NWS phrase/event lists
   in `index.html`.
 
@@ -139,6 +115,4 @@ value in `daily-reminder.yml`.
   active yet).
 - **FAA panel says data isn't available** — the `faa-refresh` Action hasn't run
   yet; trigger it manually from the Actions tab.
-- **Reminder email not sending** — check the `daily-reminder` run logs; the
-  usual cause is a missing/expired Gmail secret.
 - **Pages not loading** — the repo must be public and Pages enabled.
