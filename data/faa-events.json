@@ -1,1 +1,1 @@
-[{"airportId":"LGA","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"MDW","departureDelay":{"averageDelay":"60","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"ORD","departureDelay":{"averageDelay":"105","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[]
