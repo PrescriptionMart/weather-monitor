@@ -1,1 +1,1 @@
-[{"airportId":"LGA","departureDelay":{"averageDelay":"120","reason":"TM Initiatives:SWAP:WX","trend":"decreasing"},"groundDelay":null,"groundStop":null},{"airportId":"ORD","departureDelay":null,"groundDelay":{"avgDelay":313.0,"endTime":"2026-07-05T07:59:00Z","impactingCondition":"thunderstorms","maxDelay":872,"startTime":"2026-07-04T23:45:00Z"},"groundStop":null},{"airportId":"PHL","departureDelay":{"averageDelay":"135","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[]
