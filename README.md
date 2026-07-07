@@ -37,6 +37,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 | OpenWeatherMap geocoding | Delivery-ZIP → coordinates | same key |
 | National Weather Service (api.weather.gov) | Active alerts + plain-language forecast + winter map | None |
 | FAA NAS Status (nasstatus.faa.gov) | Ground stops / ground delay programs | None (proxied via Action) |
+| NHC (nhc.noaa.gov) | Active tropical storms + 7-day formation chances | None (proxied via Action) |
 
 The NWS API blocks no one but the FAA endpoint blocks browser CORS, so a
 GitHub Action fetches it server-side (see below).
@@ -71,6 +72,11 @@ static files from `main`.
 payload down to the few fields the dashboard renders (only airports with an
 active ground stop / ground delay / departure delay), and commits
 `data/faa-events.json` + a `data/faa-events.timestamp` sidecar when it changes.
+
+**`nhc-refresh.yml`** — every 6 hours, fetches the National Hurricane Center's
+active-storm list and Tropical Weather Outlook, slims them to what the dashboard
+shows (storm name/class/winds + per-basin 7-day formation chances), and commits
+`data/nhc-outlook.json` when the tropical picture changes.
 
 **`deploy-pages.yml`** — on every push to `main`, publishes the site to GitHub
 Pages so changes go live automatically.
