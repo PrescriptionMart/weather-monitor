@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -88,4 +89,10 @@ jobs:
             git add data/nhc-outlook.timestamp
             git commit -m "chore: refresh NHC tropical outlook"
             git push
+            # Pushes made with the workflow token don't trigger other
+            # workflows, so the Pages deploy must be dispatched explicitly —
+            # otherwise the live site keeps serving the old data file.
+            gh workflow run deploy-pages.yml --ref main
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
