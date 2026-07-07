@@ -1,1 +1,1 @@
-[]
+[{"airportId":"DAL","departureDelay":{"averageDelay":"15","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":50.0,"endTime":"2026-07-07T20:29:00Z","impactingCondition":"low ceilings","maxDelay":96,"startTime":"2026-07-07T15:00:00Z"},"groundStop":null}]
