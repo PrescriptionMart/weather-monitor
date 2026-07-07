@@ -114,6 +114,10 @@
     .hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow); }
     .card--muted { background: var(--surface-2); box-shadow: none; }
+    /* status-flooded cards (used by the NHC tropical card, mirrors the hero) */
+    .card.status-low { background: var(--low-bg); border-color: var(--low-bd); }
+    .card.status-medium { background: var(--med-bg); border-color: var(--med-bd); }
+    .card.status-high { background: var(--high-bg); border-color: var(--high-bd); }
     .card-title { font-size: 15px; font-weight: 600; color: var(--text); }
     .card-sub { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
 
@@ -330,7 +334,7 @@
     <div id="dest-result" style="margin-top:14px;"></div>
   </div>
 
-  <div class="card card--muted" style="margin-bottom:1.5rem;">
+  <div class="card card--muted" id="nhc-card" style="margin-bottom:1.5rem;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
       <div>
         <div class="section-label" style="margin-bottom: 4px;">Tropical outlook — National Hurricane Center</div>
@@ -1304,12 +1308,25 @@ function agoText(timestamp) {
 
 function renderNHCOutlook(result) {
   const el = document.getElementById('nhc-outlook');
+  const card = document.getElementById('nhc-card');
   if (!el) return;
   if (!result || !result.data) {
+    if (card) card.className = 'card card--muted';
     el.innerHTML = `<div style="font-size: 13px; color: var(--text-faint); padding: 4px 0;">Tropical data not yet available — check <a href="https://www.nhc.noaa.gov/" target="_blank" rel="noopener" style="color:var(--brand);">nhc.noaa.gov</a> directly.</div>`;
     return;
   }
   const { storms = [], outlooks = [] } = result.data;
+
+  // Flood the whole card with the tropical status color (mirrors the hero):
+  // red if a hurricane is active or formation is likely, amber for storms or
+  // a watched disturbance, green when the tropics are quiet.
+  const maxChance = Math.max(0, ...outlooks.flatMap(o => (o.areas || []).map(a => a.chance7day || 0)));
+  const anyHurricane = storms.some(s => /hurricane/i.test(s.classification || ''));
+  const status = (anyHurricane || maxChance >= 60) ? 'high'
+               : (storms.length > 0 || maxChance >= 30) ? 'medium'
+               : 'low';
+  if (card) card.className = 'card status-' + status;
+
   let html = '';
 
   if (storms.length > 0) {
