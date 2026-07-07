@@ -1,0 +1,91 @@
+name: Refresh NHC tropical outlook
+
+on:
+  schedule:
+    # NHC issues the Tropical Weather Outlook 4x/day; every 6 hours is plenty
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Fetch and slim NHC data
+        run: |
+          mkdir -p data
+          UA="Prescription-Mart-Dashboard (ops@prescriptionmart.com)"
+          curl -sSf -m 30 -A "$UA" "https://www.nhc.noaa.gov/CurrentStorms.json" -o /tmp/storms.json
+          # Raw Tropical Weather Outlook text (stable NWS text-product paths)
+          curl -sSf -m 30 -A "$UA" "https://tgftp.nws.noaa.gov/data/raw/ab/abnt20.knhc..txt" -o /tmp/two_atl.txt || true
+          curl -sSf -m 30 -A "$UA" "https://tgftp.nws.noaa.gov/data/raw/ab/abpz20.knhc..txt" -o /tmp/two_epac.txt || true
+          python3 - <<'PY'
+          import json, re
+
+          CLASS_WORDS = {
+              'TD': 'Tropical Depression', 'TS': 'Tropical Storm', 'HU': 'Hurricane',
+              'MH': 'Major Hurricane', 'STD': 'Subtropical Depression', 'STS': 'Subtropical Storm',
+              'PTC': 'Post-Tropical Cyclone', 'PC': 'Potential Tropical Cyclone',
+          }
+          BASIN_WORDS = {'al': 'Atlantic', 'ep': 'East Pacific', 'cp': 'Central Pacific'}
+
+          with open('/tmp/storms.json') as f:
+              raw = json.load(f)
+          storms = []
+          for s in raw.get('activeStorms', []):
+              basin = BASIN_WORDS.get((s.get('id') or '')[:2].lower(), '')
+              kt = None
+              try: kt = int(s.get('intensity'))
+              except (TypeError, ValueError): pass
+              storms.append({
+                  'name': s.get('name'),
+                  'classification': CLASS_WORDS.get(s.get('classification'), s.get('classification')),
+                  'basin': basin,
+                  'windMph': round(kt * 1.15078) if kt else None,
+              })
+
+          def parse_two(path, basin):
+              # Each numbered area in the outlook ends with lines like:
+              #   * Formation chance through 48 hours...low...10 percent.
+              #   * Formation chance through 7 days...medium...60 percent.
+              try:
+                  text = open(path, encoding='utf-8', errors='replace').read()
+              except OSError:
+                  return None
+              areas = []
+              for m in re.finditer(
+                      r'Formation chance through 7 days[.\s]*(low|medium|high)?[.\s]*(?:near\s*)?(\d+)\s*percent',
+                      text, re.IGNORECASE):
+                  areas.append({'category': (m.group(1) or '').lower() or None,
+                                'chance7day': int(m.group(2))})
+              return {'basin': basin, 'areas': areas}
+
+          outlooks = [o for o in (parse_two('/tmp/two_atl.txt', 'Atlantic'),
+                                  parse_two('/tmp/two_epac.txt', 'East Pacific')) if o]
+
+          out = {'storms': storms, 'outlooks': outlooks}
+          with open('data/nhc-outlook.json', 'w') as f:
+              json.dump(out, f, separators=(',', ':'), sort_keys=True)
+          print('storms:', len(storms), 'outlook areas:',
+                sum(len(o['areas']) for o in outlooks))
+          PY
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/nhc-outlook.json
+          # Same pattern as the FAA feed: only commit (and bump the timestamp)
+          # when the tropical picture actually changed.
+          if git diff --cached --quiet -- data/nhc-outlook.json; then
+            echo "No NHC change — skipping commit"
+          else
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > data/nhc-outlook.timestamp
+            git add data/nhc-outlook.timestamp
+            git commit -m "chore: refresh NHC tropical outlook"
+            git push
+          fi
