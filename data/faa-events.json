@@ -1,1 +1,1 @@
-[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":41.0,"endTime":"2026-07-08T20:59:00Z","impactingCondition":"low ceilings","maxDelay":88,"startTime":"2026-07-08T15:00:00Z"},"groundStop":null}]
+[{"airportId":"SEA","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":null,"groundStop":null}]
