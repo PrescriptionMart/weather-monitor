@@ -1,1 +1,1 @@
-[]
+[{"airportId":"DAL","departureDelay":{"averageDelay":"15","reason":"VOL:Multi-taxi","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":50.0,"endTime":"2026-07-10T21:59:00Z","impactingCondition":"other","maxDelay":101,"startTime":"2026-07-10T15:00:00Z"},"groundStop":null}]
