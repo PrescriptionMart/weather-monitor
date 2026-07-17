@@ -1,1 +1,1 @@
-[{"airportId":"LAS","departureDelay":null,"groundDelay":{"avgDelay":95.0,"endTime":"2026-07-17T07:59:00Z","impactingCondition":"other","maxDelay":186,"startTime":"2026-07-17T02:00:00Z"},"groundStop":{"endTime":"2026-07-17T07:00:00Z","impactingCondition":"STAFFING","startTime":"2026-07-17T06:06:00Z"}},{"airportId":"PHX","departureDelay":{"averageDelay":"45","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[]
