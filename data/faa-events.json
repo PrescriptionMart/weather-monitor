@@ -1,1 +1,1 @@
-[{"airportId":"MIA","departureDelay":{"averageDelay":"30","reason":"RWY:Disabled Aircraft","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[{"airportId":"BOS","departureDelay":{"averageDelay":"15","reason":"STAFF:","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"LGA","departureDelay":{"averageDelay":"15","reason":"STAFF:Staffing","trend":"increasing"},"groundDelay":null,"groundStop":null}]
