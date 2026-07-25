@@ -1,1 +1,1 @@
-{"outlooks":[{"areas":[],"basin":"Atlantic"},{"areas":[],"basin":"East Pacific"}],"storms":[{"basin":"East Pacific","classification":"Hurricane","name":"Fausto","windMph":104},{"basin":"East Pacific","classification":"Tropical Depression","name":"Seven-E","windMph":35}]}
+{"outlooks":[{"areas":[],"basin":"Atlantic"},{"areas":[],"basin":"East Pacific"}],"storms":[{"basin":"East Pacific","classification":"Hurricane","name":"Fausto","windMph":104},{"basin":"East Pacific","classification":"Tropical Storm","name":"Genevieve","windMph":52}]}
