@@ -1,1 +1,1 @@
-[{"airportId":"MIA","departureDelay":{"averageDelay":"30","reason":"RWY:Construction","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":30.0,"endTime":"2026-07-25T20:59:00Z","impactingCondition":"other","maxDelay":86,"startTime":"2026-07-25T15:00:00Z"},"groundStop":null}]
+[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":30.0,"endTime":"2026-07-25T20:59:00Z","impactingCondition":"other","maxDelay":86,"startTime":"2026-07-25T15:00:00Z"},"groundStop":null}]
