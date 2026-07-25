@@ -1,1 +1,1 @@
-[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":30.0,"endTime":"2026-07-25T20:59:00Z","impactingCondition":"other","maxDelay":86,"startTime":"2026-07-25T15:00:00Z"},"groundStop":null}]
+[{"airportId":"EWR","departureDelay":null,"groundDelay":{"avgDelay":83.0,"endTime":"2026-07-26T04:59:00Z","impactingCondition":"other","maxDelay":143,"startTime":"2026-07-25T20:00:00Z"},"groundStop":null}]
