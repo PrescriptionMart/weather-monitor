@@ -1,1 +1,1 @@
-[]
+[{"airportId":"JFK","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:VOL","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"MCO","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"ORD","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-07-27T12:15:00Z","impactingCondition":"airspace volume","startTime":"2026-07-27T10:32:00Z"}}]
