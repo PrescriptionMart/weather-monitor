@@ -1,1 +1,1 @@
-[{"airportId":"EWR","departureDelay":{"averageDelay":"45","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"LAS","departureDelay":null,"groundDelay":{"avgDelay":27.0,"endTime":"2026-07-30T06:29:00Z","impactingCondition":"other","maxDelay":77,"startTime":"2026-07-30T03:00:00Z"},"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":41.0,"endTime":"2026-07-30T06:59:00Z","impactingCondition":"other","maxDelay":125,"startTime":"2026-07-29T22:00:00Z"},"groundStop":null}]
+[]
