@@ -1,1 +1,1 @@
-[]
+[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":40.0,"endTime":"2026-07-30T22:59:00Z","impactingCondition":"other","maxDelay":94,"startTime":"2026-07-30T15:15:00Z"},"groundStop":null},{"airportId":"TPA","departureDelay":{"averageDelay":"45","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null}]
