@@ -1,1 +1,1 @@
-[]
+[{"airportId":"MCO","departureDelay":{"averageDelay":"15","reason":"STAFF:Staffing","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"TPA","departureDelay":{"averageDelay":"30","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null}]
