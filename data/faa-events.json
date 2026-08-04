@@ -1,1 +1,1 @@
-[]
+[{"airportId":"JFK","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:VOL","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":37.0,"endTime":"2026-08-04T22:59:00Z","impactingCondition":"other","maxDelay":79,"startTime":"2026-08-04T15:00:00Z"},"groundStop":null}]
