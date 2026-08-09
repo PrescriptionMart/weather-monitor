@@ -1,1 +1,1 @@
-[{"airportId":"DEN","departureDelay":null,"groundDelay":{"avgDelay":143.0,"endTime":"2026-08-09T02:59:00Z","impactingCondition":"other","maxDelay":452,"startTime":"2026-08-09T01:00:00Z"},"groundStop":null},{"airportId":"MCO","departureDelay":{"averageDelay":"15","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":26.0,"endTime":"2026-08-09T04:59:00Z","impactingCondition":"low ceilings","maxDelay":88,"startTime":"2026-08-08T18:00:00Z"},"groundStop":null}]
+[]
