@@ -1,1 +1,1 @@
-[]
+[{"airportId":"EWR","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"PHL","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null}]
