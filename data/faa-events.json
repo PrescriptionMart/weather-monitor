@@ -1,1 +1,1 @@
-[{"airportId":"ATL","departureDelay":{"averageDelay":"90","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"CAE","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-08-12T04:00:00Z","impactingCondition":"other","startTime":"2026-08-12T01:15:00Z"}}]
+[]
