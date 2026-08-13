@@ -1,1 +1,1 @@
-[{"airportId":"LAS","departureDelay":{"averageDelay":"45","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"ORD","departureDelay":{"averageDelay":"30","reason":"VOL:Multi-taxi","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"YVR","departureDelay":null,"groundDelay":{"avgDelay":21.0,"endTime":"2026-08-13T05:59:00Z","impactingCondition":"other","maxDelay":95,"startTime":"2026-08-13T01:15:00Z"},"groundStop":null}]
+[]
