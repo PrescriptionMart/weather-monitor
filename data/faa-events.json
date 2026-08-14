@@ -1,1 +1,1 @@
-[]
+[{"airportId":"LGA","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:SWAP:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":50.0,"endTime":"2026-08-15T05:59:00Z","impactingCondition":"airport volume","maxDelay":102,"startTime":"2026-08-14T15:00:00Z"},"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":57.0,"endTime":"2026-08-14T22:59:00Z","impactingCondition":"low ceilings","maxDelay":124,"startTime":"2026-08-14T15:00:00Z"},"groundStop":null}]
