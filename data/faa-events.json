@@ -1,1 +1,1 @@
-[{"airportId":"JFK","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:MIT:VIPM:KIWI","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":36.0,"endTime":"2026-08-15T20:59:00Z","impactingCondition":"low ceilings","maxDelay":95,"startTime":"2026-08-15T15:15:00Z"},"groundStop":null}]
+[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":36.0,"endTime":"2026-08-15T20:59:00Z","impactingCondition":"low ceilings","maxDelay":95,"startTime":"2026-08-15T15:15:00Z"},"groundStop":null}]
