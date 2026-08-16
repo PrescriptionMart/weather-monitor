@@ -1,1 +1,1 @@
-[{"airportId":"JFK","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:MIT:VOL/STAFFING","trend":"decreasing"},"groundDelay":null,"groundStop":null}]
+[{"airportId":"JFK","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:VOL/STAFFING","trend":"increasing"},"groundDelay":null,"groundStop":null}]
