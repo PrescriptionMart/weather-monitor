@@ -1,1 +1,1 @@
-[]
+[{"airportId":"ORD","departureDelay":{"averageDelay":"15","reason":"WX:Low Ceilings","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":38.0,"endTime":"2026-08-16T22:59:00Z","impactingCondition":"low ceilings","maxDelay":99,"startTime":"2026-08-16T15:15:00Z"},"groundStop":null}]
