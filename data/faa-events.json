@@ -1,1 +1,1 @@
-[]
+[{"airportId":"MIA","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":42.0,"endTime":"2026-08-18T19:59:00Z","impactingCondition":"low ceilings","maxDelay":89,"startTime":"2026-08-18T15:30:00Z"},"groundStop":null}]
