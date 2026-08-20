@@ -1,1 +1,1 @@
-[{"airportId":"ASE","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-08-20T00:45:00Z","impactingCondition":"other","startTime":"2026-08-19T22:32:00Z"}},{"airportId":"BOS","departureDelay":{"averageDelay":"30","reason":"WX:Wind","trend":"decreasing"},"groundDelay":null,"groundStop":null}]
+[]
