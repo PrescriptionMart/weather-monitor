@@ -1,1 +1,1 @@
-[{"airportId":"TPA","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[{"airportId":"CLT","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-08-21T13:45:00Z","impactingCondition":"thunderstorms","startTime":"2026-08-21T12:21:00Z"}},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":51.0,"endTime":"2026-08-22T00:59:00Z","impactingCondition":"low ceilings","maxDelay":114,"startTime":"2026-08-21T15:00:00Z"},"groundStop":null}]
