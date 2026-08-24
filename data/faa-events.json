@@ -1,1 +1,1 @@
-[{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":20.0,"endTime":"2026-08-24T23:59:00Z","impactingCondition":"airport volume","maxDelay":48,"startTime":"2026-08-24T16:00:00Z"},"groundStop":null}]
+[{"airportId":"PHX","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:ESP:VOL","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":20.0,"endTime":"2026-08-24T23:59:00Z","impactingCondition":"airport volume","maxDelay":48,"startTime":"2026-08-24T16:00:00Z"},"groundStop":null}]
