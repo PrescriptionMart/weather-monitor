@@ -1,1 +1,1 @@
-[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":40.0,"endTime":"2026-08-25T20:59:00Z","impactingCondition":"low ceilings","maxDelay":85,"startTime":"2026-08-25T15:15:00Z"},"groundStop":null}]
+[{"airportId":"PHX","departureDelay":{"averageDelay":"15","reason":"VOL:Multi-taxi","trend":"increasing"},"groundDelay":null,"groundStop":null}]
