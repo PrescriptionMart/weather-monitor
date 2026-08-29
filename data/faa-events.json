@@ -1,1 +1,1 @@
-[{"airportId":"LAS","departureDelay":{"averageDelay":"30","reason":"WX:Wind","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":61.0,"endTime":"2026-08-29T05:59:00Z","impactingCondition":"airport volume","maxDelay":377,"startTime":"2026-08-28T22:00:00Z"},"groundStop":null}]
+[]
