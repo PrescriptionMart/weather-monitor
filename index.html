@@ -111,7 +111,7 @@
     .rec-text { font-size: 13.5px; line-height: 1.65; color: var(--text); }
     .rec-text > div { margin-bottom: 6px; }
 
-    .hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 1.5rem; }
+    .hub-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 1.5rem; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow); }
     .card--muted { background: var(--surface-2); box-shadow: none; }
     /* status-flooded cards (used by the NHC tropical card, mirrors the hero) */
@@ -186,7 +186,7 @@
 <div class="header">
   <div>
     <div class="h1">Overnight Shipping Weather Risk</div>
-    <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; FedEx Memphis, UPS Louisville &amp; Indianapolis</div>
+    <div class="sub">Next 3 sort windows (10pm–4am local) &nbsp;·&nbsp; Houston origin &nbsp;+&nbsp; FedEx Memphis, UPS Louisville &amp; Indianapolis</div>
   </div>
   <div class="header-right">
     <div class="updated" id="last-updated">Loading...</div>
@@ -262,6 +262,13 @@
   </div>
 
   <div class="hub-grid" id="hub-grid">
+    <div class="card" id="card-hou">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+        <div><div class="card-title">Houston (IAH)</div><div class="card-sub">Origin &mdash; our outbound gateway &middot; Central time</div></div>
+        <a href="https://www.windy.com/?29.9902,-95.3368,8" target="_blank" rel="noopener" style="font-size: 11px; color: var(--brand); text-decoration: none; white-space: nowrap;" title="View on Windy.com">Windy ↗</a>
+      </div>
+      <div id="nights-hou"></div>
+    </div>
     <div class="card" id="card-mem">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
         <div><div class="card-title">Memphis (MEM)</div><div class="card-sub">FedEx World Hub &middot; Central time</div></div>
@@ -365,6 +372,7 @@ const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5';
   
 // IANA timezones for proper local-time evaluation at each hub
 const LOCATIONS = [
+  { id: 'hou', name: 'Houston (IAH)', label: 'Origin — outbound gateway', lat: 29.9902, lon: -95.3368, tz: 'America/Chicago', hub: true },
   { id: 'mem', name: 'Memphis (MEM)', label: 'FedEx World Hub', lat: 35.0421, lon: -89.9765, tz: 'America/Chicago', hub: true },
   { id: 'sdf', name: 'Louisville (SDF)', label: 'UPS Worldport', lat: 38.1741, lon: -85.7369, tz: 'America/Kentucky/Louisville', hub: true },
   { id: 'ind', name: 'Indianapolis (IND)', label: 'UPS Secondary Hub', lat: 39.7173, lon: -86.2944, tz: 'America/Indiana/Indianapolis', hub: true },
@@ -1141,8 +1149,8 @@ function fallbackCopy(text, field, status) {
 // =============================================================================
 // FAA DELAYS - airports we care about (matches our hub list)
 // =============================================================================
-const HUB_AIRPORTS = ['MEM', 'SDF', 'IND'];
-const HUB_NAMES = { 'MEM': 'Memphis (MEM)', 'SDF': 'Louisville (SDF)', 'IND': 'Indianapolis (IND)' };
+const HUB_AIRPORTS = ['IAH', 'MEM', 'SDF', 'IND'];
+const HUB_NAMES = { 'IAH': 'Houston (IAH)', 'MEM': 'Memphis (MEM)', 'SDF': 'Louisville (SDF)', 'IND': 'Indianapolis (IND)' };
 
 async function fetchFAADelays() {
   // The FAA endpoint blocks browser CORS, so we proxy via a GitHub Action
@@ -1205,7 +1213,7 @@ function renderFAADelays(result) {
     return { code, event: event || null };
   });
 
-  let html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">';
+  let html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">';
 
   hubEvents.forEach(({ code, event }) => {
     const name = HUB_NAMES[code];
