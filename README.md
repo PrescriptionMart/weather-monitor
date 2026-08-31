@@ -14,11 +14,12 @@ Live dashboard: `https://prescriptionmart.github.io/weather-monitor`
 The site is two pages (tabs at the top):
 
 **Hub Forecasts (`index.html`)**
-- Next 3 sort windows at our hubs: **FedEx Memphis (MEM)**, **UPS Louisville
+- Next 3 sort windows at our **Houston (IAH) origin** — where every package
+  leaves from — plus the carrier hubs: **FedEx Memphis (MEM)**, **UPS Louisville
   (SDF)**, and **UPS Indianapolis (IND)** — each evaluated in its own local time.
 - A combined recommendation ("hold next-day air", "ship with caution", etc.)
   plus one-click **email** and **team-message** drafts.
-- **Live FAA delays** (ground stops / ground delay programs) at the three hubs.
+- **Live FAA delays** (ground stops / ground delay programs) at IAH and the three hubs.
 - **Delivery destination check** — enter a ZIP to see weather where the package lands over the next two days (a clear hub doesn't help if the destination is socked in).
 - Regional watch zones (ORD, DFW, ATL, DEN, LAX, JFK) for situational awareness.
 - Links out to FedEx/UPS service alerts and the FAA National Status board.
