@@ -10,10 +10,13 @@ permissions:
   pages: write
   id-token: write
 
-# Allow one concurrent deployment; don't cancel an in-progress one.
+# One deployment at a time; a newer deploy supersedes (cancels) an older one.
+# This also self-heals the failure mode we hit on 2026-08-06, where a run stuck
+# in the environment's "waiting" state held the group for weeks and every
+# subsequent deploy queued behind it and was bumped — freezing the live site.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
