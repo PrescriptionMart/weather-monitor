@@ -1,1 +1,1 @@
-[]
+[{"airportId":"ORD","departureDelay":{"averageDelay":"30","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":{"avgDelay":42.0,"endTime":"2026-08-31T21:59:00Z","impactingCondition":"thunderstorms","maxDelay":129,"startTime":"2026-08-31T11:34:00Z"},"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":67.0,"endTime":"2026-08-31T22:59:00Z","impactingCondition":"low ceilings","maxDelay":135,"startTime":"2026-08-31T15:15:00Z"},"groundStop":null}]
