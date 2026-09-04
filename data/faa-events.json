@@ -1,1 +1,1 @@
-[]
+[{"airportId":"BOS","departureDelay":{"averageDelay":"15","reason":"RWY:Construction","trend":"increasing"},"groundDelay":{"avgDelay":43.0,"endTime":"2026-09-05T00:59:00Z","impactingCondition":"runway construction","maxDelay":113,"startTime":"2026-09-04T11:00:00Z"},"groundStop":null}]
