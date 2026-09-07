@@ -1,1 +1,1 @@
-[{"airportId":"LAS","departureDelay":{"averageDelay":"15","reason":"WX:Wind","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"MIA","departureDelay":null,"groundDelay":{"avgDelay":384.0,"endTime":"2026-09-07T07:59:00Z","impactingCondition":"disabled aircraft on the runway","maxDelay":1137,"startTime":"2026-09-06T21:00:00Z"},"groundStop":null}]
+[]
