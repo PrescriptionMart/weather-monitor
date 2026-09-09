@@ -1,1 +1,1 @@
-[{"airportId":"BOS","departureDelay":{"averageDelay":"15","reason":"RWY:Construction","trend":"increasing"},"groundDelay":{"avgDelay":42.0,"endTime":"2026-09-09T01:59:00Z","impactingCondition":"runway construction","maxDelay":119,"startTime":"2026-09-08T17:30:00Z"},"groundStop":null},{"airportId":"MIA","departureDelay":null,"groundDelay":{"avgDelay":239.0,"endTime":"2026-09-09T03:59:00Z","impactingCondition":"disabled aircraft on the runway","maxDelay":985,"startTime":"2026-09-08T19:46:00Z"},"groundStop":null}]
+[]
