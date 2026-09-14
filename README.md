@@ -30,21 +30,28 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - One decision per state per ship night: **WINTER PACK or STANDARD**.
   Packages ship overnight, are delivered around midday the next day, and sit
   on the porch for a few hours — so the rule is: **winter pack if the coldest
-  hour between 11am and 6pm on delivery day is ≤35°F at the state's coldest
-  sampled town** (NWS hourly forecast, ≈600 real towns). 32°F is freezing; the
-  extra 3°F absorbs hourly-forecast error and a shaded porch.
-- States at **≤15°F** are still just "winter pack" for the packing line, but
-  are tagged **severe** so ops can also cut dwell (hold-at-location /
-  signature required) — that's beyond what a standard winter shipper is
-  qualified for.
-- A big banner gives the day's answer ("WINTER PACK — 12 states" or
-  "STANDARD PACKING"), a dot marks the town driving each flagged state, and
-  **Copy pack-out note** produces a paste-ready list. The overnight low and
-  hub overnight lows are shown for context only — a package left out past
-  dark is outside the accountable window.
-- Delivery window, dwell hours and thresholds are named constants at the top
-  of `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
-  `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`).
+  hour between 11am and 6pm on delivery day is ≤35°F at any town we actually
+  ship to in that state** (NWS hourly forecast). 32°F is freezing; the extra
+  3°F absorbs hourly-forecast error and a shaded porch.
+- **Two kinds of sampled towns** (≈820 total). *Ship-to towns* (`ship: true`,
+  ~300) are our real delivery footprint — top towns per state by volume from
+  our own shipment history, budgeted by state volume — and they **drive the
+  call**. *Coverage towns* (~520: vetted cities plus cold corners) can't flip a
+  state on their own; if one is ≤35°F while the footprint is fine, the state
+  is shown as **standard with cold-pocket exceptions** — winter pack only if
+  the label is going to one of the listed towns. (Only town names and
+  coordinates are stored — no shipment counts, ZIPs, or customer data.)
+- States at **≤15°F** at a ship-to town are still "winter pack" but tagged
+  **severe** so ops can also cut dwell (hold-at-location / signature) — beyond
+  a standard winter shipper's qualification.
+- A big banner gives the day's answer, solid dots mark the ship-to town
+  driving each winter-pack state, hollow dots mark cold pockets, and
+  **Copy pack-out note** produces a paste-ready list including the exceptions.
+  Overnight and hub lows are shown for context only.
+- Window, dwell and thresholds are named constants at the top of
+  `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
+  `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`). To refresh the footprint, mark
+  towns `ship: true` in `STATES_BY_FIPS` (the generic list needs no change).
 
 ### Data sources
 | Source | Used for | Key required |
