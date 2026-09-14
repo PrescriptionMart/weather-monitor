@@ -27,9 +27,22 @@ The site is two pages (tabs at the top):
 Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" for an app-like, installable shortcut that still shows the last-loaded data when offline.
 
 **Winter Packing Map (`winter-pack.html`)**
-- A US map flagging states whose forecast low-of-the-day drops below the
-  cold-pack threshold over the next 7 days, aggregated to each state's coldest
-  city so panhandles/cold corners aren't missed.
+- Models the way packages actually freeze: they ship overnight, are delivered
+  around **midday the next day**, and then **sit on the porch** until someone
+  is home — sometimes after dark. Pick a ship night; the map shows, for each
+  state's coldest point (≈600 sampled points), the **delivery day's midday high
+  and that night's low**, in three tiers:
+  - **Severe** — midday high ≤32°F (freezes even with prompt pickup) or night
+    ≤15°F: extended insulation; consider hold-at-location / signature required.
+  - **Freeze risk** — night low ≤32°F: freezes if it sits out past dark;
+    winter pack-out required.
+  - **Marginal** — night low 33–40°F: cold-weather packing recommended.
+- Hub overnight lows (Houston, MEM, SDF, IND) on the ship night are shown as
+  secondary context only — packages are only briefly outdoors in transit.
+- **Copy pack-out note** produces a paste-ready summary (delivery day, tiered
+  state lists with midday/night temps and the action each tier calls for).
+  Thresholds live at the top of `winter-pack.html` (`SEVERE_F`, `FREEZE_F`,
+  `MARGINAL_F`).
 
 ### Data sources
 | Source | Used for | Key required |

@@ -70,14 +70,30 @@
     .state-path { stroke: var(--surface); stroke-width: 1; transition: fill 0.2s; cursor: pointer; }
     .state-path.no-data { fill: var(--inset); }
     .state-path.standard { fill: #DCEDC8; }
-    .state-path.flagged { fill: #FFCDD2; }
+    .state-path.marginal { fill: #FFE0B2; }
+    .state-path.freeze   { fill: #FFCDD2; }
+    .state-path.severe   { fill: #E57373; }
     .state-path:hover { stroke: var(--text); stroke-width: 1.5; }
     .legend { display: flex; gap: 20px; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 12px; flex-wrap: wrap; }
     .legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
     .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
     .state-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
     .state-pill { background: #FFEBEE; color: #B71C1C; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
-    .state-pill .temp { color: #C62828; font-weight: 600; font-size: 12px; }
+    .state-pill .temp { font-weight: 600; font-size: 12px; }
+    .state-pill.freeze   { background: #FFCDD2; color: #B71C1C; }
+    .state-pill.marginal { background: #FFE0B2; color: #8D4B00; }
+    .state-pill.severe   { background: #E57373; color: #fff; }
+    .tier-heading { font-size: 12px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
+    .tier-heading:first-child { margin-top: 0; }
+    .tier-heading .tier-range { font-weight: 500; color: var(--text-muted); }
+    .tier-heading .tier-action { font-weight: 400; color: var(--text-muted); }
+    .hub-line { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .hub-strip { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+    .hub-chip { display: inline-flex; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+    .hub-chip.standard { background: #DCEDC8; color: #33691E; border-color: #C5E1A5; }
+    .hub-chip.marginal { background: #FFE0B2; color: #8D4B00; border-color: #FFCC80; }
+    .hub-chip.freeze   { background: #FFCDD2; color: #B71C1C; border-color: #EF9A9A; }
+    .hub-chip.severe   { background: #E57373; color: #fff; border-color: #D32F2F; }
     .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
     .btn:hover { background: var(--surface-2); }
     .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
@@ -108,7 +124,7 @@
 <div class="header">
   <div>
     <div class="h1">Winter Packing Map</div>
-    <div class="sub">Daily highs by state &nbsp;·&nbsp; Refrigerated medication shipping</div>
+    <div class="sub">Overnight lows by state &nbsp;·&nbsp; Freeze protection for refrigerated shipments</div>
   </div>
   <div class="header-right">
     <div class="updated" id="last-updated">Loading...</div>
@@ -131,7 +147,8 @@
 <div class="container">
 
   <div class="card">
-    <div class="section-label">Select day</div>
+    <div class="section-label">Ship night</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin: -4px 0 10px;">Pick the night the shipment goes out. It's delivered around <strong>midday the next day</strong> and can sit on the porch until someone's home — so each state shows its coldest point's <strong>delivery-day midday high and that night's low</strong>. Below freezing at midday = freezes even with prompt pickup; below freezing that night = freezes if it sits out past dark.</div>
     <div class="day-picker" id="day-picker"></div>
     <div style="font-size: 12px; color: var(--text-faint); margin-top: 4px;" id="loading-progress"></div>
   </div>
@@ -144,20 +161,23 @@
       </div>
       <div id="flagged-count" style="font-size: 13px; color: #C62828; font-weight: 500;"></div>
     </div>
+    <div class="hub-line"><span class="hub-line-label">Hub overnight lows on ship night (secondary — packages are only briefly outdoors in transit):</span> <span class="hub-strip" id="hub-strip"></span></div>
     <div class="map-wrap" id="map-wrap">
-      <div class="empty-state">Loading state forecasts (~600 points) — the first load can take up to a minute; results are cached for an hour.</div>
+      <div class="empty-state">Loading delivery-day forecasts (~600 points) — the first load can take up to a minute; results are cached for an hour.</div>
     </div>
     <div class="legend">
-      <span><span class="legend-swatch" style="background: #FFCDD2;"></span>Flagged for winter packing</span>
-      <span><span class="legend-swatch" style="background: #DCEDC8;"></span>Standard packing</span>
+      <span><span class="legend-swatch" style="background: #E57373;"></span>Severe — freezes even with prompt pickup (midday ≤32°F or night ≤15°F)</span>
+      <span><span class="legend-swatch" style="background: #FFCDD2;"></span>Freeze — night ≤32°F, freezes if it sits out past dark</span>
+      <span><span class="legend-swatch" style="background: #FFE0B2;"></span>Marginal — night 33–40°F</span>
+      <span><span class="legend-swatch" style="background: #DCEDC8;"></span>Standard — night &gt;40°F</span>
       <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
     </div>
   </div>
 
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div class="section-label" style="margin-bottom: 0;">Flagged states (<span id="list-count">0</span>)</div>
-      <button class="btn btn-primary" onclick="copyStateList()" id="copy-btn" style="display: none;">Copy state list</button>
+      <div class="section-label" style="margin-bottom: 0;">Pack-out list (<span id="list-count">0</span> states)</div>
+      <button class="btn btn-primary" onclick="copyStateList()" id="copy-btn" style="display: none;">Copy pack-out note</button>
     </div>
     <div id="state-list-container">
       <div class="empty-state">No states flagged for this day.</div>
@@ -174,12 +194,23 @@
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-const FLAG_THRESHOLD_F = 30;
-const NUM_DAYS = 7;
+// ---- pack-out thresholds: the PORCH model ----
+// Packages ship overnight, are delivered around MIDDAY the next day, and then
+// sit on the patient's porch until someone is home — sometimes after dark. So
+// the freeze exposure is the DESTINATION on DELIVERY DAY, from midday through
+// that night. Two numbers decide the tier for each state:
+//   • the delivery-day midday HIGH — if even that is at/below freezing, the
+//     package freezes on the porch no matter how quickly it's brought in
+//   • the delivery-day NIGHT LOW — if it drops to freezing, the package
+//     freezes if it sits out past dark
+const SEVERE_F   = 15;  // night low <=15°F (or midday high <=32°F): freezes even with prompt pickup — extended insulation / hold-at-location or signature
+const FREEZE_F   = 32;  // night low <=32°F: freezes if it sits on the porch past dark — winter pack-out required
+const MARGINAL_F = 40;  // night low 33-40°F: buffer for forecast error and radiative cooling on a porch — cold-weather packing recommended
+const NUM_DAYS = 6;     // ship nights; delivery day = ship night + 1, which is as far as the NWS 7-day forecast reaches
 
-// 5 representative populated cities per state — capital plus 4 climate-zone corners.
-// Excludes uninhabited high elevations. We take the LOWEST daily high across all
-// cities to decide if the state flags for winter packing.
+// ~12 sampled points per state (vetted cities + cold corners: high-elevation and
+// far-northern towns). We take the COLDEST point per state so cold pockets
+// aren't missed.
 const STATES_BY_FIPS = {
   '01': { code: 'AL', name: 'Alabama', cities: [
     { name: 'Montgomery', lat: 32.3617, lon: -86.2792 },
@@ -899,11 +930,48 @@ const STATES_BY_FIPS = {
 // Get all states as a flat array
 const STATES = Object.entries(STATES_BY_FIPS).map(([fips, s]) => ({ ...s, fips }));
 
-const CACHE_KEY = 'winter-pack-forecast-cache-v3';
+// Houston origin + the sort hubs. Packages are only briefly outdoors in
+// transit, so hub lows are SECONDARY context — the porch is where they freeze.
+const TRANSIT_HUBS = [
+  { code: 'HOU', name: 'Houston',      role: 'origin',    lat: 29.9902, lon: -95.3368 },
+  { code: 'MEM', name: 'Memphis',      role: 'FedEx hub', lat: 35.0421, lon: -89.9765 },
+  { code: 'SDF', name: 'Louisville',   role: 'UPS hub',   lat: 38.1741, lon: -85.7369 },
+  { code: 'IND', name: 'Indianapolis', role: 'UPS hub',   lat: 39.7173, lon: -86.2944 },
+];
+
+const TIERS = ['severe', 'freeze', 'marginal'];
+const TIER_LABEL  = { severe: 'Severe', freeze: 'Freeze risk', marginal: 'Marginal', standard: 'Standard' };
+const TIER_RANGE  = {
+  severe:   `midday high ≤${FREEZE_F}°F or night ≤${SEVERE_F}°F`,
+  freeze:   `night low ≤${FREEZE_F}°F`,
+  marginal: `night low ${FREEZE_F + 1}–${MARGINAL_F}°F`,
+  standard: `night low >${MARGINAL_F}°F`,
+};
+const TIER_ACTION = {
+  severe:   'freezes on the porch even with prompt pickup — extended insulation; consider hold-at-location / signature required',
+  freeze:   'freezes if it sits on the porch past dark — winter pack-out required',
+  marginal: 'cold porch into the evening — cold-weather packing recommended',
+  standard: 'standard packing',
+};
+// x = { high, low } for the delivery day. Night low is required to judge;
+// the midday high alone can only escalate to severe.
+function tierFor(x) {
+  if (!x) return null;
+  const hi = x.high, lo = x.low;
+  if (hi !== null && hi !== undefined && hi <= FREEZE_F) return 'severe';
+  if (lo === null || lo === undefined) return null;
+  if (lo <= SEVERE_F) return 'severe';
+  if (lo <= FREEZE_F) return 'freeze';
+  if (lo <= MARGINAL_F) return 'marginal';
+  return 'standard';
+}
+
+const CACHE_KEY = 'winter-pack-forecast-cache-v5'; // v5: porch model (delivery-day high + night low)
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-let topoData = null; // loaded TopoJSON
-let stateData = {};  // forecast data keyed by state code
+let topoData = null;  // loaded TopoJSON
+let stateData = {};   // per-state delivery-day exposure, keyed by state code
+let hubData = {};     // per-hub ship-night lows, keyed by hub code
 let selectedDayIdx = 0;
 
 async function loadTopoJSON() {
@@ -913,8 +981,7 @@ async function loadTopoJSON() {
 }
 
 // The NWS /points/{lat,lon} → forecast-URL mapping is static per coordinate.
-// Persisting it lets a cold forecast load skip ~250 point lookups (one per
-// city), roughly halving the request count on the first visit of the day.
+// Persisting it lets a cold forecast load skip one lookup per point.
 const NWS_POINTS_CACHE_KEY = 'nws-points-cache-v1';
 function getCachedForecastUrl(lat, lon) {
   try {
@@ -951,64 +1018,78 @@ async function fetchCityForecast(city) {
   }
 }
 
-function getCityDayHighs(periods, numDays) {
-  if (!periods) return [];
-  const days = [];
-  const today = new Date();
-  for (let i = 0; i < numDays; i++) {
-    const targetDate = new Date(today);
-    targetDate.setDate(targetDate.getDate() + i);
-    const targetDateStr = targetDate.toISOString().split('T')[0];
-    const dayPeriod = periods.find(p => {
-      if (!p.isDaytime) return false;
-      const periodDate = new Date(p.startTime).toISOString().split('T')[0];
-      return periodDate === targetDateStr;
-    });
-    if (dayPeriod) {
-      days.push({ date: targetDate, high: dayPeriod.temperature, forecast: dayPeriod.shortForecast });
-    } else {
-      days.push({ date: targetDate, high: null });
-    }
-  }
-  return days;
+// Local calendar-date key. Never go through toISOString() here: that converts
+// to UTC, and a 6pm Pacific period is already "tomorrow" in UTC, which would
+// shift west-coast nights onto the wrong day.
+function localDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function shipDate(i) { const d = new Date(); d.setDate(d.getDate() + i); return d; }
+function deliveryDate(i) { const d = shipDate(i); d.setDate(d.getDate() + 1); return d; }
+
+// NWS period lookups by LOCAL date (startTime carries the local offset, so its
+// first 10 chars are the local date). Night periods start at 6pm; before 6am
+// NWS also emits an "Overnight" remnant that starts ~00:00 on the same date —
+// that's the tail of the previous night, so prefer the evening-start period.
+function dayPeriodOn(periods, key) {
+  return periods.find(p => p.isDaytime && p.startTime.slice(0, 10) === key) || null;
+}
+function nightPeriodOn(periods, key) {
+  const c = periods.filter(p => !p.isDaytime && p.startTime.slice(0, 10) === key);
+  return c.find(p => parseInt(p.startTime.slice(11, 13), 10) >= 12) || c[0] || null;
 }
 
-// For each state, fetch all cities and aggregate to the LOWEST daily high.
-// This catches the panhandle/cold-corner problem that single-city checks miss.
-async function fetchStateForecast(state) {
-  const cityResults = await Promise.all(state.cities.map(city => fetchCityForecast(city)));
-  const cityDayData = cityResults.map((periods, i) => ({
-    city: state.cities[i],
-    days: getCityDayHighs(periods, NUM_DAYS)
-  }));
-
-  // For each day, find the city with the lowest high
-  const aggregatedDays = [];
-  for (let i = 0; i < NUM_DAYS; i++) {
-    let lowestHigh = null;
-    let coldestCity = null;
-    let coldestForecast = null;
-    cityDayData.forEach(cd => {
-      const day = cd.days[i];
-      if (day && day.high !== null) {
-        if (lowestHigh === null || day.high < lowestHigh) {
-          lowestHigh = day.high;
-          coldestCity = cd.city.name;
-          coldestForecast = day.forecast;
-        }
-      }
-    });
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + i);
-    aggregatedDays.push({
-      date: targetDate,
-      high: lowestHigh,
-      forecast: coldestForecast,
-      coldestCity: coldestCity
+// For ship night i, the package is delivered midday on day i+1 and may sit on
+// the porch into that night → exposure = delivery day's midday high + night low.
+function getCityDeliveryExposure(periods, numDays) {
+  if (!periods) return [];
+  const out = [];
+  for (let i = 0; i < numDays; i++) {
+    const key = localDateKey(deliveryDate(i));
+    const day = dayPeriodOn(periods, key), night = nightPeriodOn(periods, key);
+    out.push({
+      high: day ? day.temperature : null,
+      low: night ? night.temperature : null,
+      forecast: (night && night.shortForecast) || (day && day.shortForecast) || null,
     });
   }
+  return out;
+}
+// Hubs: the overnight low on the SHIP night itself (when the package transits).
+function getCityShipNightLows(periods, numDays) {
+  if (!periods) return [];
+  const out = [];
+  for (let i = 0; i < numDays; i++) {
+    const n = nightPeriodOn(periods, localDateKey(shipDate(i)));
+    out.push({ low: n ? n.temperature : null });
+  }
+  return out;
+}
 
-  return aggregatedDays;
+// Per state: coldest point per delivery day. Coldest = lowest night low (the
+// common failure); the state's lowest midday high is tracked separately so a
+// below-freezing afternoon anywhere in the state escalates to severe.
+async function fetchStateForecast(state) {
+  const results = await Promise.all(state.cities.map(city => fetchCityForecast(city)));
+  const perCity = results.map((periods, i) => ({ city: state.cities[i], days: getCityDeliveryExposure(periods, NUM_DAYS) }));
+  const aggregated = [];
+  for (let i = 0; i < NUM_DAYS; i++) {
+    let low = null, high = null, coldestCity = null, forecast = null, minHigh = null;
+    perCity.forEach(c => {
+      const d = c.days[i]; if (!d) return;
+      if (d.high !== null && (minHigh === null || d.high < minHigh)) minHigh = d.high;
+      if (d.low !== null && (low === null || d.low < low)) { low = d.low; high = d.high; coldestCity = c.city.name; forecast = d.forecast; }
+    });
+    aggregated.push({ low, high: minHigh !== null ? minHigh : high, cityHigh: high, coldestCity, forecast });
+  }
+  return aggregated;
+}
+
+async function fetchHubForecasts() {
+  const results = await Promise.all(TRANSIT_HUBS.map(h => fetchCityForecast(h)));
+  const out = {};
+  results.forEach((periods, i) => { out[TRANSIT_HUBS[i].code] = getCityShipNightLows(periods, NUM_DAYS); });
+  return out;
 }
 
 function getCachedData() {
@@ -1017,17 +1098,15 @@ function getCachedData() {
     if (!cached) return null;
     const parsed = JSON.parse(cached);
     if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null;
-    // Re-hydrate Date objects
-    Object.values(parsed.stateData).forEach(s => {
-      s.days.forEach(d => { if (d.date) d.date = new Date(d.date); });
-    });
-    return parsed.stateData;
+    // A cache written before local midnight indexes days from a different
+    // "today"; discard it so index 0 is always tonight's shipment.
+    if (parsed.dayKey !== localDateKey(new Date())) return null;
+    return parsed;
   } catch(e) { return null; }
 }
-
-function saveCachedData(data) {
+function saveCachedData() {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), stateData: data }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), dayKey: localDateKey(new Date()), stateData, hubData }));
   } catch(e) { /* localStorage may be full or disabled */ }
 }
 
@@ -1036,16 +1115,14 @@ async function loadAll() {
   const today = new Date();
   document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
   document.getElementById('today-date').textContent = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
   const progressEl = document.getElementById('loading-progress');
 
-  // Always start loading the map (small file)
   const topoPromise = loadTopoJSON();
 
-  // Try cache first
   const cached = getCachedData();
   if (cached) {
-    stateData = cached;
+    stateData = cached.stateData || {};
+    hubData = cached.hubData || {};
     progressEl.textContent = 'Loaded from cache';
     await topoPromise;
     buildDayPicker();
@@ -1055,149 +1132,174 @@ async function loadAll() {
     return;
   }
 
-  // No cache — fetch all forecasts with progressive rendering
   await topoPromise;
   buildDayPicker();
-  renderDay(selectedDayIdx); // render once with empty data so the map shows up
+  renderDay(selectedDayIdx); // render the empty map immediately
 
-  let completed = 0;
-  let lastRenderTime = 0;
+  hubData = await fetchHubForecasts(); // only 4 points
+  renderDay(selectedDayIdx);
 
-  const fcPromises = STATES.map(async (state) => {
+  let completed = 0, lastRender = 0;
+  await Promise.all(STATES.map(async (state) => {
     const days = await fetchStateForecast(state);
-    stateData[state.code] = { state, days };
+    stateData[state.code] = { days };
     completed++;
     progressEl.textContent = `Loading: ${completed}/${STATES.length} states`;
-
-    // Re-render every ~10 states or on completion (throttled to avoid jank)
     const now = Date.now();
-    if (completed === STATES.length || now - lastRenderTime > 800) {
-      lastRenderTime = now;
-      renderDay(selectedDayIdx);
-    }
-  });
-
-  await Promise.all(fcPromises);
-  saveCachedData(stateData);
+    if (completed === STATES.length || now - lastRender > 800) { lastRender = now; renderDay(selectedDayIdx); }
+  }));
+  saveCachedData();
   progressEl.textContent = '';
   renderDay(selectedDayIdx);
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function dayLabel(i) {
+  const ship = shipDate(i), deliv = deliveryDate(i);
+  const shipName = i === 0 ? 'Ships tonight' : i === 1 ? 'Ships tomorrow' : 'Ships ' + ship.toLocaleDateString('en-US', { weekday: 'short' });
+  return {
+    shipName,
+    delivShort: deliv.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+    delivLong: deliv.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+    shipLong: ship.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+  };
 }
 
 function buildDayPicker() {
   const container = document.getElementById('day-picker');
   container.innerHTML = '';
   for (let i = 0; i < NUM_DAYS; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
+    const l = dayLabel(i);
     const btn = document.createElement('button');
     btn.className = 'day-btn' + (i === selectedDayIdx ? ' active' : '');
-    btn.dataset.idx = i;
-    btn.innerHTML = `<span class="day-name">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'short' })}</span><span class="day-date">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+    btn.innerHTML = `<span class="day-name">${l.shipName}</span><span class="day-date">delivers ${l.delivShort}</span>`;
     btn.onclick = () => { selectedDayIdx = i; buildDayPicker(); renderDay(i); };
     container.appendChild(btn);
   }
 }
 
+function stateDay(code, dayIdx) {
+  const d = stateData[code];
+  return d && d.days && d.days[dayIdx] ? d.days[dayIdx] : null;
+}
+function tempPair(x) {
+  const h = x.high !== null && x.high !== undefined ? x.high + '°' : '—';
+  const l = x.low !== null && x.low !== undefined ? x.low + '°' : '—';
+  return `${h} midday / ${l} night`;
+}
+
 function renderDay(dayIdx) {
-  const flaggedStates = [];
+  const byTier = { severe: [], freeze: [], marginal: [] };
   let dataCount = 0;
   STATES.forEach(state => {
-    const data = stateData[state.code];
-    if (!data || !data.days[dayIdx] || data.days[dayIdx].high === null) return;
+    const x = stateDay(state.code, dayIdx);
+    const tier = tierFor(x);
+    if (!tier) return;
     dataCount++;
-    const high = data.days[dayIdx].high;
-    if (high < FLAG_THRESHOLD_F) flaggedStates.push({ ...state, high, forecast: data.days[dayIdx].forecast, coldestCity: data.days[dayIdx].coldestCity });
+    if (byTier[tier]) byTier[tier].push({ ...state, ...x, tier });
   });
 
-  const date = new Date();
-  date.setDate(date.getDate() + dayIdx);
-  document.getElementById('map-title').textContent = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  document.getElementById('map-subtitle').textContent = `${dataCount}/${STATES.length} states have forecast data`;
-  document.getElementById('flagged-count').textContent = flaggedStates.length > 0 ? `${flaggedStates.length} flagged` : 'None flagged';
+  const l = dayLabel(dayIdx);
+  document.getElementById('map-title').textContent = `Delivers ${l.delivLong} (${l.shipName.toLowerCase()})`;
+  document.getElementById('map-subtitle').textContent = `Porch exposure on delivery day: midday high → that night's low, at each state's coldest point · ${dataCount}/${STATES.length} states with data`;
+  const required = byTier.severe.length + byTier.freeze.length;
+  const fc = document.getElementById('flagged-count');
+  fc.textContent = required > 0
+    ? `${required} need winter pack-out` + (byTier.marginal.length ? ` · ${byTier.marginal.length} marginal` : '')
+    : (byTier.marginal.length ? `${byTier.marginal.length} marginal — none require pack-out` : 'All clear — standard packing');
+  fc.style.color = byTier.severe.length ? '#B71C1C' : byTier.freeze.length ? '#C62828' : byTier.marginal.length ? '#8D4B00' : 'var(--low-fg)';
 
+  renderHubStrip(dayIdx);
   renderMap(dayIdx);
-  renderStateList(flaggedStates);
+  renderStateList(byTier);
+}
+
+function renderHubStrip(dayIdx) {
+  const el = document.getElementById('hub-strip');
+  if (!el) return;
+  el.innerHTML = TRANSIT_HUBS.map(h => {
+    const n = hubData[h.code] && hubData[h.code][dayIdx];
+    const low = n ? n.low : null;
+    const tier = low === null ? 'nodata' : (low <= SEVERE_F ? 'severe' : low <= FREEZE_F ? 'freeze' : low <= MARGINAL_F ? 'marginal' : 'standard');
+    return `<span class="hub-chip ${tier}">${h.name} <strong>${low === null ? '…' : low + '°'}</strong></span>`;
+  }).join('');
 }
 
 function renderMap(dayIdx) {
   if (!topoData) return;
   const wrap = document.getElementById('map-wrap');
   wrap.innerHTML = '';
-
   const states = topojson.feature(topoData, topoData.objects.states);
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('viewBox', '0 0 975 610')
-    .attr('preserveAspectRatio', 'xMidYMid meet');
-
+  const svg = d3.select(wrap).append('svg').attr('viewBox', '0 0 975 610').attr('preserveAspectRatio', 'xMidYMid meet');
   const path = d3.geoPath();
   const tooltip = document.getElementById('tooltip');
 
-  svg.append('g')
-    .selectAll('path')
-    .data(states.features)
-    .join('path')
+  svg.append('g').selectAll('path').data(states.features).join('path')
     .attr('d', path)
     .attr('class', d => {
-      const fips = String(d.id).padStart(2, '0');
-      const stateInfo = STATES_BY_FIPS[fips];
-      if (!stateInfo) return 'state-path no-data';
-      const data = stateData[stateInfo.code];
-      const dayData = data && data.days[dayIdx];
-      if (!dayData || dayData.high === null) return 'state-path no-data';
-      if (dayData.high < FLAG_THRESHOLD_F) return 'state-path flagged';
-      return 'state-path standard';
-    })
-    .attr('data-name', d => {
-      const fips = String(d.id).padStart(2, '0');
-      return STATES_BY_FIPS[fips] ? STATES_BY_FIPS[fips].name : 'Unknown';
+      const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
+      if (!info) return 'state-path no-data';
+      const tier = tierFor(stateDay(info.code, dayIdx));
+      return 'state-path ' + (tier || 'no-data');
     })
     .on('mouseenter', function(event, d) {
-      const fips = String(d.id).padStart(2, '0');
-      const stateInfo = STATES_BY_FIPS[fips];
-      if (!stateInfo) return;
-      const data = stateData[stateInfo.code];
-      const dayData = data && data.days[dayIdx];
-      const tempStr = dayData && dayData.high !== null ? dayData.high + '°F' + (dayData.coldestCity ? ' (' + dayData.coldestCity + ')' : '') : 'no data';
-      tooltip.textContent = `${stateInfo.name}: ${tempStr}`;
+      const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
+      if (!info) return;
+      const x = stateDay(info.code, dayIdx);
+      const tier = tierFor(x);
+      tooltip.textContent = tier
+        ? `${info.name}: ${tempPair(x)}${x.coldestCity ? ' (' + x.coldestCity + ')' : ''} — ${TIER_LABEL[tier]}`
+        : `${info.name}: no data`;
       tooltip.style.opacity = '1';
     })
-    .on('mousemove', function(event) {
-      tooltip.style.left = (event.pageX + 12) + 'px';
-      tooltip.style.top = (event.pageY + 12) + 'px';
-    })
+    .on('mousemove', function(event) { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY + 12) + 'px'; })
     .on('mouseleave', function() { tooltip.style.opacity = '0'; });
 }
 
-function renderStateList(flaggedStates) {
+function renderStateList(byTier) {
   const container = document.getElementById('state-list-container');
-  document.getElementById('list-count').textContent = flaggedStates.length;
-  document.getElementById('copy-btn').style.display = flaggedStates.length > 0 ? 'inline-flex' : 'none';
-  if (flaggedStates.length === 0) {
-    container.innerHTML = '<div class="empty-state">No states flagged for this day. Standard packing across the board.</div>';
+  const total = TIERS.reduce((n, t) => n + byTier[t].length, 0);
+  document.getElementById('list-count').textContent = total;
+  document.getElementById('copy-btn').style.display = total > 0 ? 'inline-flex' : 'none';
+  if (total === 0) {
+    container.innerHTML = '<div class="empty-state">No states need winter packing for this delivery day. Standard packing across the board.</div>';
     return;
   }
-  flaggedStates.sort((a, b) => a.high - b.high);
-  let html = '<div class="state-list">';
-  flaggedStates.forEach(s => {
-    html += `<div class="state-pill"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.65; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}</span><span class="temp">${s.high}°F</span></div>`;
+  let html = '';
+  TIERS.forEach(t => {
+    const list = byTier[t];
+    if (list.length === 0) return;
+    list.sort((a, b) => (a.low ?? 99) - (b.low ?? 99));
+    html += `<div class="tier-heading tier-${t}">${TIER_LABEL[t]} <span class="tier-range">(${TIER_RANGE[t]})</span> <span class="tier-action">— ${TIER_ACTION[t]}</span></div><div class="state-list">`;
+    list.forEach(s => {
+      html += `<div class="state-pill ${t}"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.7; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}</span><span class="temp">${s.high ?? '—'}° / ${s.low ?? '—'}°</span></div>`;
+    });
+    html += '</div>';
   });
-  html += '</div>';
   container.innerHTML = html;
 }
 
+// Paste-ready note for the packing team: delivery day, tiered state lists with
+// midday/night temps, and the action each tier calls for.
 function copyStateList() {
-  const flaggedStates = STATES.filter(s => {
-    const data = stateData[s.code];
-    return data && data.days[selectedDayIdx] && data.days[selectedDayIdx].high !== null && data.days[selectedDayIdx].high < FLAG_THRESHOLD_F;
-  }).map(s => s.name);
-  if (flaggedStates.length === 0) return;
-  const text = flaggedStates.join(', ');
+  const l = dayLabel(selectedDayIdx);
+  const lines = [`WINTER PACK-OUT — ${l.shipName.toLowerCase()} (${l.shipLong}), delivers ${l.delivLong}. Porch exposure: midday high / night low.`];
+  const byTier = { severe: [], freeze: [], marginal: [] };
+  STATES.forEach(s => {
+    const x = stateDay(s.code, selectedDayIdx);
+    const t = tierFor(x);
+    if (t && byTier[t]) byTier[t].push(`${s.name} (${x.coldestCity || 'coldest point'} ${x.high ?? '—'}°/${x.low ?? '—'}°)`);
+  });
+  TIERS.forEach(t => {
+    if (byTier[t].length) lines.push(`${TIER_LABEL[t].toUpperCase()} — ${TIER_ACTION[t]}: ${byTier[t].join(', ')}`);
+  });
+  const hubs = TRANSIT_HUBS.map(h => { const n = hubData[h.code] && hubData[h.code][selectedDayIdx]; return `${h.name} ${n && n.low !== null ? n.low + '°' : 'n/a'}`; });
+  lines.push(`Hub overnight lows (secondary): ${hubs.join(' · ')}`);
+  const text = lines.join('\n');
   const status = document.getElementById('copy-status');
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
-      status.textContent = '✓ State list copied to clipboard';
+      status.textContent = '✓ Pack-out note copied to clipboard';
       setTimeout(() => { status.textContent = ''; }, 2500);
     });
   }
