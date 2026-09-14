@@ -33,10 +33,11 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   hour between 11am and 6pm on delivery day is ≤35°F at any town we actually
   ship to in that state** (NWS hourly forecast). 32°F is freezing; the extra
   3°F absorbs hourly-forecast error and a shaded porch.
-- **Two kinds of sampled towns** (≈820 total). *Ship-to towns* (`ship: true`,
-  ~300) are our real delivery footprint — top towns per state by volume from
-  our own shipment history, budgeted by state volume — and they **drive the
-  call**. *Coverage towns* (~520: vetted cities plus cold corners) can't flip a
+- **Two kinds of sampled towns** (≈2,300 total). *Ship-to towns* (`ship: true`,
+  ~1,950) are our real delivery footprint — every town with 2+ shipments in a
+  month of our own shipment history plus a top-10 floor per state, thinned so
+  no two are within 8 km — and they **drive the call**. *Coverage towns*
+  (~370: vetted cities plus cold corners) can't flip a
   state on their own; if one is ≤35°F while the footprint is fine, the state
   is shown as **standard with cold-pocket exceptions** — winter pack only if
   the label is going to one of the listed towns. (Only town names and
