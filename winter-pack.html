@@ -70,12 +70,14 @@
     .state-path { stroke: var(--surface); stroke-width: 1; transition: fill 0.2s; cursor: pointer; }
     .state-path.no-data { fill: var(--inset); }
     .state-path.standard { fill: #DCEDC8; }
-    .state-path.pack     { fill: #FFCDD2; }
-    .state-path.severe   { fill: #E57373; }
+    .state-path.pack      { fill: #FFCDD2; }
+    .state-path.severe    { fill: #E57373; }
+    .state-path.exception { fill: #FFF3D6; }
     .state-path:hover { stroke: var(--text); stroke-width: 1.5; }
     .cold-dot { stroke: #fff; stroke-width: 1.5; cursor: pointer; }
     .cold-dot.pack     { fill: #C62828; }
     .cold-dot.severe   { fill: #7F0000; }
+    .cold-dot.pocket   { fill: #fff; stroke: #E65100; stroke-width: 2; }
     .legend { display: flex; gap: 20px; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 12px; flex-wrap: wrap; }
     .legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
     .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
@@ -84,6 +86,7 @@
     .state-pill .temp { font-weight: 600; font-size: 12px; }
     .state-pill.pack     { background: #FFCDD2; color: #B71C1C; }
     .state-pill.severe   { background: #E57373; color: #fff; }
+    .state-pill.pocket   { background: #FFF3D6; color: #7A4B00; }
     .sev-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.18); }
     .decision-banner { border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--border); background: var(--surface-2); }
     .decision-banner.loading { color: var(--text-faint); font-size: 13px; }
@@ -155,7 +158,7 @@
 
   <div class="card">
     <div class="section-label">Ship night</div>
-    <div style="font-size: 12px; color: var(--text-muted); margin: -4px 0 10px;">Pick the night the shipment goes out. It's delivered around <strong>midday the next day</strong> and we account for a few hours on the porch. <strong>One rule: WINTER PACK if the coldest hour between 11am and 6pm on delivery day is ≤35°F at the state's coldest town; otherwise standard.</strong> The overnight low is shown for context only — a package left out past dark is outside our accountable window.</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin: -4px 0 10px;">Pick the night the shipment goes out. It's delivered around <strong>midday the next day</strong> and we account for a few hours on the porch. <strong>One rule: WINTER PACK if the coldest hour between 11am and 6pm on delivery day is ≤35°F at any town we actually ship to in that state; otherwise standard.</strong> Generic cold-corner towns can't flip a state on their own — if one is cold, it's listed as a cold-pocket exception (winter pack only if the label is going there). The overnight low is shown for context only — a package left out past dark is outside our accountable window.</div>
     <div class="day-picker" id="day-picker"></div>
     <div style="font-size: 12px; color: var(--text-faint); margin-top: 4px;" id="loading-progress"></div>
   </div>
@@ -176,9 +179,10 @@
     <div class="legend">
       <span><span class="legend-swatch" style="background: #FFCDD2;"></span><strong>Winter pack</strong> — ≤35°F at any hour 11am–6pm</span>
       <span><span class="legend-swatch" style="background: #E57373;"></span><strong>Winter pack, severe</strong> — ≤15°F: also hold-at-location / signature</span>
+      <span><span class="legend-swatch" style="background: #FFF3D6;"></span><strong>Standard, with cold pockets</strong> — winter pack only if shipping to the listed towns</span>
       <span><span class="legend-swatch" style="background: #DCEDC8;"></span><strong>Standard</strong> — &gt;35°F all window</span>
       <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
-      <span><span class="legend-swatch" style="background: #C62828; border-radius: 50%; width: 10px; height: 10px; margin-left: 2px;"></span>Dot = the town driving that state's tier (every sample point is a real town, not a peak)</span>
+      <span><span class="legend-swatch" style="background: #C62828; border-radius: 50%; width: 10px; height: 10px; margin-left: 2px;"></span>Solid dot = the ship-to town driving a winter-pack state · hollow dot = a cold pocket (no regular shipments there)</span>
     </div>
   </div>
 
@@ -217,9 +221,14 @@ const WINTER_PACK_F = 35; // <=35°F at any hour in the window → WINTER PACK. 
 const SEVERE_F      = 15; // <=15°F: still just "winter pack" for the packing line, but flagged so ops can also cut dwell (hold-at-location / signature) — beyond a standard shipper's qualification
 const NUM_DAYS = 6;     // ship nights; delivery day = ship night + 1, inside the NWS hourly range
 
-// ~12 sampled points per state (vetted cities + cold corners: high-elevation and
-// far-northern towns). We take the COLDEST point per state so cold pockets
-// aren't missed.
+// Two kinds of sampled towns per state:
+//   ship: true  — where we actually deliver (top towns by volume from our own
+//                 shipment history, budgeted by state volume). These DRIVE the
+//                 state's winter-pack call.
+//   (no flag)   — generic coverage: vetted cities plus cold corners (high
+//                 elevation, far north). These can't flip a whole state; if one
+//                 is cold while the footprint is fine, it's surfaced as a
+//                 "cold-pocket exception" — winter pack only if shipping there.
 const STATES_BY_FIPS = {
   '01': { code: 'AL', name: 'Alabama', cities: [
     { name: 'Montgomery', lat: 32.3617, lon: -86.2792 },
@@ -234,11 +243,14 @@ const STATES_BY_FIPS = {
     { name: 'Decatur', lat: 34.6059, lon: -86.9833 },
     { name: 'Dothan', lat: 31.2232, lon: -85.3905 },
     { name: 'Anniston', lat: 33.6598, lon: -85.8316 },
+    { name: 'Enterprise', lat: 31.3408, lon: -85.8421, ship: true },
+    { name: 'Jasper', lat: 33.8927, lon: -87.1667, ship: true },
+    { name: 'Ragland', lat: 33.7367, lon: -86.1619, ship: true },
   ]},
   '02': { code: 'AK', name: 'Alaska', cities: [
     { name: 'Juneau', lat: 58.3019, lon: -134.4197 },
     { name: 'Fairbanks', lat: 64.8378, lon: -147.7164 },
-    { name: 'Anchorage', lat: 61.2181, lon: -149.9003 },
+    { name: 'Anchorage', lat: 61.2181, lon: -149.9003, ship: true },
     { name: 'Nome', lat: 64.5011, lon: -165.4064 },
     { name: 'Bethel', lat: 60.7922, lon: -161.7558 },
     { name: 'Utqiagvik', lat: 71.2906, lon: -156.7886 },
@@ -248,11 +260,13 @@ const STATES_BY_FIPS = {
     { name: 'Bettles', lat: 66.9156, lon: -151.5286 },
     { name: 'Galena', lat: 64.7336, lon: -156.9256 },
     { name: 'McGrath', lat: 62.9536, lon: -155.5956 },
+    { name: 'Wasilla', lat: 61.58, lon: -149.44, ship: true },
+    { name: 'Auke Bay', lat: 58.4494, lon: -134.7003, ship: true },
   ]},
   '04': { code: 'AZ', name: 'Arizona', cities: [
-    { name: 'Phoenix', lat: 33.4484, lon: -112.074 },
+    { name: 'Phoenix', lat: 33.4484, lon: -112.074, ship: true },
     { name: 'Flagstaff', lat: 35.1983, lon: -111.6513 },
-    { name: 'Tucson', lat: 32.2226, lon: -110.9747 },
+    { name: 'Tucson', lat: 32.2226, lon: -110.9747, ship: true },
     { name: 'Show Low', lat: 34.2542, lon: -110.0298 },
     { name: 'Page', lat: 36.9147, lon: -111.4558 },
     { name: 'Alpine', lat: 33.8492, lon: -109.1429 },
@@ -262,6 +276,9 @@ const STATES_BY_FIPS = {
     { name: 'Prescott', lat: 34.54, lon: -112.4685 },
     { name: 'Window Rock', lat: 35.68, lon: -109.0531 },
     { name: 'Yuma', lat: 32.6927, lon: -114.6277 },
+    { name: 'Fort Defiance', lat: 35.7445, lon: -109.0765, ship: true },
+    { name: 'Scottsdale', lat: 33.6165, lon: -111.9554, ship: true },
+    { name: 'Florence', lat: 32.9969, lon: -111.3612, ship: true },
   ]},
   '05': { code: 'AR', name: 'Arkansas', cities: [
     { name: 'Little Rock', lat: 34.7465, lon: -92.2896 },
@@ -276,23 +293,38 @@ const STATES_BY_FIPS = {
     { name: 'El Dorado', lat: 33.2076, lon: -92.6663 },
     { name: 'Batesville', lat: 35.7698, lon: -91.6409 },
     { name: 'Russellville', lat: 35.2784, lon: -93.1338 },
+    { name: 'Sherwood', lat: 34.8807, lon: -92.2303, ship: true },
+    { name: 'Booneville', lat: 35.1364, lon: -93.9274, ship: true },
+    { name: 'Siloam Springs', lat: 36.18, lon: -94.528, ship: true },
   ]},
   '06': { code: 'CA', name: 'California', cities: [
-    { name: 'Sacramento', lat: 38.5816, lon: -121.4944 },
+    { name: 'Sacramento', lat: 38.5816, lon: -121.4944, ship: true },
     { name: 'South Lake Tahoe', lat: 38.9399, lon: -119.9772 },
     { name: 'Susanville', lat: 40.4163, lon: -120.653 },
     { name: 'Bishop', lat: 37.3614, lon: -118.395 },
     { name: 'Crescent City', lat: 41.7558, lon: -124.2026 },
     { name: 'Truckee', lat: 39.328, lon: -120.1833 },
     { name: 'Mammoth Lakes', lat: 37.6485, lon: -118.9721 },
-    { name: 'Alturas', lat: 41.4871, lon: -120.5425 },
+    { name: 'Alturas', lat: 41.4871, lon: -120.5425, ship: true },
     { name: 'Mount Shasta', lat: 41.3099, lon: -122.3106 },
     { name: 'Redding', lat: 40.5865, lon: -122.3917 },
-    { name: 'Los Angeles', lat: 34.0522, lon: -118.2437 },
+    { name: 'Los Angeles', lat: 34.0522, lon: -118.2437, ship: true },
     { name: 'Fresno', lat: 36.7378, lon: -119.7871 },
+    { name: 'San Diego', lat: 33.0067, lon: -117.069, ship: true },
+    { name: 'Modesto', lat: 37.6717, lon: -120.9482, ship: true },
+    { name: 'Escondido', lat: 33.1605, lon: -117.0978, ship: true },
+    { name: 'Poway', lat: 32.9756, lon: -117.0402, ship: true },
+    { name: 'San Francisco', lat: 37.7812, lon: -122.4614, ship: true },
+    { name: 'Stockton', lat: 37.9551, lon: -121.2041, ship: true },
+    { name: 'Ramona', lat: 33.0293, lon: -116.8535, ship: true },
+    { name: 'La Mesa', lat: 32.7604, lon: -117.0115, ship: true },
+    { name: 'Hesperia', lat: 34.4239, lon: -117.4075, ship: true },
+    { name: 'Coronado', lat: 32.6859, lon: -117.1831, ship: true },
+    { name: 'San Jose', lat: 37.3692, lon: -121.8208, ship: true },
+    { name: 'Ukiah', lat: 39.1552, lon: -123.1951, ship: true },
   ]},
   '08': { code: 'CO', name: 'Colorado', cities: [
-    { name: 'Denver', lat: 39.7392, lon: -104.9903 },
+    { name: 'Denver', lat: 39.7392, lon: -104.9903, ship: true },
     { name: 'Steamboat Springs', lat: 40.485, lon: -106.8317 },
     { name: 'Alamosa', lat: 37.4694, lon: -105.87 },
     { name: 'Craig', lat: 40.5152, lon: -107.5464 },
@@ -304,28 +336,33 @@ const STATES_BY_FIPS = {
     { name: 'Aspen', lat: 39.1911, lon: -106.8175 },
     { name: 'Grand Junction', lat: 39.0639, lon: -108.5506 },
     { name: 'Pueblo', lat: 38.2544, lon: -104.6091 },
+    { name: 'Colorado Springs', lat: 38.8377, lon: -104.837, ship: true },
+    { name: 'Aurora', lat: 39.6893, lon: -104.6787, ship: true },
   ]},
   '09': { code: 'CT', name: 'Connecticut', cities: [
-    { name: 'Hartford', lat: 41.7637, lon: -72.6851 },
-    { name: 'Bridgeport', lat: 41.1865, lon: -73.1952 },
+    { name: 'Hartford', lat: 41.7637, lon: -72.6851, ship: true },
+    { name: 'Bridgeport', lat: 41.1865, lon: -73.1952, ship: true },
     { name: 'New Haven', lat: 41.3083, lon: -72.9279 },
     { name: 'Norwich', lat: 41.5243, lon: -72.0759 },
     { name: 'Torrington', lat: 41.8001, lon: -73.1212 },
     { name: 'Winsted', lat: 41.9209, lon: -73.0601 },
     { name: 'Danbury', lat: 41.3948, lon: -73.454 },
-    { name: 'Stamford', lat: 41.0534, lon: -73.5387 },
+    { name: 'Stamford', lat: 41.0534, lon: -73.5387, ship: true },
     { name: 'Storrs', lat: 41.8084, lon: -72.2495 },
     { name: 'New London', lat: 41.3557, lon: -72.0995 },
-    { name: 'Waterbury', lat: 41.5582, lon: -73.0515 },
+    { name: 'Waterbury', lat: 41.5582, lon: -73.0515, ship: true },
     { name: 'Putnam', lat: 41.9151, lon: -71.9087 },
+    { name: 'Shelton', lat: 41.3047, lon: -73.1294, ship: true },
+    { name: 'Norwalk', lat: 41.1323, lon: -73.4058, ship: true },
+    { name: 'Fairfield', lat: 41.1928, lon: -73.2402, ship: true },
   ]},
   '10': { code: 'DE', name: 'Delaware', cities: [
     { name: 'Dover', lat: 39.1582, lon: -75.5244 },
-    { name: 'Wilmington', lat: 39.7391, lon: -75.5398 },
-    { name: 'Newark', lat: 39.6837, lon: -75.7497 },
+    { name: 'Wilmington', lat: 39.7391, lon: -75.5398, ship: true },
+    { name: 'Newark', lat: 39.6837, lon: -75.7497, ship: true },
     { name: 'Georgetown', lat: 38.6898, lon: -75.3854 },
     { name: 'Rehoboth Beach', lat: 38.7209, lon: -75.076 },
-    { name: 'Middletown', lat: 39.4496, lon: -75.7163 },
+    { name: 'Middletown', lat: 39.4496, lon: -75.7163, ship: true },
     { name: 'Smyrna', lat: 39.2998, lon: -75.6047 },
     { name: 'Milford', lat: 38.9127, lon: -75.4277 },
     { name: 'Seaford', lat: 38.6412, lon: -75.6113 },
@@ -334,7 +371,7 @@ const STATES_BY_FIPS = {
     { name: 'Lewes', lat: 38.7746, lon: -75.1393 },
   ]},
   '11': { code: 'DC', name: 'District of Columbia', cities: [
-    { name: 'Washington', lat: 38.9072, lon: -77.0369 },
+    { name: 'Washington', lat: 38.9072, lon: -77.0369, ship: true },
     { name: 'Anacostia', lat: 38.8636, lon: -76.9847 },
     { name: 'Georgetown', lat: 38.9097, lon: -77.0654 },
     { name: 'Tenleytown', lat: 38.9476, lon: -77.0793 },
@@ -349,23 +386,31 @@ const STATES_BY_FIPS = {
   '12': { code: 'FL', name: 'Florida', cities: [
     { name: 'Tallahassee', lat: 30.4383, lon: -84.2807 },
     { name: 'Pensacola', lat: 30.4213, lon: -87.2169 },
-    { name: 'Jacksonville', lat: 30.3322, lon: -81.6557 },
-    { name: 'Orlando', lat: 28.5383, lon: -81.3792 },
-    { name: 'Miami', lat: 25.7617, lon: -80.1918 },
+    { name: 'Jacksonville', lat: 30.3322, lon: -81.6557, ship: true },
+    { name: 'Orlando', lat: 28.5383, lon: -81.3792, ship: true },
+    { name: 'Miami', lat: 25.7617, lon: -80.1918, ship: true },
     { name: 'Lake City', lat: 30.1897, lon: -82.6393 },
     { name: 'Gainesville', lat: 29.6516, lon: -82.3248 },
     { name: 'Marianna', lat: 30.7741, lon: -85.2269 },
-    { name: 'Ocala', lat: 29.1872, lon: -82.1401 },
-    { name: 'Tampa', lat: 27.9506, lon: -82.4572 },
+    { name: 'Ocala', lat: 29.1872, lon: -82.1401, ship: true },
+    { name: 'Tampa', lat: 27.9506, lon: -82.4572, ship: true },
     { name: 'Crestview', lat: 30.7621, lon: -86.5705 },
-    { name: 'Fort Myers', lat: 26.6406, lon: -81.8723 },
+    { name: 'Fort Myers', lat: 26.6406, lon: -81.8723, ship: true },
+    { name: 'The Villages', lat: 28.9338, lon: -81.9914, ship: true },
+    { name: 'Pembroke Pines', lat: 26.0185, lon: -80.3449, ship: true },
+    { name: 'Palm Coast', lat: 29.4861, lon: -81.2045, ship: true },
+    { name: 'Clermont', lat: 28.5525, lon: -81.7574, ship: true },
+    { name: 'Bradenton', lat: 27.45, lon: -82.3773, ship: true },
+    { name: 'Winter Haven', lat: 27.981, lon: -81.6736, ship: true },
+    { name: 'Cape Coral', lat: 26.6786, lon: -82.0254, ship: true },
+    { name: 'Port Orange', lat: 29.1383, lon: -80.9956, ship: true },
   ]},
   '13': { code: 'GA', name: 'Georgia', cities: [
-    { name: 'Atlanta', lat: 33.749, lon: -84.388 },
+    { name: 'Atlanta', lat: 33.749, lon: -84.388, ship: true },
     { name: 'Blairsville', lat: 34.8762, lon: -83.9582 },
-    { name: 'Augusta', lat: 33.4735, lon: -82.0105 },
+    { name: 'Augusta', lat: 33.4735, lon: -82.0105, ship: true },
     { name: 'Savannah', lat: 32.0809, lon: -81.0912 },
-    { name: 'Columbus', lat: 32.4609, lon: -84.9877 },
+    { name: 'Columbus', lat: 32.4609, lon: -84.9877, ship: true },
     { name: 'Clayton', lat: 34.8782, lon: -83.4013 },
     { name: 'Dahlonega', lat: 34.5326, lon: -83.9849 },
     { name: 'Dalton', lat: 34.7698, lon: -84.9702 },
@@ -373,9 +418,11 @@ const STATES_BY_FIPS = {
     { name: 'Athens', lat: 33.9519, lon: -83.3576 },
     { name: 'Macon', lat: 32.8407, lon: -83.6324 },
     { name: 'Valdosta', lat: 30.8327, lon: -83.2785 },
+    { name: 'Acworth', lat: 34.0756, lon: -84.6477, ship: true },
+    { name: 'Marietta', lat: 33.9282, lon: -84.4733, ship: true },
   ]},
   '15': { code: 'HI', name: 'Hawaii', cities: [
-    { name: 'Honolulu', lat: 21.307, lon: -157.8581 },
+    { name: 'Honolulu', lat: 21.307, lon: -157.8581, ship: true },
     { name: 'Hilo', lat: 19.7297, lon: -155.09 },
     { name: 'Lihue', lat: 21.9811, lon: -159.3712 },
     { name: 'Kahului', lat: 20.8893, lon: -156.4729 },
@@ -387,9 +434,10 @@ const STATES_BY_FIPS = {
     { name: 'Volcano', lat: 19.443, lon: -155.2353 },
     { name: 'Pahala', lat: 19.203, lon: -155.4791 },
     { name: 'Kaneohe', lat: 21.418, lon: -157.8036 },
+    { name: 'Keaau', lat: 19.5893, lon: -154.9926, ship: true },
   ]},
   '16': { code: 'ID', name: 'Idaho', cities: [
-    { name: 'Boise', lat: 43.615, lon: -116.2023 },
+    { name: 'Boise', lat: 43.615, lon: -116.2023, ship: true },
     { name: 'Sandpoint', lat: 48.2766, lon: -116.5535 },
     { name: 'Idaho Falls', lat: 43.4666, lon: -112.0341 },
     { name: 'Salmon', lat: 45.1755, lon: -113.8959 },
@@ -401,11 +449,13 @@ const STATES_BY_FIPS = {
     { name: 'McCall', lat: 44.911, lon: -116.0987 },
     { name: 'Coeur d\'Alene', lat: 47.6777, lon: -116.7805 },
     { name: 'Twin Falls', lat: 42.563, lon: -114.4609 },
+    { name: 'Ammon', lat: 43.4732, lon: -111.9661, ship: true },
+    { name: 'Hayden', lat: 47.7989, lon: -116.7423, ship: true },
   ]},
   '17': { code: 'IL', name: 'Illinois', cities: [
     { name: 'Springfield', lat: 39.7817, lon: -89.6501 },
-    { name: 'Rockford', lat: 42.2711, lon: -89.094 },
-    { name: 'Chicago', lat: 41.8781, lon: -87.6298 },
+    { name: 'Rockford', lat: 42.2711, lon: -89.094, ship: true },
+    { name: 'Chicago', lat: 41.8781, lon: -87.6298, ship: true },
     { name: 'Carbondale', lat: 37.7273, lon: -89.2168 },
     { name: 'Peoria', lat: 40.6936, lon: -89.589 },
     { name: 'Freeport', lat: 42.2967, lon: -89.6212 },
@@ -415,9 +465,17 @@ const STATES_BY_FIPS = {
     { name: 'Moline', lat: 41.5067, lon: -90.5151 },
     { name: 'Decatur', lat: 39.8403, lon: -88.9548 },
     { name: 'Quincy', lat: 39.9356, lon: -91.4099 },
+    { name: 'Bourbonnais', lat: 41.1661, lon: -87.879, ship: true },
+    { name: 'Kankakee', lat: 41.1166, lon: -87.8696, ship: true },
+    { name: 'Metropolis', lat: 37.1753, lon: -88.7252, ship: true },
+    { name: 'Orland Park', lat: 41.6018, lon: -87.8899, ship: true },
+    { name: 'Bradley', lat: 41.1454, lon: -87.8601, ship: true },
+    { name: 'Addison', lat: 41.9335, lon: -88.0054, ship: true },
+    { name: 'Naperville', lat: 41.7662, lon: -88.141, ship: true },
+    { name: 'Plainfield', lat: 41.5642, lon: -88.2178, ship: true },
   ]},
   '18': { code: 'IN', name: 'Indiana', cities: [
-    { name: 'Indianapolis', lat: 39.7684, lon: -86.1581 },
+    { name: 'Indianapolis', lat: 39.7684, lon: -86.1581, ship: true },
     { name: 'South Bend', lat: 41.6764, lon: -86.252 },
     { name: 'Fort Wayne', lat: 41.0793, lon: -85.1394 },
     { name: 'Evansville', lat: 37.9716, lon: -87.571 },
@@ -429,23 +487,27 @@ const STATES_BY_FIPS = {
     { name: 'Terre Haute', lat: 39.4667, lon: -87.4139 },
     { name: 'Muncie', lat: 40.1934, lon: -85.3863 },
     { name: 'Bloomington', lat: 39.1653, lon: -86.5264 },
+    { name: 'Aurora', lat: 39.0719, lon: -84.9452, ship: true },
+    { name: 'Michigan City', lat: 41.698, lon: -86.8699, ship: true },
+    { name: 'Rising Sun', lat: 38.9567, lon: -84.8807, ship: true },
   ]},
   '19': { code: 'IA', name: 'Iowa', cities: [
     { name: 'Des Moines', lat: 41.5868, lon: -93.625 },
     { name: 'Mason City', lat: 43.1536, lon: -93.201 },
     { name: 'Sioux City', lat: 42.4999, lon: -96.4003 },
-    { name: 'Davenport', lat: 41.5236, lon: -90.5776 },
+    { name: 'Davenport', lat: 41.5236, lon: -90.5776, ship: true },
     { name: 'Decorah', lat: 43.3033, lon: -91.7857 },
     { name: 'Estherville', lat: 43.4019, lon: -94.8336 },
     { name: 'Spencer', lat: 43.1414, lon: -95.1444 },
     { name: 'Waterloo', lat: 42.4928, lon: -92.3426 },
     { name: 'Dubuque', lat: 42.5006, lon: -90.6646 },
     { name: 'Cedar Rapids', lat: 41.9779, lon: -91.6656 },
-    { name: 'Council Bluffs', lat: 41.2619, lon: -95.8608 },
+    { name: 'Council Bluffs', lat: 41.2619, lon: -95.8608, ship: true },
     { name: 'Ames', lat: 42.0308, lon: -93.6319 },
+    { name: 'Council Blfs', lat: 41.2616, lon: -95.8251, ship: true },
   ]},
   '20': { code: 'KS', name: 'Kansas', cities: [
-    { name: 'Topeka', lat: 39.0473, lon: -95.6752 },
+    { name: 'Topeka', lat: 39.0473, lon: -95.6752, ship: true },
     { name: 'Goodland', lat: 39.3508, lon: -101.7102 },
     { name: 'Wichita', lat: 37.6872, lon: -97.3301 },
     { name: 'Garden City', lat: 37.9716, lon: -100.8727 },
@@ -457,11 +519,13 @@ const STATES_BY_FIPS = {
     { name: 'Dodge City', lat: 37.7528, lon: -100.0171 },
     { name: 'Manhattan', lat: 39.1836, lon: -96.5717 },
     { name: 'Concordia', lat: 39.5708, lon: -97.6628 },
+    { name: 'Chanute', lat: 37.6749, lon: -95.457, ship: true },
+    { name: 'Overland Park', lat: 38.9568, lon: -94.6832, ship: true },
   ]},
   '21': { code: 'KY', name: 'Kentucky', cities: [
-    { name: 'Frankfort', lat: 38.2009, lon: -84.8733 },
+    { name: 'Frankfort', lat: 38.2009, lon: -84.8733, ship: true },
     { name: 'Pikeville', lat: 37.4793, lon: -82.5188 },
-    { name: 'Louisville', lat: 38.2527, lon: -85.7585 },
+    { name: 'Louisville', lat: 38.2527, lon: -85.7585, ship: true },
     { name: 'Paducah', lat: 37.0834, lon: -88.6 },
     { name: 'Ashland', lat: 38.4783, lon: -82.6379 },
     { name: 'Covington', lat: 39.0837, lon: -84.5086 },
@@ -471,20 +535,33 @@ const STATES_BY_FIPS = {
     { name: 'Somerset', lat: 37.092, lon: -84.6041 },
     { name: 'Maysville', lat: 38.6412, lon: -83.7444 },
     { name: 'Owensboro', lat: 37.7742, lon: -87.1133 },
+    { name: 'Lawrenceburg', lat: 38.0189, lon: -84.9299, ship: true },
+    { name: 'Shepherdsville', lat: 38.0045, lon: -85.6888, ship: true },
   ]},
   '22': { code: 'LA', name: 'Louisiana', cities: [
-    { name: 'Baton Rouge', lat: 30.4515, lon: -91.1871 },
-    { name: 'Shreveport', lat: 32.5252, lon: -93.7502 },
+    { name: 'Baton Rouge', lat: 30.4515, lon: -91.1871, ship: true },
+    { name: 'Shreveport', lat: 32.5252, lon: -93.7502, ship: true },
     { name: 'New Orleans', lat: 29.9511, lon: -90.0715 },
     { name: 'Monroe', lat: 32.5093, lon: -92.1193 },
     { name: 'Lake Charles', lat: 30.2266, lon: -93.2174 },
     { name: 'Bossier City', lat: 32.516, lon: -93.7321 },
     { name: 'Ruston', lat: 32.5232, lon: -92.6379 },
     { name: 'Alexandria', lat: 31.3113, lon: -92.4451 },
-    { name: 'Lafayette', lat: 30.2241, lon: -92.0198 },
+    { name: 'Lafayette', lat: 30.2241, lon: -92.0198, ship: true },
     { name: 'Minden', lat: 32.6154, lon: -93.2871 },
     { name: 'Natchitoches', lat: 31.7607, lon: -93.0863 },
-    { name: 'Houma', lat: 29.5958, lon: -90.7195 },
+    { name: 'Houma', lat: 29.5958, lon: -90.7195, ship: true },
+    { name: 'Stonewall', lat: 32.2848, lon: -93.8003, ship: true },
+    { name: 'Thibodaux', lat: 29.7992, lon: -90.8096, ship: true },
+    { name: 'Gonzales', lat: 30.2473, lon: -90.918, ship: true },
+    { name: 'Prairieville', lat: 30.3073, lon: -90.9405, ship: true },
+    { name: 'Cut Off', lat: 29.5232, lon: -90.3393, ship: true },
+    { name: 'Metairie', lat: 30.0005, lon: -90.1331, ship: true },
+    { name: 'Breaux Bridge', lat: 30.2948, lon: -91.8296, ship: true },
+    { name: 'Sulphur', lat: 30.2009, lon: -93.4437, ship: true },
+    { name: 'Saint Martinville', lat: 30.2237, lon: -91.7794, ship: true },
+    { name: 'Crowley', lat: 30.2148, lon: -92.3777, ship: true },
+    { name: 'Denham Springs', lat: 30.459, lon: -90.9027, ship: true },
   ]},
   '23': { code: 'ME', name: 'Maine', cities: [
     { name: 'Augusta', lat: 44.3106, lon: -69.7795 },
@@ -499,11 +576,14 @@ const STATES_BY_FIPS = {
     { name: 'Rangeley', lat: 44.9656, lon: -70.6437 },
     { name: 'Jackman', lat: 45.6231, lon: -70.2576 },
     { name: 'Madawaska', lat: 47.3556, lon: -68.3225 },
+    { name: 'Wells', lat: 43.3144, lon: -70.5969, ship: true },
+    { name: 'Windham', lat: 43.7917, lon: -70.4056, ship: true },
+    { name: 'Strong', lat: 44.8224, lon: -70.2221, ship: true },
   ]},
   '24': { code: 'MD', name: 'Maryland', cities: [
     { name: 'Annapolis', lat: 38.9784, lon: -76.4922 },
     { name: 'Cumberland', lat: 39.6529, lon: -78.7625 },
-    { name: 'Baltimore', lat: 39.2904, lon: -76.6122 },
+    { name: 'Baltimore', lat: 39.2904, lon: -76.6122, ship: true },
     { name: 'Oakland', lat: 39.4087, lon: -79.4067 },
     { name: 'Salisbury', lat: 38.3607, lon: -75.5994 },
     { name: 'Frostburg', lat: 39.6581, lon: -78.9281 },
@@ -513,6 +593,8 @@ const STATES_BY_FIPS = {
     { name: 'Hancock', lat: 39.6987, lon: -78.1797 },
     { name: 'Elkton', lat: 39.6068, lon: -75.8333 },
     { name: 'Ocean City', lat: 38.3365, lon: -75.0849 },
+    { name: 'Bowie', lat: 38.9885, lon: -76.791, ship: true },
+    { name: 'Glen Burnie', lat: 39.1618, lon: -76.6297, ship: true },
   ]},
   '25': { code: 'MA', name: 'Massachusetts', cities: [
     { name: 'Boston', lat: 42.3601, lon: -71.0589 },
@@ -525,8 +607,12 @@ const STATES_BY_FIPS = {
     { name: 'Orange', lat: 42.5904, lon: -72.3098 },
     { name: 'Lowell', lat: 42.6334, lon: -71.3162 },
     { name: 'Fitchburg', lat: 42.5834, lon: -71.8023 },
-    { name: 'New Bedford', lat: 41.6362, lon: -70.9342 },
+    { name: 'New Bedford', lat: 41.6362, lon: -70.9342, ship: true },
     { name: 'Amherst', lat: 42.3732, lon: -72.5199 },
+    { name: 'Fall River', lat: 41.6883, lon: -71.1574, ship: true },
+    { name: 'Weymouth', lat: 42.214, lon: -70.9203, ship: true },
+    { name: 'Scituate', lat: 42.2032, lon: -70.7525, ship: true },
+    { name: 'Framingham', lat: 42.2822, lon: -71.4339, ship: true },
   ]},
   '26': { code: 'MI', name: 'Michigan', cities: [
     { name: 'Lansing', lat: 42.7325, lon: -84.5555 },
@@ -538,9 +624,14 @@ const STATES_BY_FIPS = {
     { name: 'Escanaba', lat: 45.7453, lon: -87.0646 },
     { name: 'Gaylord', lat: 45.0275, lon: -84.6748 },
     { name: 'Traverse City', lat: 44.7631, lon: -85.6206 },
-    { name: 'Grand Rapids', lat: 42.9634, lon: -85.6681 },
+    { name: 'Grand Rapids', lat: 42.9634, lon: -85.6681, ship: true },
     { name: 'Pellston', lat: 45.5527, lon: -84.7842 },
     { name: 'Alpena', lat: 45.0617, lon: -83.4327 },
+    { name: 'Brighton', lat: 42.57, lon: -83.7484, ship: true },
+    { name: 'Muskegon', lat: 43.1791, lon: -86.1989, ship: true },
+    { name: 'Macomb', lat: 42.6735, lon: -82.9163, ship: true },
+    { name: 'Kentwood', lat: 42.8894, lon: -85.6219, ship: true },
+    { name: 'Temperance', lat: 41.7682, lon: -83.5797, ship: true },
   ]},
   '27': { code: 'MN', name: 'Minnesota', cities: [
     { name: 'St. Paul', lat: 44.9537, lon: -93.09 },
@@ -555,12 +646,15 @@ const STATES_BY_FIPS = {
     { name: 'Grand Rapids', lat: 47.2372, lon: -93.5302 },
     { name: 'St. Cloud', lat: 45.5579, lon: -94.1632 },
     { name: 'Moorhead', lat: 46.8738, lon: -96.7678 },
+    { name: 'Red Wing', lat: 44.5528, lon: -92.5486, ship: true },
+    { name: 'Shakopee', lat: 44.7793, lon: -93.5197, ship: true },
+    { name: 'Albert Lea', lat: 43.6537, lon: -93.3707, ship: true },
   ]},
   '28': { code: 'MS', name: 'Mississippi', cities: [
     { name: 'Jackson', lat: 32.2988, lon: -90.1848 },
     { name: 'Tupelo', lat: 34.2576, lon: -88.7034 },
     { name: 'Gulfport', lat: 30.3674, lon: -89.0928 },
-    { name: 'Hattiesburg', lat: 31.3271, lon: -89.2903 },
+    { name: 'Hattiesburg', lat: 31.3271, lon: -89.2903, ship: true },
     { name: 'Greenville', lat: 33.4101, lon: -91.0618 },
     { name: 'Corinth', lat: 34.9343, lon: -88.5223 },
     { name: 'Oxford', lat: 34.3665, lon: -89.5192 },
@@ -569,6 +663,8 @@ const STATES_BY_FIPS = {
     { name: 'Meridian', lat: 32.3643, lon: -88.7037 },
     { name: 'Clarksdale', lat: 34.2001, lon: -90.5712 },
     { name: 'Vicksburg', lat: 32.3526, lon: -90.8779 },
+    { name: 'Madison', lat: 32.4671, lon: -90.1087, ship: true },
+    { name: 'Brandon', lat: 32.3038, lon: -89.964, ship: true },
   ]},
   '29': { code: 'MO', name: 'Missouri', cities: [
     { name: 'Jefferson City', lat: 38.5767, lon: -92.1735 },
@@ -579,16 +675,18 @@ const STATES_BY_FIPS = {
     { name: 'Maryville', lat: 40.3458, lon: -94.8722 },
     { name: 'Chillicothe', lat: 39.7953, lon: -93.5527 },
     { name: 'Columbia', lat: 38.9517, lon: -92.3341 },
-    { name: 'Cape Girardeau', lat: 37.3059, lon: -89.5181 },
+    { name: 'Cape Girardeau', lat: 37.3059, lon: -89.5181, ship: true },
     { name: 'Joplin', lat: 37.0842, lon: -94.5133 },
     { name: 'Hannibal', lat: 39.7084, lon: -91.3585 },
     { name: 'West Plains', lat: 36.7281, lon: -91.8524 },
+    { name: 'Saint Louis', lat: 38.5814, lon: -90.2625, ship: true },
+    { name: 'Jackson', lat: 37.3879, lon: -89.6519, ship: true },
   ]},
   '30': { code: 'MT', name: 'Montana', cities: [
     { name: 'Helena', lat: 46.5891, lon: -112.0391 },
     { name: 'Cut Bank', lat: 48.6336, lon: -112.3258 },
     { name: 'Glasgow', lat: 48.1969, lon: -106.6364 },
-    { name: 'Billings', lat: 45.7833, lon: -108.5007 },
+    { name: 'Billings', lat: 45.7833, lon: -108.5007, ship: true },
     { name: 'Missoula', lat: 46.8721, lon: -113.994 },
     { name: 'West Yellowstone', lat: 44.6621, lon: -111.1041 },
     { name: 'Kalispell', lat: 48.1958, lon: -114.3129 },
@@ -597,26 +695,43 @@ const STATES_BY_FIPS = {
     { name: 'Wisdom', lat: 45.6177, lon: -113.4505 },
     { name: 'Butte', lat: 46.0038, lon: -112.5348 },
     { name: 'Bozeman', lat: 45.677, lon: -111.0429 },
+    { name: 'Whitefish', lat: 48.404, lon: -114.3509, ship: true },
+    { name: 'Forsyth', lat: 46.2819, lon: -106.6991, ship: true },
   ]},
   '31': { code: 'NE', name: 'Nebraska', cities: [
-    { name: 'Lincoln', lat: 40.8136, lon: -96.7026 },
+    { name: 'Lincoln', lat: 40.8136, lon: -96.7026, ship: true },
     { name: 'Scottsbluff', lat: 41.8666, lon: -103.6672 },
-    { name: 'Omaha', lat: 41.2565, lon: -95.9345 },
+    { name: 'Omaha', lat: 41.2565, lon: -95.9345, ship: true },
     { name: 'Valentine', lat: 42.8728, lon: -100.551 },
-    { name: 'Norfolk', lat: 42.0286, lon: -97.417 },
+    { name: 'Norfolk', lat: 42.0286, lon: -97.417, ship: true },
     { name: 'Chadron', lat: 42.8294, lon: -102.9999 },
     { name: 'Sidney', lat: 41.1428, lon: -102.9785 },
     { name: 'Alliance', lat: 42.1017, lon: -102.8718 },
-    { name: 'North Platte', lat: 41.1239, lon: -100.7654 },
+    { name: 'North Platte', lat: 41.1239, lon: -100.7654, ship: true },
     { name: 'Grand Island', lat: 40.9264, lon: -98.342 },
-    { name: 'Kearney', lat: 40.6993, lon: -99.0817 },
+    { name: 'Kearney', lat: 40.6993, lon: -99.0817, ship: true },
     { name: 'McCook', lat: 40.2017, lon: -100.6254 },
+    { name: 'Elkhorn', lat: 41.2756, lon: -96.2431, ship: true },
+    { name: 'Bellevue', lat: 41.1156, lon: -95.9393, ship: true },
+    { name: 'Papillion', lat: 41.1523, lon: -96.0371, ship: true },
+    { name: 'Bennington', lat: 41.3623, lon: -96.1575, ship: true },
+    { name: 'Lavista', lat: 41.1814, lon: -96.0658, ship: true },
+    { name: 'Gretna', lat: 41.1345, lon: -96.2458, ship: true },
+    { name: 'Seward', lat: 40.9066, lon: -97.0966, ship: true },
+    { name: 'Plattsmouth', lat: 40.9992, lon: -95.9139, ship: true },
+    { name: 'La Vista', lat: 41.1814, lon: -96.0658, ship: true },
+    { name: 'Wahoo', lat: 41.2117, lon: -96.6219, ship: true },
+    { name: 'Pleasanton', lat: 40.9818, lon: -99.1283, ship: true },
+    { name: 'Waverly', lat: 40.9222, lon: -96.526, ship: true },
+    { name: 'Bennet', lat: 40.68, lon: -96.5064, ship: true },
+    { name: 'Axtell', lat: 40.5269, lon: -99.1169, ship: true },
+    { name: 'Waterloo', lat: 41.2702, lon: -96.3063, ship: true },
   ]},
   '32': { code: 'NV', name: 'Nevada', cities: [
     { name: 'Carson City', lat: 39.1638, lon: -119.7674 },
     { name: 'Elko', lat: 40.8324, lon: -115.7631 },
-    { name: 'Las Vegas', lat: 36.1699, lon: -115.1398 },
-    { name: 'Reno', lat: 39.5296, lon: -119.8138 },
+    { name: 'Las Vegas', lat: 36.1699, lon: -115.1398, ship: true },
+    { name: 'Reno', lat: 39.5296, lon: -119.8138, ship: true },
     { name: 'Ely', lat: 39.2474, lon: -114.8889 },
     { name: 'Wells', lat: 41.1116, lon: -114.9646 },
     { name: 'Winnemucca', lat: 40.973, lon: -117.7357 },
@@ -625,9 +740,10 @@ const STATES_BY_FIPS = {
     { name: 'Battle Mountain', lat: 40.6421, lon: -116.9343 },
     { name: 'Austin', lat: 39.4927, lon: -117.0682 },
     { name: 'Fallon', lat: 39.4735, lon: -118.7774 },
+    { name: 'Henderson', lat: 35.9878, lon: -115.1167, ship: true },
   ]},
   '33': { code: 'NH', name: 'New Hampshire', cities: [
-    { name: 'Concord', lat: 43.2081, lon: -71.5376 },
+    { name: 'Concord', lat: 43.2081, lon: -71.5376, ship: true },
     { name: 'Berlin', lat: 44.4687, lon: -71.1856 },
     { name: 'Manchester', lat: 42.9956, lon: -71.4548 },
     { name: 'Pittsburg', lat: 45.0526, lon: -71.3884 },
@@ -639,34 +755,55 @@ const STATES_BY_FIPS = {
     { name: 'Keene', lat: 42.9337, lon: -72.2785 },
     { name: 'Conway', lat: 43.9787, lon: -71.1212 },
     { name: 'Plymouth', lat: 43.757, lon: -71.6884 },
+    { name: 'Hampton', lat: 42.9359, lon: -70.8243, ship: true },
+    { name: 'Londonderry', lat: 42.8656, lon: -71.3772, ship: true },
   ]},
   '34': { code: 'NJ', name: 'New Jersey', cities: [
     { name: 'Trenton', lat: 40.2206, lon: -74.7699 },
     { name: 'Sussex', lat: 41.2087, lon: -74.6071 },
-    { name: 'Newark', lat: 40.7357, lon: -74.1724 },
+    { name: 'Newark', lat: 40.7357, lon: -74.1724, ship: true },
     { name: 'Atlantic City', lat: 39.3643, lon: -74.4229 },
     { name: 'Cape May', lat: 38.9351, lon: -74.906 },
     { name: 'High Point', lat: 41.3211, lon: -74.6618 },
     { name: 'Newton', lat: 41.0581, lon: -74.7527 },
     { name: 'Vernon', lat: 41.1948, lon: -74.486 },
     { name: 'Hackettstown', lat: 40.8537, lon: -74.8285 },
-    { name: 'Toms River', lat: 39.9537, lon: -74.1979 },
+    { name: 'Toms River', lat: 39.9537, lon: -74.1979, ship: true },
     { name: 'Camden', lat: 39.9259, lon: -75.1196 },
     { name: 'New Brunswick', lat: 40.4862, lon: -74.4518 },
+    { name: 'Bayonne', lat: 40.6664, lon: -74.1192, ship: true },
+    { name: 'Jersey City', lat: 40.702, lon: -74.089, ship: true },
+    { name: 'Elizabeth', lat: 40.6565, lon: -74.2215, ship: true },
+    { name: 'Clifton', lat: 40.8693, lon: -74.1711, ship: true },
+    { name: 'West Orange', lat: 40.7859, lon: -74.2568, ship: true },
+    { name: 'Union', lat: 40.6952, lon: -74.2677, ship: true },
+    { name: 'Willingboro', lat: 40.029, lon: -74.8835, ship: true },
+    { name: 'North Arlington', lat: 40.7898, lon: -74.1343, ship: true },
+    { name: 'Manchester', lat: 39.9553, lon: -74.3646, ship: true },
+    { name: 'North Bergen', lat: 40.7939, lon: -74.0258, ship: true },
+    { name: 'Hopatcong', lat: 40.939, lon: -74.6616, ship: true },
+    { name: 'Voorhees', lat: 39.8504, lon: -74.9646, ship: true },
+    { name: 'Brick', lat: 40.0981, lon: -74.1096, ship: true },
+    { name: 'Monroe Township', lat: 40.3312, lon: -74.417, ship: true },
+    { name: 'Williamstown', lat: 39.665, lon: -74.971, ship: true },
+    { name: 'East Orange', lat: 40.7558, lon: -74.2198, ship: true },
+    { name: 'Forked River', lat: 39.8444, lon: -74.1973, ship: true },
+    { name: 'Bayville', lat: 39.9093, lon: -74.1549, ship: true },
   ]},
   '35': { code: 'NM', name: 'New Mexico', cities: [
     { name: 'Santa Fe', lat: 35.687, lon: -105.9378 },
     { name: 'Taos', lat: 36.4072, lon: -105.5734 },
     { name: 'Farmington', lat: 36.7281, lon: -108.2087 },
-    { name: 'Albuquerque', lat: 35.0844, lon: -106.6504 },
+    { name: 'Albuquerque', lat: 35.0844, lon: -106.6504, ship: true },
     { name: 'Las Cruces', lat: 32.3199, lon: -106.7637 },
     { name: 'Chama', lat: 36.9036, lon: -106.5786 },
     { name: 'Red River', lat: 36.7064, lon: -105.4061 },
     { name: 'Raton', lat: 36.9034, lon: -104.4391 },
-    { name: 'Gallup', lat: 35.5281, lon: -108.7426 },
+    { name: 'Gallup', lat: 35.5281, lon: -108.7426, ship: true },
     { name: 'Angel Fire', lat: 36.3931, lon: -105.2853 },
     { name: 'Grants', lat: 35.1473, lon: -107.8514 },
     { name: 'Roswell', lat: 33.3943, lon: -104.523 },
+    { name: 'Los Lunas', lat: 34.7806, lon: -106.7115, ship: true },
   ]},
   '36': { code: 'NY', name: 'New York', cities: [
     { name: 'Albany', lat: 42.6526, lon: -73.7562 },
@@ -681,13 +818,33 @@ const STATES_BY_FIPS = {
     { name: 'Syracuse', lat: 43.0481, lon: -76.1474 },
     { name: 'Rochester', lat: 43.1566, lon: -77.6088 },
     { name: 'Binghamton', lat: 42.0987, lon: -75.918 },
+    { name: 'Brooklyn', lat: 40.6016, lon: -73.9968, ship: true },
+    { name: 'New York', lat: 40.7402, lon: -73.9996, ship: true },
+    { name: 'Bronx', lat: 40.8434, lon: -73.8602, ship: true },
+    { name: 'Staten Island', lat: 40.6039, lon: -74.1472, ship: true },
+    { name: 'Middletown', lat: 41.4512, lon: -74.4701, ship: true },
+    { name: 'Levittown', lat: 40.7254, lon: -73.5166, ship: true },
+    { name: 'Monticello', lat: 41.6516, lon: -74.7007, ship: true },
+    { name: 'Jamaica', lat: 40.7029, lon: -73.8111, ship: true },
+    { name: 'Flushing', lat: 40.728, lon: -73.8195, ship: true },
+    { name: 'Astoria', lat: 40.7706, lon: -73.9265, ship: true },
+    { name: 'Valley Stream', lat: 40.6742, lon: -73.7057, ship: true },
+    { name: 'Lindenhurst', lat: 40.6884, lon: -73.3745, ship: true },
+    { name: 'Glendale', lat: 40.7036, lon: -73.8961, ship: true },
+    { name: 'Yonkers', lat: 40.9177, lon: -73.895, ship: true },
+    { name: 'Bay Shore', lat: 40.7051, lon: -73.243, ship: true },
+    { name: 'Port Jervis', lat: 41.3786, lon: -74.6691, ship: true },
+    { name: 'East Meadow', lat: 40.7149, lon: -73.5561, ship: true },
+    { name: 'Westtown', lat: 41.3214, lon: -74.5529, ship: true },
+    { name: 'Oceanside', lat: 40.6362, lon: -73.6375, ship: true },
+    { name: 'Schenectady', lat: 42.7904, lon: -73.9809, ship: true },
   ]},
   '37': { code: 'NC', name: 'North Carolina', cities: [
     { name: 'Raleigh', lat: 35.7796, lon: -78.6382 },
     { name: 'Boone', lat: 36.2168, lon: -81.6746 },
     { name: 'Asheville', lat: 35.5951, lon: -82.5515 },
-    { name: 'Wilmington', lat: 34.2257, lon: -77.9447 },
-    { name: 'Charlotte', lat: 35.2271, lon: -80.8431 },
+    { name: 'Wilmington', lat: 34.2257, lon: -77.9447, ship: true },
+    { name: 'Charlotte', lat: 35.2271, lon: -80.8431, ship: true },
     { name: 'Banner Elk', lat: 36.1632, lon: -81.8715 },
     { name: 'Beech Mountain', lat: 36.2126, lon: -81.8779 },
     { name: 'Sparta', lat: 36.5057, lon: -81.1218 },
@@ -695,9 +852,11 @@ const STATES_BY_FIPS = {
     { name: 'Greensboro', lat: 36.0726, lon: -79.792 },
     { name: 'Greenville', lat: 35.6127, lon: -77.3664 },
     { name: 'Murphy', lat: 35.0873, lon: -84.0346 },
+    { name: 'Fayetteville', lat: 35.0257, lon: -78.9705, ship: true },
+    { name: 'Holly Springs', lat: 35.6263, lon: -78.8458, ship: true },
   ]},
   '38': { code: 'ND', name: 'North Dakota', cities: [
-    { name: 'Bismarck', lat: 46.8208, lon: -100.7837 },
+    { name: 'Bismarck', lat: 46.8208, lon: -100.7837, ship: true },
     { name: 'Williston', lat: 48.1469, lon: -103.6179 },
     { name: 'Grand Forks', lat: 47.9253, lon: -97.0329 },
     { name: 'Fargo', lat: 46.8772, lon: -96.7898 },
@@ -709,25 +868,33 @@ const STATES_BY_FIPS = {
     { name: 'Jamestown', lat: 46.9105, lon: -98.7084 },
     { name: 'Langdon', lat: 48.76, lon: -98.369 },
     { name: 'Cavalier', lat: 48.7944, lon: -97.6225 },
+    { name: 'West Fargo', lat: 46.8907, lon: -96.9258, ship: true },
+    { name: 'Buxton', lat: 47.6163, lon: -97.0893, ship: true },
   ]},
   '39': { code: 'OH', name: 'Ohio', cities: [
-    { name: 'Columbus', lat: 39.9612, lon: -82.9988 },
+    { name: 'Columbus', lat: 39.9612, lon: -82.9988, ship: true },
     { name: 'Cleveland', lat: 41.4993, lon: -81.6944 },
-    { name: 'Cincinnati', lat: 39.1031, lon: -84.512 },
-    { name: 'Toledo', lat: 41.6528, lon: -83.5379 },
+    { name: 'Cincinnati', lat: 39.1031, lon: -84.512, ship: true },
+    { name: 'Toledo', lat: 41.6528, lon: -83.5379, ship: true },
     { name: 'Youngstown', lat: 41.0998, lon: -80.6495 },
     { name: 'Ashtabula', lat: 41.8651, lon: -80.7898 },
     { name: 'Sandusky', lat: 41.4489, lon: -82.7079 },
     { name: 'Akron', lat: 41.0814, lon: -81.519 },
-    { name: 'Dayton', lat: 39.7589, lon: -84.1916 },
+    { name: 'Dayton', lat: 39.7589, lon: -84.1916, ship: true },
     { name: 'Mansfield', lat: 40.7584, lon: -82.5154 },
     { name: 'Lima', lat: 40.7426, lon: -84.1052 },
     { name: 'Chardon', lat: 41.5786, lon: -81.2007 },
+    { name: 'Avon', lat: 41.4467, lon: -82.0204, ship: true },
+    { name: 'Hilliard', lat: 40.0322, lon: -83.1383, ship: true },
+    { name: 'Westerville', lat: 40.1146, lon: -82.9105, ship: true },
+    { name: 'Brunswick', lat: 41.2471, lon: -81.828, ship: true },
+    { name: 'Sunbury', lat: 40.2655, lon: -82.8511, ship: true },
+    { name: 'Marietta', lat: 39.4281, lon: -81.4644, ship: true },
   ]},
   '40': { code: 'OK', name: 'Oklahoma', cities: [
-    { name: 'Oklahoma City', lat: 35.4676, lon: -97.5164 },
+    { name: 'Oklahoma City', lat: 35.4676, lon: -97.5164, ship: true },
     { name: 'Guymon', lat: 36.6828, lon: -101.4818 },
-    { name: 'Tulsa', lat: 36.154, lon: -95.9928 },
+    { name: 'Tulsa', lat: 36.154, lon: -95.9928, ship: true },
     { name: 'Lawton', lat: 34.6087, lon: -98.3903 },
     { name: 'Bartlesville', lat: 36.7473, lon: -95.9808 },
     { name: 'Boise City', lat: 36.7298, lon: -102.5135 },
@@ -737,9 +904,10 @@ const STATES_BY_FIPS = {
     { name: 'Miami', lat: 36.8743, lon: -94.8774 },
     { name: 'Ardmore', lat: 34.1742, lon: -97.1436 },
     { name: 'Stillwater', lat: 36.1156, lon: -97.0584 },
+    { name: 'Edmond', lat: 35.6665, lon: -97.4798, ship: true },
   ]},
   '41': { code: 'OR', name: 'Oregon', cities: [
-    { name: 'Salem', lat: 44.9429, lon: -123.0351 },
+    { name: 'Salem', lat: 44.9429, lon: -123.0351, ship: true },
     { name: 'Bend', lat: 44.0582, lon: -121.3153 },
     { name: 'Burns', lat: 43.5862, lon: -119.0541 },
     { name: 'La Grande', lat: 45.3243, lon: -118.0876 },
@@ -749,25 +917,44 @@ const STATES_BY_FIPS = {
     { name: 'John Day', lat: 44.416, lon: -118.953 },
     { name: 'Enterprise', lat: 45.4263, lon: -117.279 },
     { name: 'Pendleton', lat: 45.6721, lon: -118.7886 },
-    { name: 'Portland', lat: 45.5152, lon: -122.6784 },
+    { name: 'Portland', lat: 45.5152, lon: -122.6784, ship: true },
     { name: 'Medford', lat: 42.3265, lon: -122.8756 },
+    { name: 'Oregon City', lat: 45.3377, lon: -122.57, ship: true },
   ]},
   '42': { code: 'PA', name: 'Pennsylvania', cities: [
     { name: 'Harrisburg', lat: 40.2737, lon: -76.8844 },
     { name: 'Erie', lat: 42.1292, lon: -80.0851 },
     { name: 'Bradford', lat: 41.9595, lon: -78.6442 },
-    { name: 'Philadelphia', lat: 39.9526, lon: -75.1652 },
+    { name: 'Philadelphia', lat: 39.9526, lon: -75.1652, ship: true },
     { name: 'State College', lat: 40.7934, lon: -77.86 },
     { name: 'Coudersport', lat: 41.7748, lon: -78.0203 },
     { name: 'Smethport', lat: 41.8095, lon: -78.4445 },
     { name: 'Scranton', lat: 41.409, lon: -75.6624 },
     { name: 'Williamsport', lat: 41.2412, lon: -77.0011 },
-    { name: 'Pittsburgh', lat: 40.4406, lon: -79.9959 },
+    { name: 'Pittsburgh', lat: 40.4406, lon: -79.9959, ship: true },
     { name: 'Wellsboro', lat: 41.7487, lon: -77.3008 },
     { name: 'Clearfield', lat: 41.0265, lon: -78.4392 },
+    { name: 'Bensalem', lat: 40.1109, lon: -74.9378, ship: true },
+    { name: 'Drexel Hill', lat: 39.9503, lon: -75.304, ship: true },
+    { name: 'York', lat: 39.959, lon: -76.6592, ship: true },
+    { name: 'Milford', lat: 41.3228, lon: -74.8824, ship: true },
+    { name: 'Levittown', lat: 40.1681, lon: -74.8231, ship: true },
+    { name: 'New Kensington', lat: 40.5616, lon: -79.7129, ship: true },
+    { name: 'Bridgeville', lat: 40.3472, lon: -80.1153, ship: true },
+    { name: 'Mechanicsburg', lat: 40.2122, lon: -77.0265, ship: true },
+    { name: 'Towanda', lat: 41.7638, lon: -76.4645, ship: true },
+    { name: 'Elkins Park', lat: 40.075, lon: -75.1315, ship: true },
+    { name: 'Chambersburg', lat: 39.9072, lon: -77.636, ship: true },
+    { name: 'Pottstown', lat: 40.2635, lon: -75.6172, ship: true },
+    { name: 'Altoona', lat: 40.5052, lon: -78.3905, ship: true },
+    { name: 'Mckeesport', lat: 40.3478, lon: -79.8642, ship: true },
+    { name: 'Mountain Top', lat: 41.135, lon: -75.9376, ship: true },
+    { name: 'Prospect Park', lat: 39.8857, lon: -75.3082, ship: true },
+    { name: 'Reading', lat: 40.3351, lon: -75.875, ship: true },
+    { name: 'Lansdale', lat: 40.2378, lon: -75.2955, ship: true },
   ]},
   '44': { code: 'RI', name: 'Rhode Island', cities: [
-    { name: 'Providence', lat: 41.824, lon: -71.4128 },
+    { name: 'Providence', lat: 41.824, lon: -71.4128, ship: true },
     { name: 'Newport', lat: 41.4901, lon: -71.3128 },
     { name: 'Westerly', lat: 41.3776, lon: -71.8273 },
     { name: 'Woonsocket', lat: 42.0029, lon: -71.5145 },
@@ -775,24 +962,27 @@ const STATES_BY_FIPS = {
     { name: 'Foster', lat: 41.799, lon: -71.7423 },
     { name: 'Burrillville', lat: 41.9701, lon: -71.6951 },
     { name: 'Cumberland', lat: 41.9701, lon: -71.4356 },
-    { name: 'Warwick', lat: 41.7001, lon: -71.4162 },
+    { name: 'Warwick', lat: 41.7001, lon: -71.4162, ship: true },
     { name: 'Wakefield', lat: 41.4334, lon: -71.5009 },
     { name: 'Pawtucket', lat: 41.8787, lon: -71.3826 },
     { name: 'Block Island', lat: 41.1712, lon: -71.558 },
+    { name: 'Cranston', lat: 41.7614, lon: -71.5061, ship: true },
   ]},
   '45': { code: 'SC', name: 'South Carolina', cities: [
-    { name: 'Columbia', lat: 34.0007, lon: -81.0348 },
+    { name: 'Columbia', lat: 34.0007, lon: -81.0348, ship: true },
     { name: 'Greenville', lat: 34.8526, lon: -82.394 },
-    { name: 'Charleston', lat: 32.7765, lon: -79.9311 },
-    { name: 'Myrtle Beach', lat: 33.6891, lon: -78.8867 },
+    { name: 'Charleston', lat: 32.7765, lon: -79.9311, ship: true },
+    { name: 'Myrtle Beach', lat: 33.6891, lon: -78.8867, ship: true },
     { name: 'Rock Hill', lat: 34.9249, lon: -81.0251 },
     { name: 'Walhalla', lat: 34.7654, lon: -83.0638 },
     { name: 'Spartanburg', lat: 34.9496, lon: -81.932 },
-    { name: 'Anderson', lat: 34.5034, lon: -82.6501 },
+    { name: 'Anderson', lat: 34.5034, lon: -82.6501, ship: true },
     { name: 'Greenwood', lat: 34.1954, lon: -82.1618 },
     { name: 'Florence', lat: 34.1954, lon: -79.7626 },
     { name: 'Aiken', lat: 33.5604, lon: -81.7196 },
     { name: 'Sumter', lat: 33.9204, lon: -80.3415 },
+    { name: 'Lexington', lat: 33.9724, lon: -81.2359, ship: true },
+    { name: 'Mount Pleasant', lat: 32.8674, lon: -79.8049, ship: true },
   ]},
   '46': { code: 'SD', name: 'South Dakota', cities: [
     { name: 'Pierre', lat: 44.3683, lon: -100.351 },
@@ -807,12 +997,15 @@ const STATES_BY_FIPS = {
     { name: 'Spearfish', lat: 44.4908, lon: -103.8594 },
     { name: 'Mitchell', lat: 43.7094, lon: -98.0298 },
     { name: 'Yankton', lat: 42.8711, lon: -97.3973 },
+    { name: 'Midland', lat: 44.0717, lon: -101.1554, ship: true },
+    { name: 'Piedmont', lat: 44.2287, lon: -103.3688, ship: true },
+    { name: 'Vermillion', lat: 42.7951, lon: -96.9258, ship: true },
   ]},
   '47': { code: 'TN', name: 'Tennessee', cities: [
-    { name: 'Nashville', lat: 36.1627, lon: -86.7816 },
+    { name: 'Nashville', lat: 36.1627, lon: -86.7816, ship: true },
     { name: 'Mountain City', lat: 36.4762, lon: -81.8045 },
-    { name: 'Memphis', lat: 35.1495, lon: -90.049 },
-    { name: 'Knoxville', lat: 35.9606, lon: -83.9207 },
+    { name: 'Memphis', lat: 35.1495, lon: -90.049, ship: true },
+    { name: 'Knoxville', lat: 35.9606, lon: -83.9207, ship: true },
     { name: 'Chattanooga', lat: 35.0456, lon: -85.3097 },
     { name: 'Crossville', lat: 35.9489, lon: -85.0269 },
     { name: 'Jellico', lat: 36.5786, lon: -84.1294 },
@@ -821,20 +1014,32 @@ const STATES_BY_FIPS = {
     { name: 'Jackson', lat: 35.6145, lon: -88.8139 },
     { name: 'Clarksville', lat: 36.5298, lon: -87.3595 },
     { name: 'Tullahoma', lat: 35.362, lon: -86.2094 },
+    { name: 'Maryville', lat: 35.6539, lon: -83.9956, ship: true },
+    { name: 'Antioch', lat: 36.0595, lon: -86.6592, ship: true },
   ]},
   '48': { code: 'TX', name: 'Texas', cities: [
-    { name: 'Austin', lat: 30.2672, lon: -97.7431 },
+    { name: 'Austin', lat: 30.2672, lon: -97.7431, ship: true },
     { name: 'Amarillo', lat: 35.222, lon: -101.8313 },
     { name: 'Dalhart', lat: 36.0595, lon: -102.5142 },
-    { name: 'El Paso', lat: 31.7619, lon: -106.485 },
-    { name: 'Houston', lat: 29.7604, lon: -95.3698 },
-    { name: 'Dallas', lat: 32.7767, lon: -96.797 },
+    { name: 'El Paso', lat: 31.7619, lon: -106.485, ship: true },
+    { name: 'Houston', lat: 29.7604, lon: -95.3698, ship: true },
+    { name: 'Dallas', lat: 32.7767, lon: -96.797, ship: true },
     { name: 'Lubbock', lat: 33.5779, lon: -101.8552 },
     { name: 'Pampa', lat: 35.5362, lon: -100.9599 },
     { name: 'Borger', lat: 35.6678, lon: -101.3974 },
     { name: 'Wichita Falls', lat: 33.9137, lon: -98.4934 },
-    { name: 'San Antonio', lat: 29.4241, lon: -98.4936 },
+    { name: 'San Antonio', lat: 29.4241, lon: -98.4936, ship: true },
     { name: 'Midland', lat: 31.9974, lon: -102.0779 },
+    { name: 'Corpus Christi', lat: 27.691, lon: -97.3983, ship: true },
+    { name: 'Mckinney', lat: 33.1976, lon: -96.6153, ship: true },
+    { name: 'Spring', lat: 30.0532, lon: -95.3773, ship: true },
+    { name: 'Cypress', lat: 29.8836, lon: -95.7025, ship: true },
+    { name: 'Fort Worth', lat: 32.7233, lon: -97.269, ship: true },
+    { name: 'Katy', lat: 29.8678, lon: -95.8298, ship: true },
+    { name: 'Humble', lat: 30.0042, lon: -95.1728, ship: true },
+    { name: 'Robstown', lat: 27.7984, lon: -97.6995, ship: true },
+    { name: 'Tomball', lat: 30.0615, lon: -95.6821, ship: true },
+    { name: 'Missouri City', lat: 29.5704, lon: -95.5423, ship: true },
   ]},
   '49': { code: 'UT', name: 'Utah', cities: [
     { name: 'Salt Lake City', lat: 40.7608, lon: -111.891 },
@@ -846,9 +1051,11 @@ const STATES_BY_FIPS = {
     { name: 'Heber City', lat: 40.507, lon: -111.4133 },
     { name: 'Coalville', lat: 40.918, lon: -111.3994 },
     { name: 'Price', lat: 39.5994, lon: -110.8107 },
-    { name: 'Cedar City', lat: 37.6775, lon: -113.0619 },
+    { name: 'Cedar City', lat: 37.6775, lon: -113.0619, ship: true },
     { name: 'Moab', lat: 38.5733, lon: -109.5498 },
     { name: 'Provo', lat: 40.2338, lon: -111.6585 },
+    { name: 'Sandy', lat: 40.5927, lon: -111.831, ship: true },
+    { name: 'Midvale', lat: 40.6152, lon: -111.8851, ship: true },
   ]},
   '50': { code: 'VT', name: 'Vermont', cities: [
     { name: 'Montpelier', lat: 44.2601, lon: -72.5754 },
@@ -863,6 +1070,9 @@ const STATES_BY_FIPS = {
     { name: 'Morrisville', lat: 44.5612, lon: -72.5982 },
     { name: 'Bennington', lat: 42.8781, lon: -73.1968 },
     { name: 'Middlebury', lat: 44.0153, lon: -73.1673 },
+    { name: 'Saxtons River', lat: 43.1379, lon: -72.5098, ship: true },
+    { name: 'Highgate Center', lat: 44.9404, lon: -73.0155, ship: true },
+    { name: 'Milton', lat: 44.6483, lon: -73.1317, ship: true },
   ]},
   '51': { code: 'VA', name: 'Virginia', cities: [
     { name: 'Richmond', lat: 37.5407, lon: -77.436 },
@@ -875,22 +1085,27 @@ const STATES_BY_FIPS = {
     { name: 'Abingdon', lat: 36.7098, lon: -81.9774 },
     { name: 'Harrisonburg', lat: 38.4496, lon: -78.8689 },
     { name: 'Lynchburg', lat: 37.4138, lon: -79.1422 },
-    { name: 'Charlottesville', lat: 38.0293, lon: -78.4767 },
+    { name: 'Charlottesville', lat: 38.0293, lon: -78.4767, ship: true },
     { name: 'Front Royal', lat: 38.9182, lon: -78.1944 },
+    { name: 'Virginia Beach', lat: 36.8392, lon: -76.1522, ship: true },
+    { name: 'Chesapeake', lat: 36.7634, lon: -76.3397, ship: true },
+    { name: 'Hampton', lat: 37.0462, lon: -76.4096, ship: true },
+    { name: 'Stafford', lat: 38.4586, lon: -77.4306, ship: true },
   ]},
   '53': { code: 'WA', name: 'Washington', cities: [
     { name: 'Olympia', lat: 47.0379, lon: -122.9007 },
-    { name: 'Spokane', lat: 47.6588, lon: -117.426 },
+    { name: 'Spokane', lat: 47.6588, lon: -117.426, ship: true },
     { name: 'Omak', lat: 48.4112, lon: -119.5263 },
-    { name: 'Seattle', lat: 47.6062, lon: -122.3321 },
+    { name: 'Seattle', lat: 47.6062, lon: -122.3321, ship: true },
     { name: 'Pullman', lat: 46.7298, lon: -117.1817 },
     { name: 'Republic', lat: 48.6471, lon: -118.7374 },
     { name: 'Colville', lat: 48.5454, lon: -117.9054 },
     { name: 'Winthrop', lat: 48.4763, lon: -120.1873 },
     { name: 'Wenatchee', lat: 47.4235, lon: -120.3103 },
-    { name: 'Yakima', lat: 46.6021, lon: -120.5059 },
+    { name: 'Yakima', lat: 46.6021, lon: -120.5059, ship: true },
     { name: 'Bellingham', lat: 48.7519, lon: -122.4787 },
     { name: 'Walla Walla', lat: 46.0646, lon: -118.343 },
+    { name: 'Everett', lat: 47.8948, lon: -122.1987, ship: true },
   ]},
   '54': { code: 'WV', name: 'West Virginia', cities: [
     { name: 'Charleston', lat: 38.3498, lon: -81.6326 },
@@ -902,9 +1117,11 @@ const STATES_BY_FIPS = {
     { name: 'Snowshoe', lat: 38.4118, lon: -79.9962 },
     { name: 'Petersburg', lat: 38.9923, lon: -79.1228 },
     { name: 'Lewisburg', lat: 37.8018, lon: -80.4456 },
-    { name: 'Parkersburg', lat: 39.2667, lon: -81.5615 },
+    { name: 'Parkersburg', lat: 39.2667, lon: -81.5615, ship: true },
     { name: 'Martinsburg', lat: 39.4562, lon: -77.9639 },
     { name: 'Marlinton', lat: 38.2237, lon: -80.0942 },
+    { name: 'Fairdale', lat: 37.7815, lon: -81.3632, ship: true },
+    { name: 'Middlebourne', lat: 39.4942, lon: -80.9076, ship: true },
   ]},
   '55': { code: 'WI', name: 'Wisconsin', cities: [
     { name: 'Madison', lat: 43.0731, lon: -89.4012 },
@@ -916,15 +1133,17 @@ const STATES_BY_FIPS = {
     { name: 'Rhinelander', lat: 45.6366, lon: -89.4121 },
     { name: 'Ashland', lat: 46.5924, lon: -90.8835 },
     { name: 'Park Falls', lat: 45.9344, lon: -90.4426 },
-    { name: 'Green Bay', lat: 44.5133, lon: -88.0133 },
+    { name: 'Green Bay', lat: 44.5133, lon: -88.0133, ship: true },
     { name: 'La Crosse', lat: 43.8014, lon: -91.2396 },
     { name: 'Antigo', lat: 45.14, lon: -89.1521 },
+    { name: 'Pulaski', lat: 44.6611, lon: -88.2634, ship: true },
+    { name: 'De Pere', lat: 44.4388, lon: -88.0806, ship: true },
   ]},
   '56': { code: 'WY', name: 'Wyoming', cities: [
     { name: 'Cheyenne', lat: 41.14, lon: -104.8202 },
     { name: 'Pinedale', lat: 42.8666, lon: -109.8606 },
     { name: 'Sheridan', lat: 44.7972, lon: -106.9559 },
-    { name: 'Jackson', lat: 43.4799, lon: -110.7624 },
+    { name: 'Jackson', lat: 43.4799, lon: -110.7624, ship: true },
     { name: 'Gillette', lat: 44.2911, lon: -105.5022 },
     { name: 'Laramie', lat: 41.3114, lon: -105.5911 },
     { name: 'Dubois', lat: 43.5333, lon: -109.6304 },
@@ -933,6 +1152,8 @@ const STATES_BY_FIPS = {
     { name: 'Rock Springs', lat: 41.5875, lon: -109.2029 },
     { name: 'Casper', lat: 42.8666, lon: -106.3131 },
     { name: 'Lander', lat: 42.833, lon: -108.7307 },
+    { name: 'Afton', lat: 42.7128, lon: -110.942, ship: true },
+    { name: 'Wheatland', lat: 42.0495, lon: -104.9679, ship: true },
   ]},
 };
 
@@ -971,7 +1192,7 @@ function tierFor(x) {
 }
 function isPack(tier) { return tier === 'pack' || tier === 'severe'; }
 
-const CACHE_KEY = 'winter-pack-forecast-cache-v7'; // v7: hourly accountable-dwell window + driving-town coords (decision rule is applied at render time)
+const CACHE_KEY = 'winter-pack-forecast-cache-v8'; // v8: footprint-driven call + cold-pocket exceptions
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 let topoData = null;  // loaded TopoJSON
@@ -1078,22 +1299,39 @@ function getCityShipNightLows(periods, numDays) {
   return out;
 }
 
-// Per state: the sampled point with the coldest in-window exposure on each
-// delivery day (fail-safe toward the cold pocket).
+// Per state, per delivery day:
+//   ship    — coldest in-window exposure among ship-to towns (drives the call)
+//   pockets — generic towns at/below the winter-pack line (cold-pocket exceptions)
+//   anyCold — coldest point overall (fail-safe if a state has no ship-to data)
 async function fetchStateForecast(state) {
   const results = await Promise.all(state.cities.map(city => fetchCityForecast(city)));
   const perCity = results.map((periods, i) => ({ city: state.cities[i], days: getCityDeliveryExposure(periods, NUM_DAYS) }));
   const aggregated = [];
   for (let i = 0; i < NUM_DAYS; i++) {
-    let best = null;
+    let ship = null, anyCold = null; const pockets = [];
     perCity.forEach(c => {
       const d = c.days[i];
       if (!d || d.exposure === null) return;
-      if (!best || d.exposure < best.exposure) best = { ...d, coldestCity: c.city.name, lat: c.city.lat, lon: c.city.lon };
+      const pt = { ...d, coldestCity: c.city.name, lat: c.city.lat, lon: c.city.lon, ship: !!c.city.ship };
+      if (!anyCold || pt.exposure < anyCold.exposure) anyCold = pt;
+      if (c.city.ship) { if (!ship || pt.exposure < ship.exposure) ship = pt; }
+      else if (pt.exposure <= WINTER_PACK_F) pockets.push(pt);
     });
-    aggregated.push(best || { exposure: null, high: null, nightLow: null, coldestCity: null, forecast: null });
+    pockets.sort((a, b) => a.exposure - b.exposure);
+    aggregated.push({ ship, pockets, anyCold });
   }
   return aggregated;
+}
+
+// The state's decision. Footprint-driven: the ship-to towns make the call;
+// generic cold towns only add an exception note for a standard state.
+function classifyState(day) {
+  if (!day) return null;
+  const basis = day.ship || day.anyCold;      // fail-safe: no ship-to data → coldest point decides
+  const call = tierFor(basis);
+  if (!call) return null;
+  const pockets = day.pockets || [];
+  return { call, basis, viaFallback: !day.ship, exception: !isPack(call) && pockets.length > 0, pockets };
 }
 
 async function fetchHubForecasts() {
@@ -1197,40 +1435,44 @@ function fmtT(v) { return v !== null && v !== undefined ? v + '°' : '—'; }
 function exposureText(x) {
   return `${fmtT(x.exposure)} coldest ${WINDOW_TEXT}` + (x.nightLow !== null && x.nightLow !== undefined ? ` (overnight ${fmtT(x.nightLow)}, outside our window)` : '');
 }
+function pocketsText(pockets, max) {
+  return pockets.slice(0, max).map(p => `${p.coldestCity} ${fmtT(p.exposure)}`).join(', ') + (pockets.length > max ? ` +${pockets.length - max} more` : '');
+}
 
 function renderDay(dayIdx) {
-  const byTier = { severe: [], pack: [] };
+  const packStates = [], exceptionStates = [];
   let dataCount = 0;
   STATES.forEach(state => {
-    const x = stateDay(state.code, dayIdx);
-    const tier = tierFor(x);
-    if (!tier) return;
+    const c = classifyState(stateDay(state.code, dayIdx));
+    if (!c) return;
     dataCount++;
-    if (byTier[tier]) byTier[tier].push({ ...state, ...x, tier });
+    if (isPack(c.call)) packStates.push({ ...state, ...c.basis, tier: c.call, viaFallback: c.viaFallback });
+    else if (c.exception) exceptionStates.push({ ...state, basis: c.basis, pockets: c.pockets });
   });
 
   const l = dayLabel(dayIdx);
   document.getElementById('map-title').textContent = `Delivers ${l.delivLong} (${l.shipName.toLowerCase()})`;
-  document.getElementById('map-subtitle').textContent = `Rule: WINTER PACK if the coldest hour between ${WINDOW_TEXT} on delivery day is ≤${WINTER_PACK_F}°F at the state's coldest town · ${dataCount}/${STATES.length} states with data`;
-  const packCount = byTier.severe.length + byTier.pack.length;
+  document.getElementById('map-subtitle').textContent = `Rule: WINTER PACK if the coldest hour between ${WINDOW_TEXT} on delivery day is ≤${WINTER_PACK_F}°F at any town we ship to in that state · ${dataCount}/${STATES.length} states with data`;
+  const packCount = packStates.length, exCount = exceptionStates.length;
   const fc = document.getElementById('flagged-count');
   fc.textContent = packCount > 0 ? `WINTER PACK: ${packCount} state${packCount === 1 ? '' : 's'}` : 'Standard packing everywhere';
   fc.style.color = packCount > 0 ? '#B71C1C' : 'var(--low-fg)';
 
   const banner = document.getElementById('decision-banner');
   if (banner) {
+    const exNote = exCount ? ` Cold-pocket exceptions in ${exCount} standard state${exCount === 1 ? '' : 's'} — winter pack only if shipping to the towns listed below.` : '';
     if (dataCount === 0) { banner.className = 'decision-banner loading'; banner.innerHTML = 'Loading forecasts…'; }
-    else if (packCount === 0) { banner.className = 'decision-banner standard'; banner.innerHTML = `<span class="decision-big">STANDARD PACKING</span><span class="decision-sub">No state is ≤${WINTER_PACK_F}°F during ${WINDOW_TEXT} on ${l.delivShort}.</span>`; }
+    else if (packCount === 0) { banner.className = 'decision-banner standard'; banner.innerHTML = `<span class="decision-big">STANDARD PACKING</span><span class="decision-sub">No town we ship to is ≤${WINTER_PACK_F}°F during ${WINDOW_TEXT} on ${l.delivShort}.${exNote}</span>`; }
     else {
-      const sev = byTier.severe.length;
+      const sev = packStates.filter(s => s.tier === 'severe').length;
       banner.className = 'decision-banner pack';
-      banner.innerHTML = `<span class="decision-big">WINTER PACK — ${packCount} state${packCount === 1 ? '' : 's'}</span><span class="decision-sub">Everything else ships standard.${sev ? ` ${sev} of them ${sev === 1 ? 'is' : 'are'} severe (≤${SEVERE_F}°F) — also hold-at-location / signature.` : ''}</span>`;
+      banner.innerHTML = `<span class="decision-big">WINTER PACK — ${packCount} state${packCount === 1 ? '' : 's'}</span><span class="decision-sub">Everything else ships standard.${sev ? ` ${sev} of them ${sev === 1 ? 'is' : 'are'} severe (≤${SEVERE_F}°F) — also hold-at-location / signature.` : ''}${exNote}</span>`;
     }
   }
 
   renderHubStrip(dayIdx);
   renderMap(dayIdx);
-  renderStateList(byTier);
+  renderStateList(packStates, exceptionStates);
 }
 
 function renderHubStrip(dayIdx) {
@@ -1252,87 +1494,95 @@ function renderMap(dayIdx) {
   const svg = d3.select(wrap).append('svg').attr('viewBox', '0 0 975 610').attr('preserveAspectRatio', 'xMidYMid meet');
   const path = d3.geoPath();
   const tooltip = document.getElementById('tooltip');
+  const show = (event, text) => { tooltip.textContent = text; tooltip.style.opacity = '1'; };
+  const move = (event) => { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY + 12) + 'px'; };
+  const hide = () => { tooltip.style.opacity = '0'; };
 
   svg.append('g').selectAll('path').data(states.features).join('path')
     .attr('d', path)
     .attr('class', d => {
       const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
-      if (!info) return 'state-path no-data';
-      const tier = tierFor(stateDay(info.code, dayIdx));
-      return 'state-path ' + (tier || 'no-data');  // pack / severe / standard
+      const c = info && classifyState(stateDay(info.code, dayIdx));
+      if (!c) return 'state-path no-data';
+      return 'state-path ' + (isPack(c.call) ? c.call : c.exception ? 'exception' : 'standard');
     })
     .on('mouseenter', function(event, d) {
       const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
       if (!info) return;
-      const x = stateDay(info.code, dayIdx);
-      const tier = tierFor(x);
-      tooltip.textContent = tier
-        ? `${info.name}: ${TIER_LABEL[tier]} — ${exposureText(x)}${x.coldestCity ? ' · ' + x.coldestCity : ''}`
-        : `${info.name}: no data`;
-      tooltip.style.opacity = '1';
+      const c = classifyState(stateDay(info.code, dayIdx));
+      if (!c) return show(event, `${info.name}: no data`);
+      const where = c.basis.coldestCity ? ` · ${c.basis.coldestCity}${c.viaFallback ? '' : ' (ship-to)'}` : '';
+      let text = `${info.name}: ${TIER_LABEL[c.call]} — ${exposureText(c.basis)}${where}`;
+      if (c.exception) text += ` — cold pockets: ${pocketsText(c.pockets, 3)}`;
+      show(event, text);
     })
-    .on('mousemove', function(event) { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY + 12) + 'px'; })
-    .on('mouseleave', function() { tooltip.style.opacity = '0'; });
+    .on('mousemove', move).on('mouseleave', hide);
 
-  // Dot the real town driving each flagged state's tier, so it's obvious the
-  // cold reading comes from somewhere people live, not a mountain peak.
-  // us-atlas albers-10m is pre-projected with geoAlbersUsa().scale(1300)
-  // .translate([487.5, 305]) on a 975×610 canvas, so the same projection maps
-  // lat/lon onto it (AK/HI insets included).
+  // Dots: solid = the ship-to town driving a WINTER PACK state; hollow = a cold
+  // pocket in a standard state. Same projection us-atlas albers-10m was built
+  // with (geoAlbersUsa, scale 1300, translate [487.5, 305]) so AK/HI insets work.
   const proj = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
   const dots = [];
   STATES.forEach(state => {
-    const x = stateDay(state.code, dayIdx);
-    const tier = tierFor(x);
-    if (!tier || tier === 'standard' || x.lat === undefined || x.lon === undefined) return;
-    const pt = proj([x.lon, x.lat]);
-    if (pt) dots.push({ x: pt[0], y: pt[1], tier, state, ...x });
+    const c = classifyState(stateDay(state.code, dayIdx));
+    if (!c) return;
+    if (isPack(c.call) && c.basis.lat !== undefined) {
+      const pt = proj([c.basis.lon, c.basis.lat]);
+      if (pt) dots.push({ x: pt[0], y: pt[1], cls: 'cold-dot ' + c.call, text: `${c.basis.coldestCity}, ${state.code}: ${TIER_LABEL[c.call]} — ${exposureText(c.basis)}` });
+    } else if (c.exception) {
+      c.pockets.slice(0, 3).forEach(p => {
+        const pt = proj([p.lon, p.lat]);
+        if (pt) dots.push({ x: pt[0], y: pt[1], cls: 'cold-dot pocket', text: `${p.coldestCity}, ${state.code}: cold pocket ${fmtT(p.exposure)} — winter pack only if shipping here` });
+      });
+    }
   });
   svg.append('g').selectAll('circle').data(dots).join('circle')
-    .attr('class', d => 'cold-dot ' + d.tier)
-    .attr('cx', d => d.x).attr('cy', d => d.y).attr('r', 5)
-    .on('mouseenter', function(event, d) {
-      tooltip.textContent = `${d.coldestCity}, ${d.state.code}: ${TIER_LABEL[d.tier]} — ${exposureText(d)}`;
-      tooltip.style.opacity = '1';
-    })
-    .on('mousemove', function(event) { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY + 12) + 'px'; })
-    .on('mouseleave', function() { tooltip.style.opacity = '0'; });
+    .attr('class', d => d.cls).attr('cx', d => d.x).attr('cy', d => d.y).attr('r', 5)
+    .on('mouseenter', (event, d) => show(event, d.text)).on('mousemove', move).on('mouseleave', hide);
 }
 
-function renderStateList(byTier) {
+function renderStateList(packStates, exceptionStates) {
   const container = document.getElementById('state-list-container');
-  const total = TIERS.reduce((n, t) => n + byTier[t].length, 0);
-  document.getElementById('list-count').textContent = total;
-  document.getElementById('copy-btn').style.display = total > 0 ? 'inline-flex' : 'none';
-  if (total === 0) {
-    container.innerHTML = '<div class="empty-state">No winter packs needed for this delivery day. Standard packing across the board.</div>';
-    return;
+  document.getElementById('list-count').textContent = packStates.length;
+  document.getElementById('copy-btn').style.display = (packStates.length + exceptionStates.length) > 0 ? 'inline-flex' : 'none';
+  let html = '';
+  if (packStates.length === 0) {
+    html += '<div class="empty-state">No winter packs needed for where we ship on this delivery day.</div>';
+  } else {
+    packStates.sort((a, b) => a.exposure - b.exposure);
+    html += `<div class="tier-heading">WINTER PACK <span class="tier-range">(${TIER_RANGE.pack} at a town we ship to)</span></div><div class="state-list">`;
+    packStates.forEach(s => {
+      html += `<div class="state-pill ${s.tier}"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.7; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}${s.tier === 'severe' ? ' <span class="sev-tag">⚠ severe — hold-at-location / signature</span>' : ''}</span><span class="temp">${fmtT(s.exposure)}<span style="opacity:.6; font-weight:400;"> · night ${fmtT(s.nightLow)}</span></span></div>`;
+    });
+    html += '</div>';
   }
-  const all = byTier.severe.concat(byTier.pack).sort((a, b) => a.exposure - b.exposure);
-  let html = `<div class="tier-heading">WINTER PACK <span class="tier-range">(${TIER_RANGE.pack} at the state's coldest town)</span></div><div class="state-list">`;
-  all.forEach(s => {
-    html += `<div class="state-pill ${s.tier}"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.7; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}${s.tier === 'severe' ? ' <span class="sev-tag">⚠ severe — hold-at-location / signature</span>' : ''}</span><span class="temp">${fmtT(s.exposure)}<span style="opacity:.6; font-weight:400;"> · night ${fmtT(s.nightLow)}</span></span></div>`;
-  });
-  html += '</div>';
+  if (exceptionStates.length) {
+    exceptionStates.sort((a, b) => a.pockets[0].exposure - b.pockets[0].exposure);
+    html += `<div class="tier-heading" style="margin-top:16px;">COLD-POCKET EXCEPTIONS <span class="tier-action">— these states are standard for where we normally ship; winter pack only if the label is going to one of these towns</span></div><div class="state-list">`;
+    exceptionStates.forEach(s => {
+      html += `<div class="state-pill pocket"><span>${s.name} <span style="opacity:0.75; font-size:11px;">${pocketsText(s.pockets, 3)}</span></span><span class="temp" style="opacity:.7;">ship-to ${fmtT(s.basis.exposure)}</span></div>`;
+    });
+    html += '</div>';
+  }
   container.innerHTML = html;
 }
 
-// Paste-ready note for the packing team: delivery day, tiered state lists with
-// midday/night temps, and the action each tier calls for.
+// Paste-ready note for the packing team.
 function copyStateList() {
   const l = dayLabel(selectedDayIdx);
-  const lines = [`WINTER PACK-OUT — ${l.shipName.toLowerCase()} (${l.shipLong}), delivers ${l.delivLong}. Temps = coldest hour ${WINDOW_TEXT} at the state's coldest point (overnight low in brackets is outside our accountable window).`];
-  const pack = [], severe = [];
+  const lines = [`WINTER PACK-OUT — ${l.shipName.toLowerCase()} (${l.shipLong}), delivers ${l.delivLong}. Temps = coldest hour ${WINDOW_TEXT} at the coldest town we ship to (overnight low in brackets is outside our accountable window).`];
+  const pack = [], severe = [], ex = [];
   STATES.forEach(s => {
-    const x = stateDay(s.code, selectedDayIdx);
-    const t = tierFor(x);
-    if (!isPack(t)) return;
-    const entry = `${s.name} (${x.coldestCity || 'coldest point'} ${fmtT(x.exposure)}${x.nightLow !== null ? ' [night ' + fmtT(x.nightLow) + ']' : ''})`;
-    pack.push(entry);
-    if (t === 'severe') severe.push(s.name);
+    const c = classifyState(stateDay(s.code, selectedDayIdx));
+    if (!c) return;
+    if (isPack(c.call)) {
+      pack.push(`${s.name} (${c.basis.coldestCity || 'coldest point'} ${fmtT(c.basis.exposure)}${c.basis.nightLow !== null ? ' [night ' + fmtT(c.basis.nightLow) + ']' : ''})`);
+      if (c.call === 'severe') severe.push(s.name);
+    } else if (c.exception) ex.push(`${s.name}: ${pocketsText(c.pockets, 4)}`);
   });
-  lines.push(pack.length ? `WINTER PACK (${pack.length}): ${pack.join(', ')}` : 'WINTER PACK: none — standard packing everywhere');
+  lines.push(pack.length ? `WINTER PACK (${pack.length}): ${pack.join(', ')}` : 'WINTER PACK: none — standard packing everywhere we ship');
   if (severe.length) lines.push(`SEVERE (≤${SEVERE_F}°F) — also hold-at-location / signature: ${severe.join(', ')}`);
+  if (ex.length) lines.push(`COLD-POCKET EXCEPTIONS (standard states — winter pack ONLY if the label goes to one of these towns): ${ex.join('; ')}`);
   if (pack.length) lines.push('All other states: standard packing.');
   const hubs = TRANSIT_HUBS.map(h => { const n = hubData[h.code] && hubData[h.code][selectedDayIdx]; return `${h.name} ${n && n.low !== null ? n.low + '°' : 'n/a'}`; });
   lines.push(`Hub overnight lows (secondary): ${hubs.join(' · ')}`);
