@@ -70,13 +70,11 @@
     .state-path { stroke: var(--surface); stroke-width: 1; transition: fill 0.2s; cursor: pointer; }
     .state-path.no-data { fill: var(--inset); }
     .state-path.standard { fill: #DCEDC8; }
-    .state-path.marginal { fill: #FFE0B2; }
-    .state-path.freeze   { fill: #FFCDD2; }
+    .state-path.pack     { fill: #FFCDD2; }
     .state-path.severe   { fill: #E57373; }
     .state-path:hover { stroke: var(--text); stroke-width: 1.5; }
     .cold-dot { stroke: #fff; stroke-width: 1.5; cursor: pointer; }
-    .cold-dot.marginal { fill: #EF6C00; }
-    .cold-dot.freeze   { fill: #C62828; }
+    .cold-dot.pack     { fill: #C62828; }
     .cold-dot.severe   { fill: #7F0000; }
     .legend { display: flex; gap: 20px; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 12px; flex-wrap: wrap; }
     .legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
@@ -84,9 +82,15 @@
     .state-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
     .state-pill { background: #FFEBEE; color: #B71C1C; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
     .state-pill .temp { font-weight: 600; font-size: 12px; }
-    .state-pill.freeze   { background: #FFCDD2; color: #B71C1C; }
-    .state-pill.marginal { background: #FFE0B2; color: #8D4B00; }
+    .state-pill.pack     { background: #FFCDD2; color: #B71C1C; }
     .state-pill.severe   { background: #E57373; color: #fff; }
+    .sev-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.18); }
+    .decision-banner { border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--border); background: var(--surface-2); }
+    .decision-banner.loading { color: var(--text-faint); font-size: 13px; }
+    .decision-banner.pack { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .decision-banner.standard { background: #DCEDC8; border-color: #C5E1A5; color: #33691E; }
+    .decision-big { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+    .decision-sub { font-size: 13px; opacity: .9; }
     .tier-heading { font-size: 12px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
     .tier-heading:first-child { margin-top: 0; }
     .tier-heading .tier-range { font-weight: 500; color: var(--text-muted); }
@@ -95,8 +99,7 @@
     .hub-strip { display: inline-flex; flex-wrap: wrap; gap: 6px; }
     .hub-chip { display: inline-flex; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
     .hub-chip.standard { background: #DCEDC8; color: #33691E; border-color: #C5E1A5; }
-    .hub-chip.marginal { background: #FFE0B2; color: #8D4B00; border-color: #FFCC80; }
-    .hub-chip.freeze   { background: #FFCDD2; color: #B71C1C; border-color: #EF9A9A; }
+    .hub-chip.pack     { background: #FFCDD2; color: #B71C1C; border-color: #EF9A9A; }
     .hub-chip.severe   { background: #E57373; color: #fff; border-color: #D32F2F; }
     .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
     .btn:hover { background: var(--surface-2); }
@@ -152,7 +155,7 @@
 
   <div class="card">
     <div class="section-label">Ship night</div>
-    <div style="font-size: 12px; color: var(--text-muted); margin: -4px 0 10px;">Pick the night the shipment goes out. It's delivered around <strong>midday the next day</strong> and we account for a few hours on the porch — so each state shows the <strong>coldest hour between 11am and 6pm on delivery day</strong> at its coldest point. The overnight low is shown for context only; a package left out past dark is outside our accountable window.</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin: -4px 0 10px;">Pick the night the shipment goes out. It's delivered around <strong>midday the next day</strong> and we account for a few hours on the porch. <strong>One rule: WINTER PACK if the coldest hour between 11am and 6pm on delivery day is ≤35°F at the state's coldest town; otherwise standard.</strong> The overnight low is shown for context only — a package left out past dark is outside our accountable window.</div>
     <div class="day-picker" id="day-picker"></div>
     <div style="font-size: 12px; color: var(--text-faint); margin-top: 4px;" id="loading-progress"></div>
   </div>
@@ -165,15 +168,15 @@
       </div>
       <div id="flagged-count" style="font-size: 13px; color: #C62828; font-weight: 500;"></div>
     </div>
+    <div id="decision-banner" class="decision-banner loading">Loading forecasts…</div>
     <div class="hub-line"><span class="hub-line-label">Hub overnight lows on ship night (secondary — packages are only briefly outdoors in transit):</span> <span class="hub-strip" id="hub-strip"></span></div>
     <div class="map-wrap" id="map-wrap">
       <div class="empty-state">Loading delivery-day forecasts (~600 points) — the first load can take up to a minute; results are cached for an hour.</div>
     </div>
     <div class="legend">
-      <span><span class="legend-swatch" style="background: #E57373;"></span>Severe — ≤15°F in window: beyond shipper qualification, reduce dwell</span>
-      <span><span class="legend-swatch" style="background: #FFCDD2;"></span>Freeze — ≤32°F in window: winter pack-out required</span>
-      <span><span class="legend-swatch" style="background: #FFE0B2;"></span>Marginal — 33–40°F in window</span>
-      <span><span class="legend-swatch" style="background: #DCEDC8;"></span>Standard — &gt;40°F in window</span>
+      <span><span class="legend-swatch" style="background: #FFCDD2;"></span><strong>Winter pack</strong> — ≤35°F at any hour 11am–6pm</span>
+      <span><span class="legend-swatch" style="background: #E57373;"></span><strong>Winter pack, severe</strong> — ≤15°F: also hold-at-location / signature</span>
+      <span><span class="legend-swatch" style="background: #DCEDC8;"></span><strong>Standard</strong> — &gt;35°F all window</span>
       <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
       <span><span class="legend-swatch" style="background: #C62828; border-radius: 50%; width: 10px; height: 10px; margin-left: 2px;"></span>Dot = the town driving that state's tier (every sample point is a real town, not a peak)</span>
     </div>
@@ -209,9 +212,9 @@ const DELIVERY_START_HOUR = 11; // deliveries land from late morning...
 const DELIVERY_END_HOUR   = 15; // ...through mid-afternoon
 const DWELL_HOURS         = 3;  // the porch dwell we reasonably account for
 const EXPOSURE_END_HOUR   = DELIVERY_END_HOUR + DWELL_HOURS; // window = 11:00–18:00 local
-const SEVERE_F   = 15;  // <=15°F in-window: beyond what a standard winter shipper is qualified for — extended insulation, and reduce dwell (hold-at-location / signature)
-const FREEZE_F   = 32;  // <=32°F in-window: freezes within the dwell we own — winter pack-out required
-const MARGINAL_F = 40;  // 33-40°F in-window: buffer for forecast error and a shaded porch — cold-weather packing recommended
+// ONE decision per state: WINTER PACK or STANDARD.
+const WINTER_PACK_F = 35; // <=35°F at any hour in the window → WINTER PACK. 32°F is freezing; the extra 3°F absorbs hourly-forecast error and a shaded porch.
+const SEVERE_F      = 15; // <=15°F: still just "winter pack" for the packing line, but flagged so ops can also cut dwell (hold-at-location / signature) — beyond a standard shipper's qualification
 const NUM_DAYS = 6;     // ship nights; delivery day = ship night + 1, inside the NWS hourly range
 
 // ~12 sampled points per state (vetted cities + cold corners: high-elevation and
@@ -945,31 +948,30 @@ const TRANSIT_HUBS = [
   { code: 'IND', name: 'Indianapolis', role: 'UPS hub',   lat: 39.7173, lon: -86.2944 },
 ];
 
-const TIERS = ['severe', 'freeze', 'marginal'];
-const TIER_LABEL  = { severe: 'Severe', freeze: 'Freeze risk', marginal: 'Marginal', standard: 'Standard' };
+const TIERS = ['severe', 'pack'];
+const TIER_LABEL  = { severe: 'WINTER PACK — severe cold', pack: 'WINTER PACK', standard: 'Standard' };
 const WINDOW_TEXT = `${DELIVERY_START_HOUR}am–${EXPOSURE_END_HOUR - 12}pm`;
 const TIER_RANGE  = {
   severe:   `≤${SEVERE_F}°F during ${WINDOW_TEXT}`,
-  freeze:   `≤${FREEZE_F}°F during ${WINDOW_TEXT}`,
-  marginal: `${FREEZE_F + 1}–${MARGINAL_F}°F during ${WINDOW_TEXT}`,
-  standard: `>${MARGINAL_F}°F during ${WINDOW_TEXT}`,
+  pack:     `≤${WINTER_PACK_F}°F during ${WINDOW_TEXT}`,
+  standard: `>${WINTER_PACK_F}°F during ${WINDOW_TEXT}`,
 };
 const TIER_ACTION = {
-  severe:   'beyond a standard winter shipper\'s qualification — extended insulation, and reduce dwell (hold-at-location / signature required)',
-  freeze:   'freezes within the dwell we account for — winter pack-out required',
-  marginal: 'cold-weather packing recommended',
+  severe:   'winter pack-out — AND reduce dwell: hold-at-location or signature required',
+  pack:     'winter pack-out',
   standard: 'standard packing',
 };
 // x.exposure = coldest hour inside the accountable window on delivery day.
+// 'severe' is still a winter pack — it just carries the reduce-dwell note.
 function tierFor(x) {
   if (!x || x.exposure === null || x.exposure === undefined) return null;
   if (x.exposure <= SEVERE_F) return 'severe';
-  if (x.exposure <= FREEZE_F) return 'freeze';
-  if (x.exposure <= MARGINAL_F) return 'marginal';
+  if (x.exposure <= WINTER_PACK_F) return 'pack';
   return 'standard';
 }
+function isPack(tier) { return tier === 'pack' || tier === 'severe'; }
 
-const CACHE_KEY = 'winter-pack-forecast-cache-v7'; // v7: hourly accountable-dwell window + driving-town coords
+const CACHE_KEY = 'winter-pack-forecast-cache-v7'; // v7: hourly accountable-dwell window + driving-town coords (decision rule is applied at render time)
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 let topoData = null;  // loaded TopoJSON
@@ -1197,7 +1199,7 @@ function exposureText(x) {
 }
 
 function renderDay(dayIdx) {
-  const byTier = { severe: [], freeze: [], marginal: [] };
+  const byTier = { severe: [], pack: [] };
   let dataCount = 0;
   STATES.forEach(state => {
     const x = stateDay(state.code, dayIdx);
@@ -1209,13 +1211,22 @@ function renderDay(dayIdx) {
 
   const l = dayLabel(dayIdx);
   document.getElementById('map-title').textContent = `Delivers ${l.delivLong} (${l.shipName.toLowerCase()})`;
-  document.getElementById('map-subtitle').textContent = `Coldest hour between ${WINDOW_TEXT} on delivery day (midday delivery + ${DWELL_HOURS}h porch dwell), at each state's coldest point · ${dataCount}/${STATES.length} states with data`;
-  const required = byTier.severe.length + byTier.freeze.length;
+  document.getElementById('map-subtitle').textContent = `Rule: WINTER PACK if the coldest hour between ${WINDOW_TEXT} on delivery day is ≤${WINTER_PACK_F}°F at the state's coldest town · ${dataCount}/${STATES.length} states with data`;
+  const packCount = byTier.severe.length + byTier.pack.length;
   const fc = document.getElementById('flagged-count');
-  fc.textContent = required > 0
-    ? `${required} need winter pack-out` + (byTier.marginal.length ? ` · ${byTier.marginal.length} marginal` : '')
-    : (byTier.marginal.length ? `${byTier.marginal.length} marginal — none require pack-out` : 'All clear — standard packing');
-  fc.style.color = byTier.severe.length ? '#B71C1C' : byTier.freeze.length ? '#C62828' : byTier.marginal.length ? '#8D4B00' : 'var(--low-fg)';
+  fc.textContent = packCount > 0 ? `WINTER PACK: ${packCount} state${packCount === 1 ? '' : 's'}` : 'Standard packing everywhere';
+  fc.style.color = packCount > 0 ? '#B71C1C' : 'var(--low-fg)';
+
+  const banner = document.getElementById('decision-banner');
+  if (banner) {
+    if (dataCount === 0) { banner.className = 'decision-banner loading'; banner.innerHTML = 'Loading forecasts…'; }
+    else if (packCount === 0) { banner.className = 'decision-banner standard'; banner.innerHTML = `<span class="decision-big">STANDARD PACKING</span><span class="decision-sub">No state is ≤${WINTER_PACK_F}°F during ${WINDOW_TEXT} on ${l.delivShort}.</span>`; }
+    else {
+      const sev = byTier.severe.length;
+      banner.className = 'decision-banner pack';
+      banner.innerHTML = `<span class="decision-big">WINTER PACK — ${packCount} state${packCount === 1 ? '' : 's'}</span><span class="decision-sub">Everything else ships standard.${sev ? ` ${sev} of them ${sev === 1 ? 'is' : 'are'} severe (≤${SEVERE_F}°F) — also hold-at-location / signature.` : ''}</span>`;
+    }
+  }
 
   renderHubStrip(dayIdx);
   renderMap(dayIdx);
@@ -1228,7 +1239,7 @@ function renderHubStrip(dayIdx) {
   el.innerHTML = TRANSIT_HUBS.map(h => {
     const n = hubData[h.code] && hubData[h.code][dayIdx];
     const low = n ? n.low : null;
-    const tier = low === null ? 'nodata' : (low <= SEVERE_F ? 'severe' : low <= FREEZE_F ? 'freeze' : low <= MARGINAL_F ? 'marginal' : 'standard');
+    const tier = low === null ? 'nodata' : (low <= SEVERE_F ? 'severe' : low <= WINTER_PACK_F ? 'pack' : 'standard');
     return `<span class="hub-chip ${tier}">${h.name} <strong>${low === null ? '…' : low + '°'}</strong></span>`;
   }).join('');
 }
@@ -1248,7 +1259,7 @@ function renderMap(dayIdx) {
       const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
       if (!info) return 'state-path no-data';
       const tier = tierFor(stateDay(info.code, dayIdx));
-      return 'state-path ' + (tier || 'no-data');
+      return 'state-path ' + (tier || 'no-data');  // pack / severe / standard
     })
     .on('mouseenter', function(event, d) {
       const info = STATES_BY_FIPS[String(d.id).padStart(2, '0')];
@@ -1256,7 +1267,7 @@ function renderMap(dayIdx) {
       const x = stateDay(info.code, dayIdx);
       const tier = tierFor(x);
       tooltip.textContent = tier
-        ? `${info.name}: ${exposureText(x)}${x.coldestCity ? ' · ' + x.coldestCity : ''} — ${TIER_LABEL[tier]}`
+        ? `${info.name}: ${TIER_LABEL[tier]} — ${exposureText(x)}${x.coldestCity ? ' · ' + x.coldestCity : ''}`
         : `${info.name}: no data`;
       tooltip.style.opacity = '1';
     })
@@ -1281,7 +1292,7 @@ function renderMap(dayIdx) {
     .attr('class', d => 'cold-dot ' + d.tier)
     .attr('cx', d => d.x).attr('cy', d => d.y).attr('r', 5)
     .on('mouseenter', function(event, d) {
-      tooltip.textContent = `${d.coldestCity}, ${d.state.code} — ${exposureText(d)} — ${TIER_LABEL[d.tier]}`;
+      tooltip.textContent = `${d.coldestCity}, ${d.state.code}: ${TIER_LABEL[d.tier]} — ${exposureText(d)}`;
       tooltip.style.opacity = '1';
     })
     .on('mousemove', function(event) { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY + 12) + 'px'; })
@@ -1294,20 +1305,15 @@ function renderStateList(byTier) {
   document.getElementById('list-count').textContent = total;
   document.getElementById('copy-btn').style.display = total > 0 ? 'inline-flex' : 'none';
   if (total === 0) {
-    container.innerHTML = '<div class="empty-state">No states need winter packing for this delivery day. Standard packing across the board.</div>';
+    container.innerHTML = '<div class="empty-state">No winter packs needed for this delivery day. Standard packing across the board.</div>';
     return;
   }
-  let html = '';
-  TIERS.forEach(t => {
-    const list = byTier[t];
-    if (list.length === 0) return;
-    list.sort((a, b) => a.exposure - b.exposure);
-    html += `<div class="tier-heading tier-${t}">${TIER_LABEL[t]} <span class="tier-range">(${TIER_RANGE[t]})</span> <span class="tier-action">— ${TIER_ACTION[t]}</span></div><div class="state-list">`;
-    list.forEach(s => {
-      html += `<div class="state-pill ${t}"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.7; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}</span><span class="temp">${fmtT(s.exposure)}<span style="opacity:.6; font-weight:400;"> · night ${fmtT(s.nightLow)}</span></span></div>`;
-    });
-    html += '</div>';
+  const all = byTier.severe.concat(byTier.pack).sort((a, b) => a.exposure - b.exposure);
+  let html = `<div class="tier-heading">WINTER PACK <span class="tier-range">(${TIER_RANGE.pack} at the state's coldest town)</span></div><div class="state-list">`;
+  all.forEach(s => {
+    html += `<div class="state-pill ${s.tier}"><span>${s.name}${s.coldestCity ? ' <span style="opacity:0.7; font-size:11px;">(' + s.coldestCity + ')</span>' : ''}${s.tier === 'severe' ? ' <span class="sev-tag">⚠ severe — hold-at-location / signature</span>' : ''}</span><span class="temp">${fmtT(s.exposure)}<span style="opacity:.6; font-weight:400;"> · night ${fmtT(s.nightLow)}</span></span></div>`;
   });
+  html += '</div>';
   container.innerHTML = html;
 }
 
@@ -1316,15 +1322,18 @@ function renderStateList(byTier) {
 function copyStateList() {
   const l = dayLabel(selectedDayIdx);
   const lines = [`WINTER PACK-OUT — ${l.shipName.toLowerCase()} (${l.shipLong}), delivers ${l.delivLong}. Temps = coldest hour ${WINDOW_TEXT} at the state's coldest point (overnight low in brackets is outside our accountable window).`];
-  const byTier = { severe: [], freeze: [], marginal: [] };
+  const pack = [], severe = [];
   STATES.forEach(s => {
     const x = stateDay(s.code, selectedDayIdx);
     const t = tierFor(x);
-    if (t && byTier[t]) byTier[t].push(`${s.name} (${x.coldestCity || 'coldest point'} ${fmtT(x.exposure)}${x.nightLow !== null ? ' [night ' + fmtT(x.nightLow) + ']' : ''})`);
+    if (!isPack(t)) return;
+    const entry = `${s.name} (${x.coldestCity || 'coldest point'} ${fmtT(x.exposure)}${x.nightLow !== null ? ' [night ' + fmtT(x.nightLow) + ']' : ''})`;
+    pack.push(entry);
+    if (t === 'severe') severe.push(s.name);
   });
-  TIERS.forEach(t => {
-    if (byTier[t].length) lines.push(`${TIER_LABEL[t].toUpperCase()} — ${TIER_ACTION[t]}: ${byTier[t].join(', ')}`);
-  });
+  lines.push(pack.length ? `WINTER PACK (${pack.length}): ${pack.join(', ')}` : 'WINTER PACK: none — standard packing everywhere');
+  if (severe.length) lines.push(`SEVERE (≤${SEVERE_F}°F) — also hold-at-location / signature: ${severe.join(', ')}`);
+  if (pack.length) lines.push('All other states: standard packing.');
   const hubs = TRANSIT_HUBS.map(h => { const n = hubData[h.code] && hubData[h.code][selectedDayIdx]; return `${h.name} ${n && n.low !== null ? n.low + '°' : 'n/a'}`; });
   lines.push(`Hub overnight lows (secondary): ${hubs.join(' · ')}`);
   const text = lines.join('\n');

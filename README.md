@@ -27,24 +27,24 @@ The site is two pages (tabs at the top):
 Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" for an app-like, installable shortcut that still shows the last-loaded data when offline.
 
 **Winter Packing Map (`winter-pack.html`)**
-- Models the porch dwell we're accountable for: packages ship overnight, are
-  delivered around **midday the next day**, and sit on the porch for a **few
-  hours**. Pick a ship night; each state shows the **coldest hour between
-  11am and 6pm on delivery day** (NWS hourly forecast) at its coldest sampled
-  point (≈600 real towns — no peaks), in three tiers:
-  - **Severe ≤15°F** — beyond a standard winter shipper's qualification:
-    extended insulation, and reduce dwell (hold-at-location / signature).
-  - **Freeze ≤32°F** — freezes within the dwell we own: winter pack-out required.
-  - **Marginal 33–40°F** — cold-weather packing recommended.
-- The overnight low is shown for context only — a package left out past dark
-  is outside the accountable window. Hub overnight lows (Houston, MEM, SDF,
-  IND) are secondary chips; packages are only briefly outdoors in transit.
-- A **dot marks the town driving each flagged state's tier** so it's clear the
-  reading comes from somewhere people live.
-- **Copy pack-out note** produces a paste-ready tiered summary for the packing
-  team. The delivery window, dwell hours and thresholds are named constants at
-  the top of `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
-  `DWELL_HOURS`, `SEVERE_F`, `FREEZE_F`, `MARGINAL_F`).
+- One decision per state per ship night: **WINTER PACK or STANDARD**.
+  Packages ship overnight, are delivered around midday the next day, and sit
+  on the porch for a few hours — so the rule is: **winter pack if the coldest
+  hour between 11am and 6pm on delivery day is ≤35°F at the state's coldest
+  sampled town** (NWS hourly forecast, ≈600 real towns). 32°F is freezing; the
+  extra 3°F absorbs hourly-forecast error and a shaded porch.
+- States at **≤15°F** are still just "winter pack" for the packing line, but
+  are tagged **severe** so ops can also cut dwell (hold-at-location /
+  signature required) — that's beyond what a standard winter shipper is
+  qualified for.
+- A big banner gives the day's answer ("WINTER PACK — 12 states" or
+  "STANDARD PACKING"), a dot marks the town driving each flagged state, and
+  **Copy pack-out note** produces a paste-ready list. The overnight low and
+  hub overnight lows are shown for context only — a package left out past
+  dark is outside the accountable window.
+- Delivery window, dwell hours and thresholds are named constants at the top
+  of `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
+  `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`).
 
 ### Data sources
 | Source | Used for | Key required |
