@@ -1,1 +1,1 @@
-[]
+[{"airportId":"ORD","departureDelay":{"averageDelay":"45","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":{"avgDelay":67.0,"endTime":"2026-09-16T00:59:00Z","impactingCondition":"thunderstorms","maxDelay":778,"startTime":"2026-09-15T14:16:00Z"},"groundStop":null}]
