@@ -1,1 +1,1 @@
-[{"airportId":"BOS","departureDelay":null,"groundDelay":{"avgDelay":39.0,"endTime":"2026-09-16T01:29:00Z","impactingCondition":"other","maxDelay":210,"startTime":"2026-09-15T23:00:00Z"},"groundStop":null},{"airportId":"DFW","departureDelay":{"averageDelay":"30","reason":"WX:Thunderstorms","trend":"decreasing"},"groundDelay":null,"groundStop":null},{"airportId":"ORD","departureDelay":{"averageDelay":"30","reason":"VOL:Volume","trend":"increasing"},"groundDelay":null,"groundStop":null}]
+[]
