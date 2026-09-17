@@ -141,7 +141,7 @@
           <div><label class="lbl" for="since">Shipped / left our facility</label><input id="since" type="date" /></div>
           <div><label class="lbl" for="until">Delivered / received by patient</label><input id="until" type="date" /></div>
         </div>
-        <div class="note" style="margin-top:6px;">We usually don't know how long the product was actually warm, so the check assumes the <strong>worst case: outdoor air for the entire window</strong>. Observations go back about a week.</div>
+        <div class="note" style="margin-top:6px;">A normal one-day transit is covered by the pack-out's gel packs and isn't counted. For delayed days beyond that, we don't know how long the product was actually warm, so the check assumes the <strong>worst case: outdoor air the whole time</strong>. Observations go back about a week.</div>
         <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
           <button class="btn btn-primary" type="submit" id="check-btn">Check exposure</button>
           <span class="status" id="status"></span>
@@ -171,6 +171,10 @@ const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5'; // OpenWeatherMap �
 const NWS_HEADERS = { 'Accept': 'application/geo+json' };
 const DEFAULT_LOOKBACK_DAYS = 3;
 const MAX_LOOKBACK_DAYS = 7; // NWS keeps roughly a week of observations
+// The pack-out's gel packs hold the product in range for a normal one-day
+// transit, so the ship day and the next day are "covered" and ambient on those
+// days doesn't count against the drug. Only the delayed days beyond that do.
+const PACKOUT_COVERED_DAYS = 1;
 
 let DRUGS = [];
 let lastResult = null;
@@ -287,6 +291,15 @@ function summarize(obs, tz, ceil, floor) {
   });
   return Object.values(days).sort((a, b) => a.day.localeCompare(b.day));
 }
+function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+// Last calendar day covered by the pack-out for a shipment that left on `start`.
+function coveredUntilKey(start) { const d = new Date(start); d.setDate(d.getDate() + PACKOUT_COVERED_DAYS); return localDateKey(d); }
+function splitCovered(days, start) {
+  const until = coveredUntilKey(start);
+  days.forEach(x => { x.covered = x.day <= until; });
+  const exposed = days.filter(x => !x.covered);
+  return { exposed, above: exposed.reduce((n, x) => n + x.above, 0), below: exposed.reduce((n, x) => n + x.below, 0) };
+}
 function hourText(h) { return h === null ? '' : (h === 0 ? '12am' : h < 12 ? h + 'am' : h === 12 ? '12pm' : (h - 12) + 'pm'); }
 function dayText(key) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
 
@@ -334,34 +347,39 @@ function renderResult() {
   document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings, ${dayText(days[0].day)} → ${dayText(days[days.length - 1].day)} (${r.tz.replace('_', ' ')})`;
 
   const overall = days.reduce((a, x) => ({ high: Math.max(a.high, x.high), low: Math.min(a.low, x.low) }), { high: -999, low: 999 });
-  const above = days.reduce((n, x) => n + x.above, 0), below = days.reduce((n, x) => n + x.below, 0);
+  const { exposed, above, below } = splitCovered(days, r.start);
+  const exp = exposed.reduce((a, x) => ({ high: Math.max(a.high, x.high), low: Math.min(a.low, x.low) }), { high: -999, low: 999 });
   const v = document.getElementById('verdict');
   const windowDays = Math.max(1, Math.round((r.end - r.start) / 86400000));
   const allowDays = d ? allowanceDays(d) : null;
-  if (!d) {
+  if (exposed.length === 0) {
+    v.className = 'banner ok';
+    v.innerHTML = `<div class="verdict">Delivered within one day — covered by the pack-out</div>The gel packs hold ${d ? d.name : 'the product'} in range for a normal one-day transit, so outdoor temperature doesn't come into it. (Ambient ranged ${fmtF(overall.low)} – ${fmtF(overall.high)}, shown below for the record.)`;
+  } else if (!d) {
     v.className = 'banner info';
-    v.innerHTML = `<div class="verdict">Ambient ranged ${fmtF(overall.low)} – ${fmtF(overall.high)} over ${windowDays} day${windowDays === 1 ? '' : 's'}</div>Select a product above to compare against its excursion allowance.`;
+    v.innerHTML = `<div class="verdict">Delayed ${exposed.length} day${exposed.length === 1 ? '' : 's'} beyond the pack-out — ambient ranged ${fmtF(exp.low)} – ${fmtF(exp.high)} on those days</div>Select a product above to compare against its excursion allowance.`;
   } else if (above === 0 && below === 0) {
     const dur = allowDays != null
-      ? (windowDays <= allowDays ? `The ${windowDays}-day window is inside the ${allowDays}-day allowance, so this holds <strong>even if the product was warm the entire time</strong>.` : `Note: the ${windowDays}-day window is longer than the ${allowDays}-day allowance — duration, not temperature, is the question here.`)
+      ? (exposed.length <= allowDays ? `The ${exposed.length} delayed day${exposed.length === 1 ? '' : 's'} ${exposed.length === 1 ? 'is' : 'are'} inside the ${allowDays}-day allowance, so this holds <strong>even if the product was at outdoor temperature the entire time</strong>.` : `Note: ${exposed.length} delayed days exceeds the ${allowDays}-day allowance — duration, not temperature, is the question here.`)
       : 'Duration limit: see the excursion text.';
     v.className = 'banner ok';
-    v.innerHTML = `<div class="verdict">Within ${d.name}'s allowance — worst case</div>Outdoor air never left ${rangeText(floor, ceil)} (it ranged ${fmtF(overall.low)} – ${fmtF(overall.high)}). ${dur}`;
+    v.innerHTML = `<div class="verdict">Within ${d.name}'s allowance — worst case</div>The first day is covered by the pack-out. On the ${exposed.length} delayed day${exposed.length === 1 ? '' : 's'}, outdoor air never left ${rangeText(floor, ceil)} (it ranged ${fmtF(exp.low)} – ${fmtF(exp.high)}). ${dur}`;
   } else {
     const parts = [];
-    if (above) parts.push(`up to <strong>${above} hour${above === 1 ? '' : 's'} above the ${fmtF(ceil)} ceiling</strong> (peak ${fmtF(overall.high)})`);
-    if (below) parts.push(`up to <strong>${below} hour${below === 1 ? '' : 's'} below the ${fmtF(floor)} floor</strong> (low ${fmtF(overall.low)})`);
+    if (above) parts.push(`up to <strong>${above} hour${above === 1 ? '' : 's'} above the ${fmtF(ceil)} ceiling</strong> (peak ${fmtF(exp.high)})`);
+    if (below) parts.push(`up to <strong>${below} hour${below === 1 ? '' : 's'} below the ${fmtF(floor)} floor</strong> (low ${fmtF(exp.low)})`);
     v.className = 'banner bad';
-    v.innerHTML = `<div class="verdict">Ambient went outside ${d.name}'s range — possible excursion</div>Worst case (outdoor air the whole time): ${parts.join(' and ')}. That's an upper bound — the product was likely exposed for only part of it, but a delivery van or trailer in sun can also run hotter than ambient. Allowance: ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}. Pharmacist judgment.`;
+    v.innerHTML = `<div class="verdict">Ambient went outside ${d.name}'s range on the delayed day${exposed.length === 1 ? '' : 's'} — possible excursion</div>The first day is covered by the pack-out. Beyond it, worst case (outdoor air the whole time): ${parts.join(' and ')}. That's an upper bound — the product was likely exposed for only part of it, but a delivery van or trailer in sun can also run hotter than ambient. Allowance: ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}. Pharmacist judgment.`;
   }
 
   let html = `<tr><th>Day</th><th>High</th><th>Low</th>${ceil != null ? `<th>Worst-case hrs &gt; ${ceil}°F</th>` : ''}${floor != null ? `<th>Worst-case hrs &lt; ${floor}°F</th>` : ''}<th>Readings</th></tr>`;
   days.forEach(x => {
-    html += `<tr><td>${dayText(x.day)}</td>
-      <td class="${ceil != null && x.high > ceil ? 'hot' : ''}">${fmtF(x.high)} <span class="note">${hourText(x.highH)}</span></td>
-      <td class="${floor != null && x.low < floor ? 'cold' : ''}">${fmtF(x.low)} <span class="note">${hourText(x.lowH)}</span></td>
-      ${ceil != null ? `<td class="${x.above ? 'hot' : ''}">${x.above}</td>` : ''}
-      ${floor != null ? `<td class="${x.below ? 'cold' : ''}">${x.below}</td>` : ''}
+    const c = x.covered;
+    html += `<tr style="${c ? 'opacity:.55;' : ''}"><td>${dayText(x.day)}${c ? ' <span class="note">· covered by pack-out</span>' : ''}</td>
+      <td class="${!c && ceil != null && x.high > ceil ? 'hot' : ''}">${fmtF(x.high)} <span class="note">${hourText(x.highH)}</span></td>
+      <td class="${!c && floor != null && x.low < floor ? 'cold' : ''}">${fmtF(x.low)} <span class="note">${hourText(x.lowH)}</span></td>
+      ${ceil != null ? `<td class="${!c && x.above ? 'hot' : ''}">${c ? '—' : x.above}</td>` : ''}
+      ${floor != null ? `<td class="${!c && x.below ? 'cold' : ''}">${c ? '—' : x.below}</td>` : ''}
       <td class="note">${x.hours} hrs</td></tr>`;
   });
   document.getElementById('days-table').innerHTML = html;
@@ -374,10 +392,11 @@ function copySummary() {
   const days = summarize(r.obs, r.tz, ceil, floor);
   const lines = [`EXCURSION CHECK — ZIP ${r.zip}${r.place ? ' (' + r.place.city + ', ' + r.place.state + ')' : ''} · station ${r.station.name} (${r.station.id}, ${r.station.miles.toFixed(1)} mi) · window ${r.start.toLocaleDateString()} → ${r.end.toLocaleDateString()} · outdoor air, not product temperature`];
   if (d) lines.push(`Product: ${d.name} · storage ${d.storage || rangeText(d.minF, d.maxF)} · excursion allowance ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}`);
-  days.forEach(x => lines.push(`${dayText(x.day)}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}${ceil != null ? `, ${x.above}h > ${ceil}°F` : ''}${floor != null ? `, ${x.below}h < ${floor}°F` : ''}`));
-  const above = days.reduce((n, x) => n + x.above, 0), below = days.reduce((n, x) => n + x.below, 0);
-  const wd = Math.max(1, Math.round((r.end - r.start) / 86400000)), ad = d ? allowanceDays(d) : null;
-  if (d) lines.push(above || below ? `Result: worst case (outdoor air the entire ${wd}-day window) — up to ${above}h above ceiling, ${below}h below floor. Upper bound; actual exposure likely shorter. Pharmacist judgment.` : `Result: within allowance even in the worst case — ambient never left the range over the ${wd}-day window${ad != null ? ` (allowance ${ad} days)` : ''}.`);
+  const { exposed, above, below } = splitCovered(days, r.start);
+  days.forEach(x => lines.push(`${dayText(x.day)}${x.covered ? ' (covered by pack-out)' : ''}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}${!x.covered && ceil != null ? `, ${x.above}h > ${ceil}°F` : ''}${!x.covered && floor != null ? `, ${x.below}h < ${floor}°F` : ''}`));
+  const ad = d ? allowanceDays(d) : null;
+  if (exposed.length === 0) lines.push('Result: delivered within one day — covered by the pack-out gel packs; ambient not a factor.');
+  else if (d) lines.push(above || below ? `Result: ${exposed.length} delayed day(s) beyond the pack-out. Worst case (outdoor air the whole time): up to ${above}h above ceiling, ${below}h below floor. Upper bound; actual exposure likely shorter. Pharmacist judgment.` : `Result: within allowance even in the worst case — on the ${exposed.length} delayed day(s), ambient never left the range${ad != null ? ` (allowance ${ad} days)` : ''}.`);
   const status = document.getElementById('copy-status');
   if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n')).then(() => { status.textContent = '✓ Summary copied'; setTimeout(() => status.textContent = '', 2500); });
 }
