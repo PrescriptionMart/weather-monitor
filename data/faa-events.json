@@ -1,1 +1,1 @@
-[{"airportId":"MIA","departureDelay":{"averageDelay":"45","reason":"TM Initiatives:MIT:WX","trend":"decreasing"},"groundDelay":null,"groundStop":null},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":49.0,"endTime":"2026-09-17T05:59:00Z","impactingCondition":"low ceilings","maxDelay":108,"startTime":"2026-09-16T22:00:00Z"},"groundStop":null}]
+[]
