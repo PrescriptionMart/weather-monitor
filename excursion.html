@@ -102,6 +102,12 @@
     .verdict-why { font-size: 15px; margin-top: 8px; line-height: 1.45; }
     .verdict-tell { font-size: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.12); }
     .verdict-tell b { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; opacity: .8; display: block; margin-bottom: 2px; }
+    .verdict-list { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+    .verdict-list li { margin: 5px 0; line-height: 1.4; }
+    .verdict-list li strong { font-weight: 700; }
+    .lean { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; margin-left: 4px; vertical-align: 1px; white-space: nowrap; }
+    .lean.keep { background: #C5E1A5; color: #1B5E20; }
+    .lean.replace { background: #EF9A9A; color: #7F0000; }
     details.more { margin-top: 12px; }
     details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
     .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
@@ -180,13 +186,13 @@
     <div class="verdict-big" style="font-size:18px; font-weight:600;">Pick a product and how the packs felt.</div>
   </div>
 
-  <details class="more" id="details" style="display:none;">
-    <summary>Details — station, daily highs/lows, copy for the record</summary>
+  <details class="more" id="details" style="display:none;" open>
+    <summary>Details — station, daily highs/lows, copy for the record (tap to hide)</summary>
     <div class="card" style="margin-top:8px;">
       <div class="note" id="station-line"></div>
       <table class="days" id="days-table"></table>
       <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy summary</button><span class="copy-status" id="copy-status"></span></div>
-      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time).</div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time). <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
     </div>
   </details>
 
@@ -367,7 +373,10 @@ function decide() {
   const productFrozen = document.getElementById('product-frozen').checked;
   const v = document.getElementById('verdict');
   const show = (cls, big, why, tell) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}`; };
-  const judge = (big, why, decide, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div><div class="verdict-tell"><b>Your call — lean on</b>${decide}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div><div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
+  const li = (items) => `<ul class="verdict-list">${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
+  const K = '<span class="lean keep">keep</span>', R = '<span class="lean replace">replace</span>';
+  // Judgment card: the numbers as bullets, then one bullet per factor with which way it leans, then both scripts.
+  const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div><div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
 
   if (productFrozen) return show('replace', 'REPLACE', `The medication itself shows signs of freezing${d ? ` — ${d.name} must not be used after freezing` : ''}. Discard regardless of the ice packs or the weather.`, '"Please don\'t use this one. I\'m sending a replacement and we\'ll arrange the return."');
   if (!d || !packState) return show('wait', 'Pick a product and how the packs felt.', '', '');
@@ -395,15 +404,41 @@ function decide() {
     return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, '"It arrived within the time our packaging is rated for and was still cool — it\'s fine. Into the fridge and use as normal."');
 
   if (sBelow > 0 && floor != null)
-    return judge('JUDGMENT CALL — cold exposure', `Outdoor air dropped to ${fmtF(lo)} (below the ${fmtF(floor)} floor) for up to ${sBelow} hour${sBelow === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored — worst case, outdoor air the whole time.`, 'Appearance. No ice crystals, not cloudy, looks normal → the product almost certainly didn\'t freeze; keep it. Any sign of freezing → replace.', '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
+    return judge('JUDGMENT CALL — cold exposure', [
+      `Outdoor air dropped to <strong>${fmtF(lo)}</strong> — the floor is ${fmtF(floor)}`,
+      `Up to <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+      'Worst case: assumes outdoor air the whole time — inside a box with packs it stays warmer than that',
+    ], [
+      `<strong>Appearance:</strong> no ice crystals, not cloudy, looks normal ${K} · any sign of freezing ${R} (freeze damage isn't always visible — weigh with the next two)`,
+      `<strong>How cold, how long:</strong> a few hours a little under the floor ${K} · well below freezing for a long stretch ${R}`,
+      `<strong>Timing:</strong> freeze risk is on the porch, not in the box — brought in within a few hours ${K} · sat out overnight ${R}`,
+    ], '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 
   if (sAbove === 0) {
     const durOk = allow == null || nDays <= allow;
     if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allow}-day allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
-    return judge('JUDGMENT CALL — duration', `Temperature was fine (peak ${fmtF(hi)}, under the ${fmtF(ceil)} ceiling), but ${nDays} days in transit exceeds the ${allow}-day allowance.`, 'Time, not heat. Keep it only if you can establish it was refrigerated for part of that window (e.g., held at a carrier facility that\'s climate-controlled, or the patient refrigerated it on day one). Otherwise replace.', '"It stayed cool the whole way and was refrigerated for most of that time, so it\'s fine to use."', '"It was out of refrigeration longer than this medication allows, so I\'m going to replace it. Please set it aside; we\'ll send a new one."');
+    return judge('JUDGMENT CALL — duration', [
+      `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
+      `<strong>${nDays} days</strong> in transit — the allowance is ${allow} day${allow === 1 ? '' : 's'}`,
+      `Allowance: ${d.excursionNote || rangeText(floor, ceil)}`,
+    ], [
+      `<strong>Time, not heat:</strong> refrigerated for part of the window (climate-controlled carrier hold, patient fridged it on day one) ${K} · out of refrigeration the whole time ${R}`,
+      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+    ], '"It stayed cool the whole way and was refrigerated for most of that time, so it\'s fine to use."', '"It was out of refrigeration longer than this medication allows, so I\'m going to replace it. Please set it aside; we\'ll send a new one."');
   }
 
-  return judge('JUDGMENT CALL — possible heat excursion', `Outdoor air reached ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling, for up to ${sAbove} hour${sAbove === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored. That\'s the worst case (outdoor air the whole time); a van in the sun can run hotter. Allowance: ${d.excursionNote || rangeText(floor, ceil)}.`, `Three things: how warm the packs were (barely warm → lean keep; warm to the touch → lean replace), whether the product looks normal, and how ${sAbove}h compares to the allowance${allow != null ? ` (${allow} days)` : ''}. Well inside it with a normal-looking product → keep. Close to it, or anything off → replace.`, '"It looks normal and the exposure was well within what this medication tolerates, so it\'s fine to use — into the fridge."', '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
+  return judge('JUDGMENT CALL — possible heat excursion', [
+    `Outdoor air reached <strong>${fmtF(hi)}</strong> — the ceiling is ${fmtF(ceil)}`,
+    `Up to <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+    `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allow != null && !/day|week/i.test(d.excursionNote || '') ? ` (${allow} days)` : ''}`,
+    'Worst case: assumes outdoor air the whole time — a van in the sun can run hotter, a box with packs runs cooler',
+  ], [
+    `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool ${K}` : `barely warm ${K} · warm to the touch ${R}`}`,
+    `<strong>Appearance:</strong> looks normal (color, clarity, no particles) ${K} · anything off ${R}`,
+    `<strong>Exposure vs allowance:</strong> ${sAbove}h${allow != null ? ` against ${allow} days` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
+    `<strong>Patient:</strong> refrigerated it as soon as it arrived ${K} · left it out for hours ${R}`,
+  ], '"It looks normal and the exposure was well within what this medication tolerates, so it\'s fine to use — into the fridge."', '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 }
 
 function renderDetails() {
@@ -434,7 +469,9 @@ function copySummary() {
   const r = lastResult; const d = currentDrug();
   const v = document.getElementById('verdict');
   const lines = [`EXCURSION CHECK — ${d ? d.name : 'no product selected'} · packs: ${packState || 'n/a'}${document.getElementById('product-frozen').checked ? ' · PRODUCT FROZEN' : ''}`];
-  lines.push('Call: ' + (v.querySelector('.verdict-big') || {}).textContent + ' — ' + ((v.querySelector('.verdict-why') || {}).textContent || '').replace(/\s+/g, ' '));
+  const why = ((v.querySelector('.verdict-why') || {}).textContent || '').replace(/\s+/g, ' ').trim();
+  lines.push('Call: ' + (v.querySelector('.verdict-big') || {}).textContent + (why ? ' — ' + why : ''));
+  v.querySelectorAll('.verdict-list li').forEach(el => lines.push('  - ' + el.textContent.replace(/\s+/g, ' ').trim()));
   if (r) {
     const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
     const days = summarize(r.obs, r.tz, ceil, floor); splitCovered(days, r.start);

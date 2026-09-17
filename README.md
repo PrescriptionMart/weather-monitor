@@ -74,8 +74,15 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
      sheet's Min Temp, 36°F for refrigerated) and allowance length. Never
      exceeded and inside the allowance days → OK; exceeded, below the floor,
      or too many days → JUDGMENT CALL with the numbers and the factors to weigh.
-- Details (station, distance, daily highs/lows, copy-for-the-record) fold
-  under a toggle. Constants: `PACKOUT_RATING_HOURS = 48`.
+- JUDGMENT CALL cards read as bullets: *What we know* (the numbers) and
+  *Your call — weigh* (one line per factor with a KEEP / REPLACE lean), then
+  a keep-it and a replace-it script. Details (station, distance, daily
+  highs/lows, copy-for-the-record) are expanded below the verdict and can be
+  collapsed. Constants: `PACKOUT_RATING_HOURS = 48`.
+- **Basis & references (`excursion-basis.html`)** — what each rule rests on
+  (USP <659>/<1079>, CDC excursion procedure, ISTA 7D/7E, URAC P-MD, 22 TAC
+  §291.12, JAPhA 2023 mail-transit study, manufacturer allowances), where
+  the literature is thin, SOP wording, and a numbered reference list.
 - `data/drugs.json` rows: `name`, `ndc` (reference only, not shown),
   `excursionMinF`/`excursionMaxF`, `excursionNote`, `storage`,
   `protectFromLight`, `freezeSensitive`, optional `flag`. Update by editing

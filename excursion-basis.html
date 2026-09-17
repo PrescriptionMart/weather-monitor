@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excursion Check · Basis &amp; References — Prescription Mart</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1B4F8A" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ship Weather" />
+  <title>Excursion Check · Basis &amp; References — Prescription Mart</title>
+  <style>
+    :root {
+      --bg: #f4f4f2; --surface: #ffffff; --surface-2: #f7f7f5; --inset: #f0f0ec;
+      --border: #e4e4df; --border-2: #efefea;
+      --text: #1a1a1a; --text-muted: #6b6b66; --text-faint: #9a9a93;
+      --brand: #1B4F8A; --brand-strong: #164070; --header-bg: #1B4F8A; --header-fg: #ffffff; --on-accent: #ffffff;
+      --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.07);
+      --radius: 10px; --radius-lg: 14px; --low-fg: #3B6D11;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+        --border: #2e323a; --border-2: #282c33;
+        --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+        --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4); --low-fg: #a7d178;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+      --border: #2e323a; --border-2: #282c33;
+      --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+      --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4); --low-fg: #a7d178;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background .2s, color .2s; }
+    .header { background: var(--header-bg); color: var(--header-fg); padding: 1.1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+    .header .sub { font-size: 13px; opacity: 0.78; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .header .updated { font-size: 12px; opacity: 0.72; }
+    .theme-toggle { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: var(--header-fg); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .theme-toggle:hover { background: rgba(255,255,255,.2); }
+    .today-banner { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.25rem 2rem; text-align: center; }
+    .today-day { font-size: 32px; font-weight: 650; color: var(--brand); line-height: 1.1; letter-spacing: -.02em; }
+    .today-date { font-size: 15px; color: var(--text-muted); margin-top: 3px; }
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; }
+    .tabs-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 4px; }
+    .tab { padding: 13px 18px; font-size: 14px; font-weight: 500; color: var(--text-muted); border-bottom: 3px solid transparent; text-decoration: none; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+    label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 10px 0 4px; }
+    select, input[type=text], input[type=date] { width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+    .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--surface-2); }
+    .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
+    .btn-primary:hover { background: var(--brand-strong); }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .drug-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 12px; font-size: 13px; }
+    .drug-facts .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .drug-facts .v { font-weight: 600; margin-top: 2px; }
+    .note { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .banner { border-radius: var(--radius); padding: 10px 14px; font-size: 13px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .banner.warn { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .banner.bad { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .banner.ok { background: #DCEDC8; border-color: #C5E1A5; color: #33691E; }
+    .banner.info { background: var(--surface-2); color: var(--text-muted); }
+    .verdict { font-size: 20px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 4px; }
+    table.days { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+    table.days th, table.days td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-2); }
+    table.days th { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    td.hot { color: #B71C1C; font-weight: 600; }
+    td.cold { color: #0D47A1; font-weight: 600; }
+    .status { font-size: 13px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+    .chip { display: inline-block; margin: 2px 2px 0 0; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--brand); font-size: 12px; cursor: pointer; }
+    .chip:hover { background: var(--surface-2); }
+    .copy-status { font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px; }
+    .pack-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+    .pack-btn { text-align: left; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 14px; line-height: 1.3; }
+    .pack-btn .sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .pack-btn:hover { background: var(--surface-2); }
+    .pack-btn.active { border-color: var(--brand); background: var(--info-bg, var(--surface-2)); }
+    .flag-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; }
+    .flag-row input { margin-top: 3px; width: auto; }
+    .verdict-card { border-radius: var(--radius-lg); padding: 20px 22px; border: 1px solid var(--border); }
+    .verdict-card.ok { background: #DCEDC8; border-color: #C5E1A5; color: #1B5E20; }
+    .verdict-card.call { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .verdict-card.replace { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .verdict-card.wait { background: var(--surface-2); color: var(--text-muted); }
+    .verdict-big { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+    .verdict-why { font-size: 15px; margin-top: 8px; line-height: 1.45; }
+    .verdict-tell { font-size: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.12); }
+    .verdict-tell b { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; opacity: .8; display: block; margin-bottom: 2px; }
+    .verdict-list { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+    .verdict-list li { margin: 5px 0; line-height: 1.4; }
+    .verdict-list li strong { font-weight: 700; }
+    .lean { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; margin-left: 4px; vertical-align: 1px; white-space: nowrap; }
+    .lean.keep { background: #C5E1A5; color: #1B5E20; }
+    .lean.replace { background: #EF9A9A; color: #7F0000; }
+    details.more { margin-top: 12px; }
+    details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
+    .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
+    .allow-line b { font-weight: 700; }
+
+    .basis h2 { font-size: 17px; margin: 26px 0 8px; letter-spacing: -.01em; }
+    .basis h2:first-child { margin-top: 0; }
+    .basis p, .basis li { font-size: 14px; line-height: 1.5; }
+    .basis ul { padding-left: 20px; margin: 6px 0; }
+    .basis li { margin: 5px 0; }
+    .basis .rule { font-size: 14px; line-height: 1.5; border-left: 4px solid var(--brand); padding: 10px 14px; background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; margin: 12px 0; }
+    .basis .rule b.t { display: block; font-size: 14px; margin-bottom: 4px; }
+    .basis .ref { font-size: 13px; color: var(--text-muted); }
+    .basis .ref a { color: var(--brand); }
+    .basis .caveat { background: #FFF3D6; border: 1px solid #FFCC80; color: #7A4B00; border-radius: var(--radius); padding: 10px 14px; font-size: 13px; }
+    .basis ol.refs { padding-left: 22px; }
+    .basis ol.refs li { font-size: 13px; margin: 7px 0; }
+    .basis .tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; background: var(--inset); color: var(--text-muted); margin-left: 4px; vertical-align: 1px; }
+    .basis table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .basis th, .basis td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-2); vertical-align: top; }
+    .basis th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+  </style>
+  <script>
+    (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
+  </script>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="h1">Excursion Check · Basis &amp; References</div>
+    <div class="sub">What the OK / JUDGMENT CALL / REPLACE rules rest on, and where to read the primary documents</div>
+  </div>
+  <div class="header-right">
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark" aria-label="Toggle light/dark theme">🌙</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <a href="index.html" class="tab">Hub Forecasts</a>
+    <a href="winter-pack.html" class="tab">Winter Packing Map</a>
+    <a href="excursion.html" class="tab active">Excursion Check</a>
+  </div>
+</div>
+
+<div class="container basis">
+
+  <div class="card">
+    <p><a href="excursion.html">← Back to the Excursion Check</a></p>
+    <div class="caveat"><b>How this page was built.</b> Compiled September 2026 from the published sources below. Each entry was checked against the publisher's own summary or abstract, not against a full copy of the standard, so before this goes in an accreditation binder pull the primary document (USP-NF chapters and ISTA standards are paywalled) and confirm the quoted wording. Items marked <span class="tag">verify</span> are the ones most worth confirming.</div>
+
+    <h2>The rules in the tool, and what backs each one</h2>
+
+    <div class="rule"><b class="t">1 · The floor is 36°F (2°C). Anything below is an excursion, not automatic discard.</b>
+      USP General Chapter &lt;659&gt; defines <em>controlled cold temperature</em> as 2–8°C (36–46°F) and allows excursions between 2° and 15°C (36–59°F) during storage, shipping and distribution, for no more than 24 hours, provided the mean kinetic temperature stays at or below 8°C and there are <em>no excursions below 2°C or above 15°C</em>. That is why the sheet's refrigerated floor is 36°F rather than 32°F, and why a reading under 36°F triggers a judgment call. Whether a sub-2°C, non-freezing exposure is acceptable is the manufacturer's call (see rule 6), which is what the tool's cold-exposure card asks you to weigh.
+      <div class="ref">USP &lt;659&gt; Packaging and Storage Requirements [1]; USP &lt;1079.2&gt; on MKT [3] <span class="tag">verify</span></div></div>
+
+    <div class="rule"><b class="t">2 · Product that has frozen → REPLACE, regardless of packs or weather.</b>
+      Freezing is the irreversible excursion for most refrigerated biologics and suspensions: ice formation and cryo-concentration drive protein unfolding and aggregation, and adjuvanted or suspension products lose potency permanently. FDA and the American Diabetes Association say frozen insulin must not be used even after thawing, and to inspect for clumps, frosting, crystals or particles. CDC's toolkit warns that freeze-damaged inactivated product "may not appear frozen," so appearance can confirm freezing but cannot rule it out. That is why the tool's product-frozen box overrides everything, and why the cold-exposure card weighs how cold, for how long, and porch timing alongside appearance.
+      <div class="ref">FDA insulin storage [6]; ADA [7]; CDC Vaccine Storage &amp; Handling Toolkit [4]; WHO Temperature Sensitivity of Vaccines [5]; freeze-induced aggregation literature [8]</div></div>
+
+    <div class="rule"><b class="t">3 · The allowance line comes from the manufacturer, and it is one-time and cumulative.</b>
+      Every refrigerated product has a labeled room-temperature allowance in its prescribing information or patient instructions (Humira 14 days at ≤77°F, Dupixent 14 days at ≤77°F, Stelara 30 days at ≤86°F, Repatha 30 days at ≤77°F, Aimovig 7 days at ≤77°F, Mounjaro 21 days at ≤86°F, and so on). Most labels say the clock does not reset if the product goes back in the fridge and many say "do not return to the refrigerator." A 2025 review of every FDA-approved unopened refrigerated product found nearly 60% tolerate one week to one month at room temperature, and concluded that brand-specific manufacturer data must be the basis for excursion decisions. Practice guidance (NHS Specialist Pharmacy Service; U.S. Pharmacist) describes the same process the tool follows: gather time, temperature and first-exposure facts, compare against the manufacturer's data, and request a stability letter when the label is silent.
+      <div class="ref">Aleidi et al., Cureus 2025 [9]; U.S. Pharmacist 2022 [10]; NHS SPS, Managing temperature excursions [11]; manufacturer prescribing information [12]</div></div>
+
+    <div class="rule"><b class="t">4 · The pack-out is rated for 48 hours, so days inside that window are "covered."</b>
+      Insulated shippers with gel packs are qualified against standard ambient profiles for a stated duration. ISTA 7D provides steady-state summer and winter profiles in 24-, 48- and 72-hour lengths; ISTA 7E (Standard 20) provides diurnal summer and winter profiles built from real US parcel lanes, up to 72 hours and repeatable to 144; ASTM D3103 is the insulation-performance test method. USP &lt;1079&gt; expects shipping systems to be qualified under expected seasonal extremes with the actual pack-out, and URAC's Medication Distribution standards (P-MD) require annual qualification testing with continuous monitors and a written definition of what counts as an excursion for each temperature profile. "Qualified for 48 hours" is the standard vendor and lab phrasing. The tool's PACKOUT_RATING_HOURS constant is that number.
+      <div class="ref">ISTA 7D [13]; ISTA 7E / Standard 20 [14]; ASTM D3103-20 [15]; USP &lt;1079&gt; [2]; URAC P-MD [16]; ACHC cold-chain guidance [17]</div></div>
+
+    <div class="rule"><b class="t">5 · Outdoor air at the nearest NWS station is a worst-case proxy, with a van-in-the-sun caveat.</b>
+      When there is no data logger in the box, cold-chain investigation guidance lists local weather data as supporting evidence. A 2023 study in the Journal of the American Pharmacists Association shipped logger packages by three carriers in winter and summer and found packages spent most of transit time outside 20–25°C and hit both extremes; it deliberately stopped measuring at delivery, so porch time is unstudied. ISTA's parcel-lane data behind 7E found readings below 0°C or above 35°C rare and short-lived, which supports treating outdoor air as a reasonable worst case for the box's surroundings. The exception is vehicle interiors: 2024 reporting on mail-order medications quoted drivers describing 150°F cargo areas, and parked-vehicle studies show cabins running 20°C above ambient in sun. That is why the heat card says outdoor air is the worst case for the porch but a van can run hotter.
+      <div class="ref">Chowdhury et al., JAPhA 2023 [18]; ISTA 7E lane data [14]; NYT / Becker's 2024 [19]; parked-vehicle cabin study [20]</div></div>
+
+    <div class="rule"><b class="t">6 · A JUDGMENT CALL means: weigh the factors, document, and call the manufacturer when it is close.</b>
+      CDC's excursion procedure is the template used across pharmacy: label the product "DO NOT USE," separate it, document date, time and temperatures, and contact the manufacturer for a viability decision based on their stability data. The tool's Copy summary is the documentation step; the keep-it and replace-it scripts are the two outcomes. Texas rule 22 TAC §291.12 (adopted 2024) requires common-carrier deliveries to be packaged so the drug stays within the USP or manufacturer temperature range <em>until the delivery has been received by the patient or patient's agent</em>, and lets the dispensing pharmacist refuse common-carrier delivery when it could clinically compromise the drug. Receipt by the patient is the regulatory boundary, which is why the tool scores delayed days but does not hold the pharmacy to overnight porch dwell.
+      <div class="ref">CDC, Handling a Temperature Excursion [4]; 22 TAC §291.12 [21]; NHS SPS [11]</div></div>
+
+    <div class="rule"><b class="t">7 · Appearance is one factor, not proof.</b>
+      Visual inspection (clarity, color, particles, ice crystals) is part of every excursion procedure, but two limits apply. Freeze damage is often invisible (rule 2). And heat degradation usually produces no visible change either; 2024 reporting documented patients being told a product was fine because it "looked normal." The WHO shake test detects freeze damage only in aluminium-adsorbed vaccines and is not applicable to the products on this list. So the tool pairs appearance with exposure-versus-allowance and pack state rather than letting appearance decide alone.
+      <div class="ref">CDC Toolkit [4]; Kartoglu et al., Bull WHO 2010 [22]; NYT / Becker's 2024 [19]</div></div>
+
+    <h2>Where the literature is thin or disagrees</h2>
+    <ul>
+      <li><b>Sub-2°C but not frozen.</b> USP &lt;659&gt; permits no excursion below 2°C, yet manufacturer letters routinely clear brief mild cold exposure of a normal-looking product. The tool treats it as a judgment call, not a discard, which matches practice rather than the letter of the chapter.</li>
+      <li><b>MKT is not a rescue for cold.</b> USP &lt;1079.2&gt; allows MKT for evaluating short heat excursions, not repeated ones, and it is not appropriate for freeze events or for proteins whose degradation is not Arrhenius-like. The tool does not compute MKT for that reason. <span class="tag">verify</span></li>
+      <li><b>Porch exposure is unstudied.</b> No published study instruments refrigerated parcels after delivery. The 48-hour coverage and the "few hours of dwell" posture come from the pack-out rating and 22 TAC §291.12's receipt boundary, not from porch measurements.</li>
+      <li><b>Vehicle temperatures are anecdotal.</b> The 150°F figure is driver-reported, not instrumented. Treat "van in the sun" as a reason to lean replace on a hot day, not as a number.</li>
+      <li><b>Enbrel.</b> The sheet lists 30 days for all formulations; the manufacturer gives 30 days for the prefilled syringe and SureClick but 14 days for the multi-dose vial and dose tray. Worth confirming in the spreadsheet. <span class="tag">verify</span></li>
+      <li><b>ISTA 7E extremes.</b> The exact profile peaks and minimums are inside the paywalled standard and could not be confirmed; only the "rare above 35°C / below 0°C" characterization is public.</li>
+    </ul>
+
+    <h2>Wording the pharmacy can cite in an SOP</h2>
+    <ul>
+      <li>Refrigerated products are stored at 2–8°C (36–46°F). Per USP &lt;659&gt;, excursions between 2°C and 15°C not exceeding 24 hours are permitted in distribution; any reading below 2°C or above 15°C is evaluated as an excursion.</li>
+      <li>Shipping containers are qualified for 48 hours against ISTA 7D/7E summer and winter profiles, consistent with USP &lt;1079&gt; and URAC Medication Distribution standards, and re-qualified at least annually.</li>
+      <li>A suspected excursion is evaluated against the manufacturer's labeled room-temperature allowance and stability data (per manufacturer prescribing information and published reviews), with the product quarantined and the event documented per the CDC excursion procedure; the manufacturer is contacted when the label is silent or the exposure approaches the allowance.</li>
+      <li>Product showing evidence of freezing is not dispensed or used, regardless of appearance after thawing (FDA/ADA insulin guidance; CDC).</li>
+      <li>Per 22 TAC §291.12, common-carrier shipments are packaged to maintain USP or manufacturer temperature range until receipt by the patient or agent; the pharmacist may refuse common-carrier delivery when it would clinically compromise the product.</li>
+    </ul>
+
+    <h2>References</h2>
+    <ol class="refs">
+      <li>USP General Chapter &lt;659&gt; <em>Packaging and Storage Requirements</em>. USP-NF, current edition (definitions of cold, refrigerator, controlled cold temperature and permitted excursions). <a href="https://www.uspnf.com/sites/default/files/usp_pdf/EN/USPNF/revisions/659_rb_notice.pdf">uspnf.com revision bulletin</a></li>
+      <li>USP General Chapter &lt;1079&gt; <em>Risks and Mitigation Strategies for the Storage and Transportation of Finished Drug Products</em>. USP, 2020/2023. <a href="https://www.usp.org/sites/default/files/usp/document/supply-chain/apec-toolkit/USP%20GC1079.pdf">usp.org (APEC toolkit copy)</a></li>
+      <li>USP General Chapter &lt;1079.2&gt; <em>Mean Kinetic Temperature in the Evaluation of Temperature Excursions During Storage and Transportation</em>. <a href="https://www.usp.org/sites/default/files/usp/document/supply-chain/apec-toolkit/USP%20GC1079.2.pdf">usp.org (APEC toolkit copy)</a></li>
+      <li>CDC. <em>Vaccine Storage and Handling Toolkit</em> and <em>Handling a Temperature Excursion in Your Vaccine Storage Unit</em>. <a href="https://www.cdc.gov/vaccines/hcp/admin/storage/downloads/temperature-excursion-508.pdf">cdc.gov (excursion one-pager)</a> · <a href="https://www.cdc.gov/vaccines/hcp/downloads/storage-handling-toolkit.pdf">toolkit PDF</a></li>
+      <li>WHO. <em>Temperature Sensitivity of Vaccines</em> (WHO/IVB/06.10, 2006) and WHO TRS 961 Annex 9, <em>Model guidance for the storage and transport of time- and temperature-sensitive pharmaceutical products</em> (2011). <a href="https://www.technet-21.org/en/resources/guidance/temperature-sensitivity-of-vaccines">technet-21.org</a></li>
+      <li>FDA. <em>Information Regarding Insulin Storage and Switching Between Products in an Emergency</em>. <a href="https://www.fda.gov/drugs/emergency-preparedness-drugs/information-regarding-insulin-storage-and-switching-between-products-emergency">fda.gov</a></li>
+      <li>American Diabetes Association. <em>Insulin Storage and Syringe Safety</em>. <a href="https://diabetes.org/health-wellness/medication/insulin-storage-and-syringe-safety">diabetes.org</a></li>
+      <li>Freeze-induced protein aggregation, e.g. <em>Freezing-induced protein aggregation in a bispecific antibody</em>, J Pharm Sci 2025. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0022354925001674">sciencedirect.com</a></li>
+      <li>Aleidi FA, et al. <em>Stability of Refrigerated Medications at Room Temperature: Implications for Transport, Delivery, and Patient Safety</em>. Cureus 2025;17:e93213. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12465357/">PMC</a></li>
+      <li><em>Temperature Excursion Requirements for Refrigerated Medications</em>. U.S. Pharmacist, Aug 2022. <a href="https://www.uspharmacist.com/article/temperature-excursion-requirements-for-refrigerated-medications">uspharmacist.com</a></li>
+      <li>NHS Specialist Pharmacy Service. <em>Managing temperature excursions</em>. <a href="https://sps.nhs.uk/articles/managing-temperature-excursions/">sps.nhs.uk</a></li>
+      <li>Manufacturer prescribing information and patient instructions for each product (Humira, Dupixent, Stelara, Repatha, Aimovig, Mounjaro, Ozempic, Trulicity, Enbrel, etc.), current labels via DailyMed. <a href="https://dailymed.nlm.nih.gov/">dailymed.nlm.nih.gov</a></li>
+      <li>ISTA 7D <em>Temperature Test for Transport Packaging</em>. International Safe Transit Association. <a href="https://ista.org/docs/7Doverview.pdf">ista.org overview</a></li>
+      <li>ISTA 7E / Standard 20 <em>Testing Standard for Thermal Transport Packaging Used in Parcel Delivery System Shipment</em>. <a href="https://ista.org/docs/7Eoverview.pdf">ista.org overview</a> · <a href="https://ista.org/thermal_standards.php">thermal standards</a></li>
+      <li>ASTM D3103-20 <em>Standard Test Method for Thermal Insulation Performance of Distribution Packages</em>. <a href="https://www.astm.org/Standards/D3103.htm">astm.org</a></li>
+      <li>URAC Specialty Pharmacy / Mail Service Pharmacy Accreditation v5.0, Medication Distribution (P-MD) standards. <a href="https://www.urac.org/blog/how-urac-accreditation-helps-address-temperature-management/">urac.org</a></li>
+      <li>ACHC. <em>Understanding Cold Chain Shipping</em> and <em>Pharmacy: Validating Your Shipping System</em>. <a href="https://achc.org/understanding-cold-chain-shipping/">achc.org</a> · <a href="https://achc.org/validating-your-shipping-system-pharmacy/">validation</a></li>
+      <li>Chowdhury DA, Jeong MS, Vyas L, et al. <em>Evaluation of temperature excursions from USP &lt;659&gt; recommendations during mail transit</em>. J Am Pharm Assoc 2023;63(3):847-852. <a href="https://pubmed.ncbi.nlm.nih.gov/36858884/">PubMed</a></li>
+      <li>Baumgaertner E. <em>Hot Summer Threatens Efficacy of Mail-Order Medications</em>. New York Times, Aug 2024; summarized at <a href="https://www.beckershospitalreview.com/pharmacy/heat-spells-trouble-for-mail-order-medications/">Becker's</a> and <a href="https://www.advisory.com/daily-briefing/2024/08/19/mail-order-drugs">Advisory Board</a>.</li>
+      <li>Parked-vehicle cabin temperature studies (cabin 20°C+ above ambient in sun), e.g. <a href="https://pdfs.semanticscholar.org/206b/b627108630009dee7e2d0919d86147a27e9c.pdf">semanticscholar.org</a></li>
+      <li>22 Tex. Admin. Code §291.12 <em>Delivery of Prescription Drugs</em>. Texas State Board of Pharmacy, adopted 2024. <a href="https://www.law.cornell.edu/regulations/texas/22-Tex-Admin-Code-SS-291-12">law.cornell.edu</a> · <a href="https://www.pharmacy.texas.gov/files_pdf/BN/May24/C.1.1.pdf">TSBP rule analysis</a></li>
+      <li>Kartoglu U, et al. <em>Validation of the shake test for detecting freeze damage to adsorbed vaccines</em>. Bull World Health Organ 2010;88:624-631. <a href="https://pubmed.ncbi.nlm.nih.gov/20680128/">PubMed</a></li>
+    </ol>
+    <p class="note">Constants in the tool: refrigerated floor = the sheet's Min Temp (36°F); PACKOUT_RATING_HOURS = 48; exposure scored as outdoor air at the nearest NWS station over the shipped→received window.</p>
+  </div>
+</div>
+
+<script>
+function currentTheme() { const f = document.documentElement.getAttribute('data-theme'); if (f) return f; return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+function syncThemeIcon() { const b = document.getElementById('theme-toggle'); if (b) b.textContent = currentTheme() === 'dark' ? '☀️' : '🌙'; }
+function toggleTheme() { const n = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); try { localStorage.setItem('theme', n); } catch(e) {} syncThemeIcon(); }
+syncThemeIcon();
+</script>
+</body>
+</html>
