@@ -405,12 +405,13 @@
  {
   "name": "Skyrizi",
   "ndc": null,
-  "excursionMaxF": 46,
+  "excursionMaxF": 77,
   "excursionMinF": 36,
-  "excursionNote": "No information given - must contact manufacturer",
+  "excursionNote": "Up to 77°F for no more than 24 hours. Medication can be placed back in refrigerator and stored if the 24 hours has not expired",
   "storage": "Email sent to request information. From PI:Store in the refrigerator (36-46F) in the original carton to protect from light. Do not shake. Do not freeze.",
   "protectFromLight": true,
-  "freezeSensitive": true
+  "freezeSensitive": true,
+  "flag": "Max 77°F taken from the excursion text; the sheet's Max Temp cell still says 46°F"
  },
  {
   "name": "Sogroya 10mg/1.5mL",
