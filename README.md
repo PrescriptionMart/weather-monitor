@@ -58,12 +58,17 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - For the "my medication arrived warm / half-frozen" call. The pharmacist picks
   the product from a dropdown (its storage range, excursion allowance and
   freeze sensitivity come from `data/drugs.json`, converted from the pharmacy's
-  Excel), enters the patient's ZIP and optionally the delivery date, and gets
-  the **observed** outdoor temperature at the nearest National Weather Service
-  station for that window: each day's high and low with the hour they
-  occurred, and the number of hours above the product's excursion ceiling or
-  below its floor (32°F by default for freeze-sensitive products). Observations
-  go back about a week; the default window is the last 3 days.
+  Excel), enters the patient's ZIP (or a sort-hub ZIP via one-click chips if
+  tracking shows the delay was there) and the shipped → received dates, and
+  gets the **observed** outdoor temperature at the nearest National Weather
+  Service station for that window: each day's high and low with the hour they
+  occurred, and a **worst-case** count of hours above the product's ceiling or
+  below its floor — worst case because we rarely know how long the product was
+  actually exposed, so it assumes outdoor air for the entire window. It parses
+  the allowance length ("14 days", "2 weeks") from the excursion text and says
+  plainly when a window is inside it — a 1-day delay under a never-exceeded
+  ceiling is within allowance regardless of duration. Observations go back
+  about a week.
 - It reports the station name and distance and says plainly that this is
   ambient air, not the product inside the pack-out — evidence for the
   pharmacist's judgment, not a verdict. **Copy summary** gives a paste-ready
@@ -71,7 +76,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - `data/drugs.json` is converted from the pharmacy's *Temperature Sensitive
   Stabilities* spreadsheet (Drug, NDC, Excursion Length, Max/Min Temp °F,
   Protect From Light, Storage — the credit column is ignored). Per row:
-  `name`, `ndc`, `excursionMinF`/`excursionMaxF` (the sheet's Min/Max Temp),
+  `name`, `ndc` (kept for reference only — a product has many NDCs, so it is
+  not shown), `excursionMinF`/`excursionMaxF` (the sheet's Min/Max Temp),
   `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`, and an
   optional `flag` shown as a warning when a source cell was blank or carried
   a footnote. To update: edit the spreadsheet and re-convert.
