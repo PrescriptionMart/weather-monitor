@@ -86,6 +86,26 @@
     .chip { display: inline-block; margin: 2px 2px 0 0; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--brand); font-size: 12px; cursor: pointer; }
     .chip:hover { background: var(--surface-2); }
     .copy-status { font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px; }
+    .pack-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+    .pack-btn { text-align: left; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 14px; line-height: 1.3; }
+    .pack-btn .sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .pack-btn:hover { background: var(--surface-2); }
+    .pack-btn.active { border-color: var(--brand); background: var(--info-bg, var(--surface-2)); }
+    .flag-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; }
+    .flag-row input { margin-top: 3px; width: auto; }
+    .verdict-card { border-radius: var(--radius-lg); padding: 20px 22px; border: 1px solid var(--border); }
+    .verdict-card.ok { background: #DCEDC8; border-color: #C5E1A5; color: #1B5E20; }
+    .verdict-card.call { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .verdict-card.replace { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .verdict-card.wait { background: var(--surface-2); color: var(--text-muted); }
+    .verdict-big { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+    .verdict-why { font-size: 15px; margin-top: 8px; line-height: 1.45; }
+    .verdict-tell { font-size: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.12); }
+    .verdict-tell b { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; opacity: .8; display: block; margin-bottom: 2px; }
+    details.more { margin-top: 12px; }
+    details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
+    .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
+    .allow-line b { font-weight: 700; }
   </style>
   <script>
     (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
@@ -96,7 +116,7 @@
 <div class="header">
   <div>
     <div class="h1">Excursion Check</div>
-    <div class="sub">What did the patient's medication actually see? &nbsp;·&nbsp; Drug allowances vs. observed ambient temperature</div>
+    <div class="sub">On the phone: product → how the ice packs felt → ZIP &amp; dates → the call</div>
   </div>
   <div class="header-right">
     <div class="updated" id="last-updated"></div>
@@ -119,50 +139,56 @@
 
 <div class="container">
 
-  <div id="sample-banner" class="banner warn" style="display:none;">The drug list currently contains <strong>placeholder rows</strong>. Once the pharmacy's Excel is loaded into <code>data/drugs.json</code>, real products and allowances appear here.</div>
-
   <div class="grid-2">
     <div class="card">
-      <div class="section-label">1 · Medication</div>
-      <label class="lbl" for="drug-select">Product</label>
-      <select id="drug-select" onchange="onDrugChange()"><option value="">Loading drug list…</option></select>
-      <div id="drug-facts"></div>
+      <div class="section-label">1 · Which product?</div>
+      <select id="drug-select" onchange="onDrugChange()"><option value="">Loading…</option></select>
+      <div id="drug-facts" class="allow-line"></div>
     </div>
 
     <div class="card">
-      <div class="section-label">2 · Patient location &amp; window</div>
-      <form onsubmit="runCheck(); return false;">
-        <label class="lbl" for="zip">Patient ZIP</label>
-        <input id="zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 77002" />
-        <div class="note" style="margin-top:6px;">If tracking shows the delay happened at a sort hub, check that ZIP instead:
-          <button type="button" class="chip" onclick="setZip('77032')">Houston</button><button type="button" class="chip" onclick="setZip('38118')">Memphis</button><button type="button" class="chip" onclick="setZip('40213')">Louisville</button><button type="button" class="chip" onclick="setZip('46241')">Indianapolis</button>
-        </div>
-        <div class="grid-2" style="gap:10px;">
-          <div><label class="lbl" for="since">Shipped / left our facility</label><input id="since" type="date" /></div>
-          <div><label class="lbl" for="until">Delivered / received by patient</label><input id="until" type="date" /></div>
-        </div>
-        <div class="note" style="margin-top:6px;">The pack-out is rated for 48 hours, so the ship day and the next two days are covered by the gel packs and aren't counted. For delayed days beyond that, we don't know how long the product was actually warm, so the check assumes the <strong>worst case: outdoor air the whole time</strong>. Observations go back about a week.</div>
-        <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-          <button class="btn btn-primary" type="submit" id="check-btn">Check exposure</button>
-          <span class="status" id="status"></span>
-        </div>
-      </form>
+      <div class="section-label">2 · Ask: "How did the ice packs feel when you opened it?"</div>
+      <div class="pack-btns" id="pack-btns">
+        <button type="button" class="pack-btn" data-state="frozen" onclick="setPack('frozen')">Still frozen solid<span class="sub">hard, icy</span></button>
+        <button type="button" class="pack-btn" data-state="slushy" onclick="setPack('slushy')">Slushy / partly frozen<span class="sub">some ice, some liquid</span></button>
+        <button type="button" class="pack-btn" data-state="cool" onclick="setPack('cool')">Thawed but still cool<span class="sub">liquid, cooler than the room</span></button>
+        <button type="button" class="pack-btn" data-state="warm" onclick="setPack('warm')">Thawed and warm<span class="sub">room temperature or warmer</span></button>
+      </div>
+      <label class="flag-row"><input type="checkbox" id="product-frozen" onchange="decide()" /> <span>Ask: "Does the medication itself look frozen, have ice crystals, or look cloudy / different than usual?" — <strong>check if yes</strong></span></label>
     </div>
   </div>
 
-  <div class="card" id="results" style="margin-top:16px; display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
-      <div>
-        <div class="section-label" style="margin-bottom:4px;">3 · Observed ambient temperature</div>
-        <div class="note" id="station-line"></div>
+  <div class="card" style="margin-top:16px;">
+    <div class="section-label">3 · Where and when</div>
+    <form onsubmit="runCheck(); return false;">
+      <div class="grid-2" style="gap:10px;">
+        <div><label class="lbl" for="zip">Patient ZIP</label><input id="zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 77002" />
+          <div class="note" style="margin-top:4px;">Delay was at a hub? <button type="button" class="chip" onclick="setZip('77032')">Houston</button><button type="button" class="chip" onclick="setZip('38118')">Memphis</button><button type="button" class="chip" onclick="setZip('40213')">Louisville</button><button type="button" class="chip" onclick="setZip('46241')">Indianapolis</button></div></div>
+        <div class="grid-2" style="gap:10px;">
+          <div><label class="lbl" for="since">Shipped</label><input id="since" type="date" /></div>
+          <div><label class="lbl" for="until">Received</label><input id="until" type="date" /></div>
+        </div>
       </div>
-      <button class="btn" onclick="copySummary()">Copy summary</button>
-    </div>
-    <div id="verdict" class="banner info" style="margin-top:12px;"></div>
-    <table class="days" id="days-table"></table>
-    <div class="copy-status" id="copy-status"></div>
-    <div class="note" style="margin-top:12px;">These are <strong>outdoor air temperatures at the nearest weather station</strong>, not the temperature inside the package, and we usually don't know how long the product was actually exposed — so the hour counts are a <strong>worst-case upper bound</strong> (outdoor air the whole window). Conditioned gel packs and an insulated shipper keep it cooler; a delivery van or trailer in the sun can run hotter. Evidence for the pharmacist's judgment, not the judgment itself.</div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" type="submit" id="check-btn">Check the temperature</button>
+        <span class="status" id="status"></span>
+      </div>
+    </form>
   </div>
+
+  <div id="verdict" class="verdict-card wait" style="margin-top:16px;">
+    <div class="verdict-big" style="font-size:18px; font-weight:600;">Pick a product and how the packs felt.</div>
+  </div>
+
+  <details class="more" id="details" style="display:none;">
+    <summary>Details — station, daily highs/lows, copy for the record</summary>
+    <div class="card" style="margin-top:8px;">
+      <div class="note" id="station-line"></div>
+      <table class="days" id="days-table"></table>
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy summary</button><span class="copy-status" id="copy-status"></span></div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time).</div>
+    </div>
+  </details>
 
 </div>
 
@@ -179,18 +205,9 @@ const PACKOUT_COVERED_DAYS = PACKOUT_RATING_HOURS / 24;
 
 let DRUGS = [];
 let lastResult = null;
+let packState = null;
 
 // ---- drug list ----
-async function loadDrugs() {
-  const sel = document.getElementById('drug-select');
-  try {
-    const r = await fetch('data/drugs.json?_=' + Date.now());
-    DRUGS = await r.json();
-  } catch(e) { DRUGS = []; }
-  DRUGS.sort((a, b) => a.name.localeCompare(b.name));
-  sel.innerHTML = '<option value="">Select a product…</option>' + DRUGS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
-  document.getElementById('sample-banner').style.display = DRUGS.some(d => d.sample) ? 'block' : 'none';
-}
 function fmtF(v) { return v === null || v === undefined ? '—' : `${v}°F`; }
 function fToC(f) { return Math.round((f - 32) * 5 / 9); }
 function rangeText(lo, hi) {
@@ -215,20 +232,6 @@ function drugLimits(d) {
   const ceil = d.excursionMaxF ?? d.maxF ?? null;
   const floor = d.excursionMinF ?? d.minF ?? (d.freezeSensitive ? 32 : null);
   return { ceil, floor };
-}
-function onDrugChange() {
-  const d = currentDrug(); const el = document.getElementById('drug-facts');
-  if (!d) { el.innerHTML = ''; return; }
-  const { ceil, floor } = drugLimits(d);
-  el.innerHTML = `${d.flag ? `<div class="banner warn" style="margin-top:12px;">⚠ ${d.flag}</div>` : ''}<div class="drug-facts">
-    <div><div class="k">Excursion allowance</div><div class="v">${rangeText(floor, ceil)}</div></div>
-    <div><div class="k">Excursion length</div><div class="v">${d.excursionNote || '—'}</div></div>
-    <div style="grid-column: 1 / -1;"><div class="k">Storage</div><div class="v" style="font-weight:400;">${d.storage || rangeText(d.minF, d.maxF)}</div></div>
-    <div><div class="k">Freeze sensitive</div><div class="v">${d.freezeSensitive ? 'Yes — do not freeze' : 'No'}</div></div>
-    <div><div class="k">Protect from light</div><div class="v">${d.protectFromLight ? 'Yes' : 'No'}</div></div>
-    <div><div class="k">Allowance length</div><div class="v">${allowanceDays(d) != null ? allowanceDays(d) + ' days' : 'see excursion text'}</div></div>
-  </div>`;
-  if (lastResult) renderResult();
 }
 
 // ---- location → nearest NWS station → observations ----
@@ -304,102 +307,141 @@ function splitCovered(days, start) {
 function hourText(h) { return h === null ? '' : (h === 0 ? '12am' : h < 12 ? h + 'am' : h === 12 ? '12pm' : (h - 12) + 'pm'); }
 function dayText(key) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
 
+
+
+
+
+// ---- UI: product, pack state, decision ----
+async function loadDrugs() {
+  const sel = document.getElementById('drug-select');
+  try { const r = await fetch('data/drugs.json?_=' + Date.now()); DRUGS = await r.json(); } catch(e) { DRUGS = []; }
+  DRUGS.sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Select a product…</option>' + DRUGS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
+}
+function onDrugChange() {
+  const d = currentDrug(); const el = document.getElementById('drug-facts');
+  if (!d) { el.innerHTML = ''; decide(); return; }
+  const { ceil, floor } = drugLimits(d);
+  const days = allowanceDays(d);
+  el.innerHTML = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${days != null ? ` for ${days} days` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}${d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : ''}<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
+  decide();
+}
+function setPack(state) {
+  packState = state;
+  document.querySelectorAll('.pack-btn').forEach(b => b.classList.toggle('active', b.dataset.state === state));
+  decide();
+}
+
 async function runCheck() {
   const status = document.getElementById('status');
   const zip = (document.getElementById('zip').value || '').trim();
-  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit US ZIP.'; return; }
+  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit ZIP.'; return; }
   const sinceVal = document.getElementById('since').value, untilVal = document.getElementById('until').value;
   const now = new Date();
   let start = sinceVal ? new Date(sinceVal + 'T00:00:00') : new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 86400000);
   let end = untilVal ? new Date(untilVal + 'T23:59:59') : now;
   if (end > now) end = now;
-  if (end <= start) { status.textContent = 'The received date must be after the shipped date.'; return; }
-  if (now - start > MAX_LOOKBACK_DAYS * 86400000) { start = new Date(now.getTime() - MAX_LOOKBACK_DAYS * 86400000); status.textContent = `Observations only go back ~${MAX_LOOKBACK_DAYS} days — window trimmed.`; }
+  if (end <= start) { status.textContent = 'Received must be after shipped.'; return; }
+  if (now - start > MAX_LOOKBACK_DAYS * 86400000) { start = new Date(now.getTime() - MAX_LOOKBACK_DAYS * 86400000); status.textContent = `Only ~${MAX_LOOKBACK_DAYS} days of observations exist — window trimmed.`; }
   document.getElementById('check-btn').disabled = true;
-  status.textContent = 'Locating ZIP…';
+  status.textContent = 'Looking up…';
   try {
     const loc = await geocodeZip(zip);
-    status.textContent = 'Finding nearest weather station…';
     const pt = await nwsPoint(loc);
     const stations = await nearestStations(pt.stationsUrl, loc, 4);
     let used = null, obs = [];
-    for (const s of stations) {
-      status.textContent = `Reading observations from ${s.id}…`;
-      obs = await observations(s.id, start, end);
-      if (obs.length >= 12) { used = s; break; }   // sparse station → try the next-nearest
-    }
-    if (!used) throw new Error('No station near this ZIP has enough observations for that window.');
+    for (const s of stations) { obs = await observations(s.id, start, end); if (obs.length >= 12) { used = s; break; } }
+    if (!used) throw new Error('No weather station near that ZIP has readings for those dates.');
     lastResult = { zip, loc, place: pt.place, tz: pt.tz, station: used, obs, start, end };
     status.textContent = '';
-    renderResult();
-  } catch(e) {
-    status.textContent = e.message || 'Could not load observations.';
-    console.error(e);
-  } finally { document.getElementById('check-btn').disabled = false; }
+  } catch(e) { status.textContent = e.message || 'Could not load.'; lastResult = null; }
+  finally { document.getElementById('check-btn').disabled = false; decide(); }
 }
 
-function renderResult() {
-  const r = lastResult; if (!r) return;
+// One decision from: product allowance, how the packs felt, product-frozen flag,
+// and (when available) observed outdoor temperature over the shipped→received
+// window. Days inside the 48-hour pack-out rating are covered; "warm" packs
+// mean the pack-out is spent, so every day is scored.
+function decide() {
+  const d = currentDrug();
+  const productFrozen = document.getElementById('product-frozen').checked;
+  const v = document.getElementById('verdict');
+  const show = (cls, big, why, tell) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}`; };
+
+  if (productFrozen) return show('replace', 'REPLACE', `The medication itself shows signs of freezing${d ? ` — ${d.name} must not be used after freezing` : ''}. This is a discard regardless of the ice packs or the weather.`, 'Please don\'t use this one. We\'ll send a replacement and arrange the return.');
+  if (!d || !packState) return show('wait', 'Pick a product and how the packs felt.', '', '');
+
+  const { ceil, floor } = drugLimits(d);
+  const allow = allowanceDays(d);
+  const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor) : null;
+
+  if (packState === 'frozen') return show('ok', 'OK TO USE', `Frozen packs mean the cold chain held the whole way.${d.freezeSensitive ? ' The only risk is the product touching a frozen pack — you\'ve already asked about ice crystals, so it\'s fine.' : ''}`, 'It\'s good — the packs were still frozen, so it stayed cold the entire trip. Put it in the fridge and use as normal.');
+  if (packState === 'slushy') return show('ok', 'OK TO USE', 'Slushy packs are the ideal arrival: they were still melting, which means the inside of the box never warmed up.', 'It\'s good — that\'s exactly how it should arrive. Into the fridge and use as normal.');
+
+  // cool / warm: what did the outdoor temperature do?
+  if (!days) return show('call', packState === 'cool' ? 'LIKELY OK — confirm with the temperature check' : 'CHECK THE TEMPERATURE', packState === 'cool'
+    ? 'Cool packs mean they only just finished melting, so the product has stayed cool. Enter the ZIP and dates and press <em>Check the temperature</em> to confirm it stayed inside the allowance.'
+    : 'Warm packs mean the pack-out is spent, so what matters is how hot it got outside and for how many days. Enter the ZIP and dates and press <em>Check the temperature</em>.', '');
+
+  // score days: warm packs → every day; cool packs → only days beyond the 48-hour rating
+  const { exposed, above, below } = splitCovered(days, lastResult.start);
+  const scored = packState === 'warm' ? days : exposed;
+  const sAbove = scored.reduce((n, x) => n + x.above, 0), sBelow = scored.reduce((n, x) => n + x.below, 0);
+  const hi = scored.length ? Math.max(...scored.map(x => x.high)) : null, lo = scored.length ? Math.min(...scored.map(x => x.low)) : null;
+  const nDays = scored.length;
+
+  if (packState === 'cool' && exposed.length === 0)
+    return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, 'It\'s good — it arrived within the time our packaging is rated for and was still cool. Into the fridge and use as normal.');
+
+  if (sBelow > 0 && floor != null)
+    return show('call', 'PHARMACIST CALL — cold exposure', `Outdoor air dropped to ${fmtF(lo)} (below the ${fmtF(floor)} floor) for up to ${sBelow} hour${sBelow === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored. Ask again about ice crystals or a frozen look; if none, most products are fine.`, 'Let me double-check one thing: does the medication look completely normal — no ice, not cloudy? If so, it should be fine to use.');
+
+  if (sAbove === 0) {
+    const durOk = allow == null || nDays <= allow;
+    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allow}-day allowance` : ''}.`, `It\'s good — it never got warmer outside than what ${d.name} allows, and the time was well within the limit. Into the fridge and use as normal.`);
+    return show('call', 'PHARMACIST CALL — duration', `Temperature was fine (peak ${fmtF(hi)}, under the ${fmtF(ceil)} ceiling), but ${nDays} days out of the fridge exceeds the ${allow}-day allowance.`, 'Give me a moment to confirm with the pharmacist how long this one can be out of the fridge.');
+  }
+
+  return show('call', 'PHARMACIST CALL — possible excursion', `Outdoor air reached ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling, for up to ${sAbove} hour${sAbove === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored (worst case — a van in the sun can run hotter). Allowance: ${d.excursionNote || rangeText(floor, ceil)}. Decide on replacement.`, 'I want to be careful with this one — hold off using it for now while I confirm with the pharmacist whether we should send a replacement.');
+}
+
+function renderDetails() {
+  const r = lastResult; const det = document.getElementById('details');
+  if (!r) { det.style.display = 'none'; return; }
   const d = currentDrug();
   const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
   const days = summarize(r.obs, r.tz, ceil, floor);
-  document.getElementById('results').style.display = 'block';
+  splitCovered(days, r.start);
+  det.style.display = 'block';
   const placeName = r.place ? `${r.place.city}, ${r.place.state}` : r.loc.name;
-  document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings, ${dayText(days[0].day)} → ${dayText(days[days.length - 1].day)} (${r.tz.replace('_', ' ')})`;
-
-  const overall = days.reduce((a, x) => ({ high: Math.max(a.high, x.high), low: Math.min(a.low, x.low) }), { high: -999, low: 999 });
-  const { exposed, above, below } = splitCovered(days, r.start);
-  const exp = exposed.reduce((a, x) => ({ high: Math.max(a.high, x.high), low: Math.min(a.low, x.low) }), { high: -999, low: 999 });
-  const v = document.getElementById('verdict');
-  const windowDays = Math.max(1, Math.round((r.end - r.start) / 86400000));
-  const allowDays = d ? allowanceDays(d) : null;
-  if (exposed.length === 0) {
-    v.className = 'banner ok';
-    v.innerHTML = `<div class="verdict">Delivered within the pack-out's ${PACKOUT_RATING_HOURS}-hour rating</div>The gel packs hold ${d ? d.name : 'the product'} in range for ${PACKOUT_RATING_HOURS} hours, so outdoor temperature doesn't come into it. (Ambient ranged ${fmtF(overall.low)} – ${fmtF(overall.high)}, shown below for the record.)`;
-  } else if (!d) {
-    v.className = 'banner info';
-    v.innerHTML = `<div class="verdict">Delayed ${exposed.length} day${exposed.length === 1 ? '' : 's'} beyond the pack-out — ambient ranged ${fmtF(exp.low)} – ${fmtF(exp.high)} on those days</div>Select a product above to compare against its excursion allowance.`;
-  } else if (above === 0 && below === 0) {
-    const dur = allowDays != null
-      ? (exposed.length <= allowDays ? `The ${exposed.length} delayed day${exposed.length === 1 ? '' : 's'} ${exposed.length === 1 ? 'is' : 'are'} inside the ${allowDays}-day allowance, so this holds <strong>even if the product was at outdoor temperature the entire time</strong>.` : `Note: ${exposed.length} delayed days exceeds the ${allowDays}-day allowance — duration, not temperature, is the question here.`)
-      : 'Duration limit: see the excursion text.';
-    v.className = 'banner ok';
-    v.innerHTML = `<div class="verdict">Within ${d.name}'s allowance — worst case</div>The first ${PACKOUT_RATING_HOURS} hours are covered by the pack-out. On the ${exposed.length} delayed day${exposed.length === 1 ? '' : 's'}, outdoor air never left ${rangeText(floor, ceil)} (it ranged ${fmtF(exp.low)} – ${fmtF(exp.high)}). ${dur}`;
-  } else {
-    const parts = [];
-    if (above) parts.push(`up to <strong>${above} hour${above === 1 ? '' : 's'} above the ${fmtF(ceil)} ceiling</strong> (peak ${fmtF(exp.high)})`);
-    if (below) parts.push(`up to <strong>${below} hour${below === 1 ? '' : 's'} below the ${fmtF(floor)} floor</strong> (low ${fmtF(exp.low)})`);
-    v.className = 'banner bad';
-    v.innerHTML = `<div class="verdict">Ambient went outside ${d.name}'s range on the delayed day${exposed.length === 1 ? '' : 's'} — possible excursion</div>The first ${PACKOUT_RATING_HOURS} hours are covered by the pack-out. Beyond that, worst case (outdoor air the whole time): ${parts.join(' and ')}. That's an upper bound — the product was likely exposed for only part of it, but a delivery van or trailer in sun can also run hotter than ambient. Allowance: ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}. Pharmacist judgment.`;
-  }
-
-  let html = `<tr><th>Day</th><th>High</th><th>Low</th>${ceil != null ? `<th>Worst-case hrs &gt; ${ceil}°F</th>` : ''}${floor != null ? `<th>Worst-case hrs &lt; ${floor}°F</th>` : ''}<th>Readings</th></tr>`;
+  document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings · ${r.tz.replace('_', ' ')}`;
+  let html = `<tr><th>Day</th><th>High</th><th>Low</th>${ceil != null ? `<th>Hrs &gt; ${ceil}°F</th>` : ''}${floor != null ? `<th>Hrs &lt; ${floor}°F</th>` : ''}</tr>`;
   days.forEach(x => {
-    const c = x.covered;
+    const c = x.covered && packState !== 'warm';
     html += `<tr style="${c ? 'opacity:.55;' : ''}"><td>${dayText(x.day)}${c ? ' <span class="note">· covered by pack-out</span>' : ''}</td>
       <td class="${!c && ceil != null && x.high > ceil ? 'hot' : ''}">${fmtF(x.high)} <span class="note">${hourText(x.highH)}</span></td>
       <td class="${!c && floor != null && x.low < floor ? 'cold' : ''}">${fmtF(x.low)} <span class="note">${hourText(x.lowH)}</span></td>
       ${ceil != null ? `<td class="${!c && x.above ? 'hot' : ''}">${c ? '—' : x.above}</td>` : ''}
-      ${floor != null ? `<td class="${!c && x.below ? 'cold' : ''}">${c ? '—' : x.below}</td>` : ''}
-      <td class="note">${x.hours} hrs</td></tr>`;
+      ${floor != null ? `<td class="${!c && x.below ? 'cold' : ''}">${c ? '—' : x.below}</td>` : ''}</tr>`;
   });
   document.getElementById('days-table').innerHTML = html;
 }
+const _decide = decide;
+decide = function() { _decide(); renderDetails(); };
 
 function copySummary() {
-  const r = lastResult; if (!r) return;
-  const d = currentDrug();
-  const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
-  const days = summarize(r.obs, r.tz, ceil, floor);
-  const lines = [`EXCURSION CHECK — ZIP ${r.zip}${r.place ? ' (' + r.place.city + ', ' + r.place.state + ')' : ''} · station ${r.station.name} (${r.station.id}, ${r.station.miles.toFixed(1)} mi) · window ${r.start.toLocaleDateString()} → ${r.end.toLocaleDateString()} · outdoor air, not product temperature`];
-  if (d) lines.push(`Product: ${d.name} · storage ${d.storage || rangeText(d.minF, d.maxF)} · excursion allowance ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}`);
-  const { exposed, above, below } = splitCovered(days, r.start);
-  days.forEach(x => lines.push(`${dayText(x.day)}${x.covered ? ' (covered by pack-out)' : ''}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}${!x.covered && ceil != null ? `, ${x.above}h > ${ceil}°F` : ''}${!x.covered && floor != null ? `, ${x.below}h < ${floor}°F` : ''}`));
-  const ad = d ? allowanceDays(d) : null;
-  if (exposed.length === 0) lines.push(`Result: delivered within the pack-out's ${PACKOUT_RATING_HOURS}-hour rating — covered by the gel packs; ambient not a factor.`);
-  else if (d) lines.push(above || below ? `Result: ${exposed.length} delayed day(s) beyond the pack-out. Worst case (outdoor air the whole time): up to ${above}h above ceiling, ${below}h below floor. Upper bound; actual exposure likely shorter. Pharmacist judgment.` : `Result: within allowance even in the worst case — on the ${exposed.length} delayed day(s), ambient never left the range${ad != null ? ` (allowance ${ad} days)` : ''}.`);
+  const r = lastResult; const d = currentDrug();
+  const v = document.getElementById('verdict');
+  const lines = [`EXCURSION CHECK — ${d ? d.name : 'no product selected'} · packs: ${packState || 'n/a'}${document.getElementById('product-frozen').checked ? ' · PRODUCT FROZEN' : ''}`];
+  lines.push('Call: ' + (v.querySelector('.verdict-big') || {}).textContent + ' — ' + ((v.querySelector('.verdict-why') || {}).textContent || '').replace(/\s+/g, ' '));
+  if (r) {
+    const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
+    const days = summarize(r.obs, r.tz, ceil, floor); splitCovered(days, r.start);
+    lines.push(`ZIP ${r.zip} · station ${r.station.name} (${r.station.miles.toFixed(1)} mi) · ${r.start.toLocaleDateString()} → ${r.end.toLocaleDateString()} · outdoor air, not product`);
+    days.forEach(x => lines.push(`${dayText(x.day)}${x.covered && packState !== 'warm' ? ' (covered)' : ''}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}`));
+  }
   const status = document.getElementById('copy-status');
-  if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n')).then(() => { status.textContent = '✓ Summary copied'; setTimeout(() => status.textContent = '', 2500); });
+  if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n')).then(() => { status.textContent = '✓ Copied'; setTimeout(() => status.textContent = '', 2500); });
 }
 
 // ---- theme + boot ----

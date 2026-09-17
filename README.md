@@ -55,36 +55,30 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   towns `ship: true` in `STATES_BY_FIPS` (the generic list needs no change).
 
 **Excursion Check (`excursion.html`)**
-- For the "my medication arrived warm / half-frozen" call. The pharmacist picks
-  the product from a dropdown (its storage range, excursion allowance and
-  freeze sensitivity come from `data/drugs.json`, converted from the pharmacy's
-  Excel), enters the patient's ZIP (or a sort-hub ZIP via one-click chips if
-  tracking shows the delay was there) and the shipped → received dates, and
-  gets the **observed** outdoor temperature at the nearest National Weather
-  Service station for that window: each day's high and low with the hour they
-  occurred, and a **worst-case** count of hours above the product's ceiling or
-  below its floor (the floor is the sheet's Min Temp — 36°F for refrigerated
-  products). Our pack-outs are rated for **48 hours**, so the ship day and the
-  next two days are **covered** (`PACKOUT_RATING_HOURS`) and don't count; only
-  delayed days beyond that do — worst case because we rarely know
-  how long the product was actually exposed, so it assumes outdoor air the
-  whole time on those days. It parses
-  the allowance length ("14 days", "2 weeks") from the excursion text and says
-  plainly when a window is inside it — a 1-day delay under a never-exceeded
-  ceiling is within allowance regardless of duration. Observations go back
-  about a week.
-- It reports the station name and distance and says plainly that this is
-  ambient air, not the product inside the pack-out — evidence for the
-  pharmacist's judgment, not a verdict. **Copy summary** gives a paste-ready
-  note for the patient record.
-- `data/drugs.json` is converted from the pharmacy's *Temperature Sensitive
-  Stabilities* spreadsheet (Drug, NDC, Excursion Length, Max/Min Temp °F,
-  Protect From Light, Storage — the credit column is ignored). Per row:
-  `name`, `ndc` (kept for reference only — a product has many NDCs, so it is
-  not shown), `excursionMinF`/`excursionMaxF` (the sheet's Min/Max Temp),
-  `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`, and an
-  optional `flag` shown as a warning when a source cell was blank or carried
-  a footnote. To update: edit the spreadsheet and re-convert.
+- A phone script for the "my medication arrived warm / half-frozen" call, with
+  one verdict: **OK TO USE / PHARMACIST CALL / REPLACE**, one sentence why, and
+  one sentence to tell the patient.
+  1. Pick the product (allowance shown in one line: *up to 77°F for 14 days ·
+     not below 36°F · do not freeze* — from `data/drugs.json`, converted from
+     the pharmacy's Temperature Sensitive Stabilities spreadsheet).
+  2. Ask how the ice packs felt: **frozen solid** or **slushy** → the cold
+     chain held → OK. **Thawed but cool** → OK if received inside the
+     pack-out's 48-hour rating; otherwise only the delayed days are scored.
+     **Thawed and warm** → the pack-out is spent; every day is scored. A
+     product that itself looks frozen / has ice crystals / looks different →
+     REPLACE regardless.
+  3. ZIP (or a sort-hub ZIP via chips) + shipped/received dates → observed
+     outdoor temperature from the nearest NWS station, scored worst-case
+     (outdoor air the whole time) against the product's ceiling, floor (the
+     sheet's Min Temp, 36°F for refrigerated) and allowance length. Never
+     exceeded and inside the allowance days → OK; exceeded, below the floor,
+     or too many days → PHARMACIST CALL with the numbers.
+- Details (station, distance, daily highs/lows, copy-for-the-record) fold
+  under a toggle. Constants: `PACKOUT_RATING_HOURS = 48`.
+- `data/drugs.json` rows: `name`, `ndc` (reference only, not shown),
+  `excursionMinF`/`excursionMaxF`, `excursionNote`, `storage`,
+  `protectFromLight`, `freezeSensitive`, optional `flag`. Update by editing
+  the spreadsheet and re-converting.
 
 ### Data sources
 | Source | Used for | Key required |
