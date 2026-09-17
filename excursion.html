@@ -248,9 +248,10 @@ function rangeText(lo, hi) {
 // Pull "no more than 14 days" / "2 weeks" / "28 days" out of the excursion text.
 function allowanceDays(d) {
   const t = (d.excursionNote || '') + ' ' + (d.storage || '');
-  const m = t.match(/(\d+)\s*(day|days|week|weeks)\b/i);
+  const m = t.match(/(\d+)\s*(hour|hours|hr|hrs|day|days|week|weeks)\b/i);
   if (!m) return null;
   const n = parseInt(m[1], 10);
+  if (/^h/i.test(m[2])) return Math.max(1, Math.ceil(n / 24)); // "24 hours" → 1 day
   return /week/i.test(m[2]) ? n * 7 : n;
 }
 function setZip(z) { document.getElementById('zip').value = z; showPlace(); }
@@ -369,7 +370,7 @@ function onDrugChange() {
   if (!d) { el.innerHTML = ''; decide(); return; }
   const { ceil, floor } = drugLimits(d);
   const days = allowanceDays(d);
-  el.innerHTML = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${days != null ? ` for ${days} days` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}${d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : ''}<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
+  el.innerHTML = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${days != null ? ` for ${days} day${days === 1 ? '' : 's'}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}${d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : ''}<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
   decide();
 }
 function setPack(state) {
