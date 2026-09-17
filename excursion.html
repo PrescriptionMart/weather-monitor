@@ -116,7 +116,7 @@
 <div class="header">
   <div>
     <div class="h1">Excursion Check</div>
-    <div class="sub">On the phone: product → how the ice packs felt → ZIP &amp; dates → the call</div>
+    <div class="sub">For the pharmacist on the phone: product → how the ice packs felt → ZIP &amp; dates → your call</div>
   </div>
   <div class="header-right">
     <div class="updated" id="last-updated"></div>
@@ -367,19 +367,20 @@ function decide() {
   const productFrozen = document.getElementById('product-frozen').checked;
   const v = document.getElementById('verdict');
   const show = (cls, big, why, tell) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}`; };
+  const judge = (big, why, decide, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div><div class="verdict-tell"><b>Your call — lean on</b>${decide}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div><div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
 
-  if (productFrozen) return show('replace', 'REPLACE', `The medication itself shows signs of freezing${d ? ` — ${d.name} must not be used after freezing` : ''}. This is a discard regardless of the ice packs or the weather.`, 'Please don\'t use this one. We\'ll send a replacement and arrange the return.');
+  if (productFrozen) return show('replace', 'REPLACE', `The medication itself shows signs of freezing${d ? ` — ${d.name} must not be used after freezing` : ''}. Discard regardless of the ice packs or the weather.`, '"Please don\'t use this one. I\'m sending a replacement and we\'ll arrange the return."');
   if (!d || !packState) return show('wait', 'Pick a product and how the packs felt.', '', '');
 
   const { ceil, floor } = drugLimits(d);
   const allow = allowanceDays(d);
   const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor) : null;
 
-  if (packState === 'frozen') return show('ok', 'OK TO USE', `Frozen packs mean the cold chain held the whole way.${d.freezeSensitive ? ' The only risk is the product touching a frozen pack — you\'ve already asked about ice crystals, so it\'s fine.' : ''}`, 'It\'s good — the packs were still frozen, so it stayed cold the entire trip. Put it in the fridge and use as normal.');
-  if (packState === 'slushy') return show('ok', 'OK TO USE', 'Slushy packs are the ideal arrival: they were still melting, which means the inside of the box never warmed up.', 'It\'s good — that\'s exactly how it should arrive. Into the fridge and use as normal.');
+  if (packState === 'frozen') return show('ok', 'OK TO USE', `Frozen packs mean the cold chain held the whole way.${d.freezeSensitive ? ' The only risk is the product touching a frozen pack — you\'ve already asked about ice crystals, so it\'s fine.' : ''}`, '"The packs were still frozen, so it stayed cold the whole trip — it\'s fine. Put it in the fridge and use as normal."');
+  if (packState === 'slushy') return show('ok', 'OK TO USE', 'Slushy packs are the ideal arrival: they were still melting, which means the inside of the box never warmed up.', '"Slushy packs are exactly how it should arrive — it stayed cold. Into the fridge and use as normal."');
 
   // cool / warm: what did the outdoor temperature do?
-  if (!days) return show('call', packState === 'cool' ? 'LIKELY OK — confirm with the temperature check' : 'CHECK THE TEMPERATURE', packState === 'cool'
+  if (!days) return show('call', packState === 'cool' ? 'LIKELY OK — run the temperature check' : 'RUN THE TEMPERATURE CHECK', packState === 'cool'
     ? 'Cool packs mean they only just finished melting, so the product has stayed cool. Enter the ZIP and dates and press <em>Check the temperature</em> to confirm it stayed inside the allowance.'
     : 'Warm packs mean the pack-out is spent, so what matters is how hot it got outside and for how many days. Enter the ZIP and dates and press <em>Check the temperature</em>.', '');
 
@@ -391,18 +392,18 @@ function decide() {
   const nDays = scored.length;
 
   if (packState === 'cool' && exposed.length === 0)
-    return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, 'It\'s good — it arrived within the time our packaging is rated for and was still cool. Into the fridge and use as normal.');
+    return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, '"It arrived within the time our packaging is rated for and was still cool — it\'s fine. Into the fridge and use as normal."');
 
   if (sBelow > 0 && floor != null)
-    return show('call', 'PHARMACIST CALL — cold exposure', `Outdoor air dropped to ${fmtF(lo)} (below the ${fmtF(floor)} floor) for up to ${sBelow} hour${sBelow === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored. Ask again about ice crystals or a frozen look; if none, most products are fine.`, 'Let me double-check one thing: does the medication look completely normal — no ice, not cloudy? If so, it should be fine to use.');
+    return judge('JUDGMENT CALL — cold exposure', `Outdoor air dropped to ${fmtF(lo)} (below the ${fmtF(floor)} floor) for up to ${sBelow} hour${sBelow === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored — worst case, outdoor air the whole time.`, 'Appearance. No ice crystals, not cloudy, looks normal → the product almost certainly didn\'t freeze; keep it. Any sign of freezing → replace.', '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 
   if (sAbove === 0) {
     const durOk = allow == null || nDays <= allow;
-    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allow}-day allowance` : ''}.`, `It\'s good — it never got warmer outside than what ${d.name} allows, and the time was well within the limit. Into the fridge and use as normal.`);
-    return show('call', 'PHARMACIST CALL — duration', `Temperature was fine (peak ${fmtF(hi)}, under the ${fmtF(ceil)} ceiling), but ${nDays} days out of the fridge exceeds the ${allow}-day allowance.`, 'Give me a moment to confirm with the pharmacist how long this one can be out of the fridge.');
+    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allow}-day allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
+    return judge('JUDGMENT CALL — duration', `Temperature was fine (peak ${fmtF(hi)}, under the ${fmtF(ceil)} ceiling), but ${nDays} days in transit exceeds the ${allow}-day allowance.`, 'Time, not heat. Keep it only if you can establish it was refrigerated for part of that window (e.g., held at a carrier facility that\'s climate-controlled, or the patient refrigerated it on day one). Otherwise replace.', '"It stayed cool the whole way and was refrigerated for most of that time, so it\'s fine to use."', '"It was out of refrigeration longer than this medication allows, so I\'m going to replace it. Please set it aside; we\'ll send a new one."');
   }
 
-  return show('call', 'PHARMACIST CALL — possible excursion', `Outdoor air reached ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling, for up to ${sAbove} hour${sAbove === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored (worst case — a van in the sun can run hotter). Allowance: ${d.excursionNote || rangeText(floor, ceil)}. Decide on replacement.`, 'I want to be careful with this one — hold off using it for now while I confirm with the pharmacist whether we should send a replacement.');
+  return judge('JUDGMENT CALL — possible heat excursion', `Outdoor air reached ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling, for up to ${sAbove} hour${sAbove === 1 ? '' : 's'} on the ${nDays} day${nDays === 1 ? '' : 's'} scored. That\'s the worst case (outdoor air the whole time); a van in the sun can run hotter. Allowance: ${d.excursionNote || rangeText(floor, ceil)}.`, `Three things: how warm the packs were (barely warm → lean keep; warm to the touch → lean replace), whether the product looks normal, and how ${sAbove}h compares to the allowance${allow != null ? ` (${allow} days)` : ''}. Well inside it with a normal-looking product → keep. Close to it, or anything off → replace.`, '"It looks normal and the exposure was well within what this medication tolerates, so it\'s fine to use — into the fridge."', '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 }
 
 function renderDetails() {
