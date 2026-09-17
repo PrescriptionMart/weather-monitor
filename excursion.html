@@ -113,6 +113,8 @@
     .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
     .zip-place { font-size: 14px; font-weight: 600; margin-top: 4px; min-height: 18px; color: var(--brand); }
     .zip-place.err { color: var(--text-muted); font-weight: 400; }
+    .tips-card { border-left: 5px solid var(--brand); background: color-mix(in srgb, var(--brand) 9%, var(--surface)); }
+    .tips-label { color: var(--brand); font-weight: 800; font-size: 13px; }
     .tips { font-size: 14px; margin: 6px 0 0; padding-left: 18px; }
     .tips li { margin: 6px 0; line-height: 1.45; }
     .tips li b { font-weight: 700; }
@@ -193,18 +195,8 @@
     <div class="verdict-big" style="font-size:18px; font-weight:600;">Pick a product and how the packs felt.</div>
   </div>
 
-  <details class="more" id="details" style="display:none;" open>
-    <summary>Details — station, daily highs/lows, copy for the record (tap to hide)</summary>
-    <div class="card" style="margin-top:8px;">
-      <div class="note" id="station-line"></div>
-      <table class="days" id="days-table"></table>
-      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy summary</button><span class="copy-status" id="copy-status"></span></div>
-      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time). <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
-    </div>
-  </details>
-
-  <div class="card" style="margin-top:16px;">
-    <div class="section-label">On the call</div>
+  <div class="card tips-card" style="margin-top:12px;">
+    <div class="section-label tips-label">📞 On the call</div>
     <ul class="tips">
       <li><b>The packs are your thermometer.</b> Any ice left means it stayed cold, however late it was.</li>
       <li><b>Ask when it went in the fridge.</b> Hours on the porch matter more than days in transit.</li>
@@ -215,6 +207,17 @@
       <li><b>Paste the summary into the record.</b> Every call logged is data for next season.</li>
     </ul>
   </div>
+
+  <details class="more" id="details" style="display:none;" open>
+    <summary>Details — station, daily highs/lows, copy for the record (tap to hide)</summary>
+    <div class="card" style="margin-top:8px;">
+      <div class="note" id="station-line"></div>
+      <table class="days" id="days-table"></table>
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy summary</button><span class="copy-status" id="copy-status"></span></div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time). <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
+    </div>
+  </details>
+
 
 </div>
 

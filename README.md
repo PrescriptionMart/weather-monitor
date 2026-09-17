@@ -80,7 +80,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   a keep-it and a replace-it script. Details (station, distance, daily
   highs/lows, copy-for-the-record) are expanded below the verdict and can be
   collapsed. Constants: `PACKOUT_RATING_HOURS = 48`.
-- **On the call** — seven one-line tips under the details panel (packs are
+- **On the call** — a highlighted card right under the verdict with seven one-line tips (packs are
   the thermometer, ask when it went in the fridge, say what you checked then
   the answer, weaker dose vs missed dose, manufacturer med-info line, a
   safety-net line for anxious patients, log it).
