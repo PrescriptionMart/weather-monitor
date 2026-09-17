@@ -11,7 +11,7 @@ Live dashboard: `https://prescriptionmart.github.io/weather-monitor`
 
 ## What it shows
 
-The site is two pages (tabs at the top):
+The site is three pages (tabs at the top):
 
 **Hub Forecasts (`index.html`)**
 - Next 3 sort windows at our **Houston (IAH) origin** — where every package
@@ -54,12 +54,34 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`). To refresh the footprint, mark
   towns `ship: true` in `STATES_BY_FIPS` (the generic list needs no change).
 
+**Excursion Check (`excursion.html`)**
+- For the "my medication arrived warm / half-frozen" call. The pharmacist picks
+  the product from a dropdown (its storage range, excursion allowance and
+  freeze sensitivity come from `data/drugs.json`, converted from the pharmacy's
+  Excel), enters the patient's ZIP and optionally the delivery date, and gets
+  the **observed** outdoor temperature at the nearest National Weather Service
+  station for that window: each day's high and low with the hour they
+  occurred, and the number of hours above the product's excursion ceiling or
+  below its floor (32°F by default for freeze-sensitive products). Observations
+  go back about a week; the default window is the last 3 days.
+- It reports the station name and distance and says plainly that this is
+  ambient air, not the product inside the pack-out — evidence for the
+  pharmacist's judgment, not a verdict. **Copy summary** gives a paste-ready
+  note for the patient record.
+- `data/drugs.json` is converted from the pharmacy's *Temperature Sensitive
+  Stabilities* spreadsheet (Drug, NDC, Excursion Length, Max/Min Temp °F,
+  Protect From Light, Storage — the credit column is ignored). Per row:
+  `name`, `ndc`, `excursionMinF`/`excursionMaxF` (the sheet's Min/Max Temp),
+  `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`, and an
+  optional `flag` shown as a warning when a source cell was blank or carried
+  a footnote. To update: edit the spreadsheet and re-convert.
+
 ### Data sources
 | Source | Used for | Key required |
 |--------|----------|--------------|
 | OpenWeatherMap 5-day/3-hour forecast | Hub night-window conditions | Free API key (in `index.html`) |
 | OpenWeatherMap geocoding | Delivery-ZIP → coordinates | same key |
-| National Weather Service (api.weather.gov) | Active alerts + plain-language forecast + winter map | None |
+| National Weather Service (api.weather.gov) | Active alerts + plain-language forecast + winter map + observation history (Excursion Check) | None |
 | FAA NAS Status (nasstatus.faa.gov) | Ground stops / ground delay programs | None (proxied via Action) |
 | NHC (nhc.noaa.gov) | Active tropical storms + 7-day formation chances | None (proxied via Action) |
 

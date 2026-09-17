@@ -10,7 +10,7 @@ fail=0
 tmp="$(mktemp --suffix=.js)"
 trap 'rm -f "$tmp"' EXIT
 
-for f in index.html winter-pack.html; do
+for f in index.html winter-pack.html excursion.html; do
   python3 - "$f" > "$tmp" <<'PY'
 import sys, re
 html = open(sys.argv[1]).read()
@@ -25,11 +25,13 @@ PY
   fi
 done
 
-if python3 -c "import json; json.load(open('data/faa-events.json'))"; then
-  echo "ok: data/faa-events.json — valid JSON"
-else
-  echo "FAIL: data/faa-events.json — invalid JSON"; fail=1
-fi
+for j in data/faa-events.json data/drugs.json; do
+  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$j"; then
+    echo "ok: $j — valid JSON"
+  else
+    echo "FAIL: $j — invalid JSON"; fail=1
+  fi
+done
 
 [ "$fail" -eq 0 ] && echo "All checks passed." || echo "Checks failed."
 exit $fail
