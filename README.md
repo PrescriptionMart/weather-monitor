@@ -68,7 +68,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
      **Thawed and warm** → the pack-out is spent; every day is scored. A
      product that itself looks frozen / has ice crystals / looks different →
      REPLACE regardless.
-  3. ZIP (or a sort-hub ZIP via chips) + shipped/received dates → observed
+  3. ZIP (city and state appear as soon as five digits are typed; sort-hub
+     ZIPs via chips) + shipped/received dates → observed
      outdoor temperature from the nearest NWS station, scored worst-case
      (outdoor air the whole time) against the product's ceiling, floor (the
      sheet's Min Temp, 36°F for refrigerated) and allowance length. Never
@@ -79,6 +80,10 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   a keep-it and a replace-it script. Details (station, distance, daily
   highs/lows, copy-for-the-record) are expanded below the verdict and can be
   collapsed. Constants: `PACKOUT_RATING_HOURS = 48`.
+- **On the call** — seven one-line tips under the details panel (packs are
+  the thermometer, ask when it went in the fridge, say what you checked then
+  the answer, weaker dose vs missed dose, manufacturer med-info line, a
+  safety-net line for anxious patients, log it).
 - **Basis & references (`excursion-basis.html`)** — what each rule rests on
   (USP <659>/<1079>, CDC excursion procedure, ISTA 7D/7E, URAC P-MD, 22 TAC
   §291.12, JAPhA 2023 mail-transit study, manufacturer allowances), where

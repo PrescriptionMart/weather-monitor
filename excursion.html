@@ -111,6 +111,12 @@
     details.more { margin-top: 12px; }
     details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
     .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
+    .zip-place { font-size: 14px; font-weight: 600; margin-top: 4px; min-height: 18px; color: var(--brand); }
+    .zip-place.err { color: var(--text-muted); font-weight: 400; }
+    .tips { font-size: 14px; margin: 6px 0 0; padding-left: 18px; }
+    .tips li { margin: 6px 0; line-height: 1.45; }
+    .tips li b { font-weight: 700; }
+    .tips li q { font-style: italic; }
     .allow-line b { font-weight: 700; }
   </style>
   <script>
@@ -168,7 +174,8 @@
     <div class="section-label">3 · Where and when</div>
     <form onsubmit="runCheck(); return false;">
       <div class="grid-2" style="gap:10px;">
-        <div><label class="lbl" for="zip">Patient ZIP</label><input id="zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 77002" />
+        <div><label class="lbl" for="zip">Patient ZIP</label><input id="zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 77002" oninput="showPlace()" autocomplete="postal-code" />
+          <div class="zip-place" id="zip-place"></div>
           <div class="note" style="margin-top:4px;">Delay was at a hub? <button type="button" class="chip" onclick="setZip('77032')">Houston</button><button type="button" class="chip" onclick="setZip('38118')">Memphis</button><button type="button" class="chip" onclick="setZip('40213')">Louisville</button><button type="button" class="chip" onclick="setZip('46241')">Indianapolis</button></div></div>
         <div class="grid-2" style="gap:10px;">
           <div><label class="lbl" for="since">Shipped</label><input id="since" type="date" /></div>
@@ -195,6 +202,19 @@
       <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time). <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
     </div>
   </details>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="section-label">On the call</div>
+    <ul class="tips">
+      <li><b>The packs are your thermometer.</b> Any ice left means it stayed cold, however late it was.</li>
+      <li><b>Ask when it went in the fridge.</b> Hours on the porch matter more than days in transit.</li>
+      <li><b>Say what you checked, then the answer.</b> <q>Your packs still had ice, and I checked the weather at your address for the days it was delayed. This medication handles far more than that. It's fine to use.</q></li>
+      <li><b>Close call? Weigh a weaker dose against a missed dose.</b> A mild excursion costs potency, not safety. Skipping a dose is often the bigger risk.</li>
+      <li><b>Still unsure? Call the manufacturer's medical information line</b> with the facts from <em>Copy summary</em>. They answer from their own stability data, usually the same day.</li>
+      <li><b>Anxious patient? Give a safety net.</b> <q>If anything looks different from your last dose, or you'd just feel better with a fresh one, call me and we'll replace it.</q></li>
+      <li><b>Paste the summary into the record.</b> Every call logged is data for next season.</li>
+    </ul>
+  </div>
 
 </div>
 
@@ -230,7 +250,24 @@ function allowanceDays(d) {
   const n = parseInt(m[1], 10);
   return /week/i.test(m[2]) ? n * 7 : n;
 }
-function setZip(z) { document.getElementById('zip').value = z; }
+function setZip(z) { document.getElementById('zip').value = z; showPlace(); }
+
+// ZIP → { loc, pt } (OpenWeatherMap geocode + NWS point), cached so the
+// as-you-type city/state lookup and the temperature check share one fetch.
+const zipCache = {};
+function lookupZip(zip) {
+  if (!zipCache[zip]) zipCache[zip] = (async () => { const loc = await geocodeZip(zip); const pt = await nwsPoint(loc); return { loc, pt }; })().catch(e => { delete zipCache[zip]; throw e; });
+  return zipCache[zip];
+}
+function placeName(x) { return x.pt.place && x.pt.place.city ? `${x.pt.place.city}, ${x.pt.place.state}` : x.loc.name; }
+async function showPlace() {
+  const zip = (document.getElementById('zip').value || '').trim();
+  const el = document.getElementById('zip-place');
+  if (!/^\d{5}$/.test(zip)) { el.textContent = ''; el.className = 'zip-place'; return; }
+  el.textContent = '…'; el.className = 'zip-place';
+  try { const x = await lookupZip(zip); if (document.getElementById('zip').value.trim() !== zip) return; el.textContent = placeName(x); }
+  catch(e) { if (document.getElementById('zip').value.trim() !== zip) return; el.textContent = 'ZIP not found'; el.className = 'zip-place err'; }
+}
 function currentDrug() { const v = document.getElementById('drug-select').value; return v === '' ? null : DRUGS[+v]; }
 function drugLimits(d) {
   // The sheet's Min/Max Temp are the excursion allowance. If a min is blank,
@@ -352,8 +389,7 @@ async function runCheck() {
   document.getElementById('check-btn').disabled = true;
   status.textContent = 'Looking up…';
   try {
-    const loc = await geocodeZip(zip);
-    const pt = await nwsPoint(loc);
+    const { loc, pt } = await lookupZip(zip);
     const stations = await nearestStations(pt.stationsUrl, loc, 4);
     let used = null, obs = [];
     for (const s of stations) { obs = await observations(s.id, start, end); if (obs.length >= 12) { used = s; break; } }
