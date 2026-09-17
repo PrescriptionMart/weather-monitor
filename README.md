@@ -64,9 +64,9 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   Service station for that window: each day's high and low with the hour they
   occurred, and a **worst-case** count of hours above the product's ceiling or
   below its floor (the floor is the sheet's Min Temp — 36°F for refrigerated
-  products). The ship day and the next day are **covered by the pack-out**
-  (gel packs hold a normal one-day transit; `PACKOUT_COVERED_DAYS`) and don't
-  count; only delayed days beyond that do — worst case because we rarely know
+  products). Our pack-outs are rated for **48 hours**, so the ship day and the
+  next two days are **covered** (`PACKOUT_RATING_HOURS`) and don't count; only
+  delayed days beyond that do — worst case because we rarely know
   how long the product was actually exposed, so it assumes outdoor air the
   whole time on those days. It parses
   the allowance length ("14 days", "2 weeks") from the excursion text and says
