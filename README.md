@@ -56,8 +56,9 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 
 **Excursion Check (`excursion.html`)**
 - A phone script for the "my medication arrived warm / half-frozen" call, with
-  one verdict: **OK TO USE / PHARMACIST CALL / REPLACE**, one sentence why, and
-  one sentence to tell the patient.
+  one verdict: **OK TO USE / JUDGMENT CALL / REPLACE**, one sentence why, and
+  a ready script for the patient. The pharmacist uses it directly; judgment
+  cases show the factors to weigh plus a keep-it script and a replace-it script.
   1. Pick the product (allowance shown in one line: *up to 77°F for 14 days ·
      not below 36°F · do not freeze* — from `data/drugs.json`, converted from
      the pharmacy's Temperature Sensitive Stabilities spreadsheet).
@@ -72,7 +73,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
      (outdoor air the whole time) against the product's ceiling, floor (the
      sheet's Min Temp, 36°F for refrigerated) and allowance length. Never
      exceeded and inside the allowance days → OK; exceeded, below the floor,
-     or too many days → PHARMACIST CALL with the numbers.
+     or too many days → JUDGMENT CALL with the numbers and the factors to weigh.
 - Details (station, distance, daily highs/lows, copy-for-the-record) fold
   under a toggle. Constants: `PACKOUT_RATING_HOURS = 48`.
 - `data/drugs.json` rows: `name`, `ndc` (reference only, not shown),
