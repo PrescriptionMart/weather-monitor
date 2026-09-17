@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excursion Check — Prescription Mart</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1B4F8A" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ship Weather" />
+  <title>Excursion Check — Prescription Mart</title>
+  <style>
+    :root {
+      --bg: #f4f4f2; --surface: #ffffff; --surface-2: #f7f7f5; --inset: #f0f0ec;
+      --border: #e4e4df; --border-2: #efefea;
+      --text: #1a1a1a; --text-muted: #6b6b66; --text-faint: #9a9a93;
+      --brand: #1B4F8A; --brand-strong: #164070; --header-bg: #1B4F8A; --header-fg: #ffffff; --on-accent: #ffffff;
+      --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.07);
+      --radius: 10px; --radius-lg: 14px; --low-fg: #3B6D11;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+        --border: #2e323a; --border-2: #282c33;
+        --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+        --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4); --low-fg: #a7d178;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #14161a; --surface: #1d2026; --surface-2: #23262d; --inset: #23262d;
+      --border: #2e323a; --border-2: #282c33;
+      --text: #e8e9ec; --text-muted: #a6aab3; --text-faint: #7c818b;
+      --brand: #6aa6e6; --brand-strong: #80b4ec; --header-bg: #16243a; --header-fg: #eef3fb;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4); --low-fg: #a7d178;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background .2s, color .2s; }
+    .header { background: var(--header-bg); color: var(--header-fg); padding: 1.1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+    .header .sub { font-size: 13px; opacity: 0.78; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .header .updated { font-size: 12px; opacity: 0.72; }
+    .theme-toggle { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: var(--header-fg); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .theme-toggle:hover { background: rgba(255,255,255,.2); }
+    .today-banner { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.25rem 2rem; text-align: center; }
+    .today-day { font-size: 32px; font-weight: 650; color: var(--brand); line-height: 1.1; letter-spacing: -.02em; }
+    .today-date { font-size: 15px; color: var(--text-muted); margin-top: 3px; }
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; }
+    .tabs-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 4px; }
+    .tab { padding: 13px 18px; font-size: 14px; font-weight: 500; color: var(--text-muted); border-bottom: 3px solid transparent; text-decoration: none; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+    label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 10px 0 4px; }
+    select, input[type=text], input[type=date] { width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+    .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--surface-2); }
+    .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
+    .btn-primary:hover { background: var(--brand-strong); }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .drug-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 12px; font-size: 13px; }
+    .drug-facts .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .drug-facts .v { font-weight: 600; margin-top: 2px; }
+    .note { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .banner { border-radius: var(--radius); padding: 10px 14px; font-size: 13px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .banner.warn { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .banner.bad { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .banner.ok { background: #DCEDC8; border-color: #C5E1A5; color: #33691E; }
+    .banner.info { background: var(--surface-2); color: var(--text-muted); }
+    .verdict { font-size: 20px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 4px; }
+    table.days { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+    table.days th, table.days td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-2); }
+    table.days th { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    td.hot { color: #B71C1C; font-weight: 600; }
+    td.cold { color: #0D47A1; font-weight: 600; }
+    .status { font-size: 13px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+    .copy-status { font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px; }
+  </style>
+  <script>
+    (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
+  </script>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="h1">Excursion Check</div>
+    <div class="sub">What did the patient's medication actually see? &nbsp;·&nbsp; Drug allowances vs. observed ambient temperature</div>
+  </div>
+  <div class="header-right">
+    <div class="updated" id="last-updated"></div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark" aria-label="Toggle light/dark theme">🌙</button>
+  </div>
+</div>
+
+<div class="today-banner">
+  <div class="today-day" id="today-day"></div>
+  <div class="today-date" id="today-date"></div>
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <a href="index.html" class="tab">Hub Forecasts</a>
+    <a href="winter-pack.html" class="tab">Winter Packing Map</a>
+    <a href="excursion.html" class="tab active">Excursion Check</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="sample-banner" class="banner warn" style="display:none;">The drug list currently contains <strong>placeholder rows</strong>. Once the pharmacy's Excel is loaded into <code>data/drugs.json</code>, real products and allowances appear here.</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-label">1 · Medication</div>
+      <label class="lbl" for="drug-select">Product</label>
+      <select id="drug-select" onchange="onDrugChange()"><option value="">Loading drug list…</option></select>
+      <div id="drug-facts"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">2 · Patient location &amp; window</div>
+      <form onsubmit="runCheck(); return false;">
+        <label class="lbl" for="zip">Patient ZIP</label>
+        <input id="zip" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="e.g. 77002" />
+        <label class="lbl" for="since">Look back from</label>
+        <input id="since" type="date" />
+        <div class="note" style="margin-top:6px;">Defaults to the last 3 days. Set it to the delivery date to cover everything since the package landed (observations go back about a week).</div>
+        <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-primary" type="submit" id="check-btn">Check exposure</button>
+          <span class="status" id="status"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" id="results" style="margin-top:16px; display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-label" style="margin-bottom:4px;">3 · Observed ambient temperature</div>
+        <div class="note" id="station-line"></div>
+      </div>
+      <button class="btn" onclick="copySummary()">Copy summary</button>
+    </div>
+    <div id="verdict" class="banner info" style="margin-top:12px;"></div>
+    <table class="days" id="days-table"></table>
+    <div class="copy-status" id="copy-status"></div>
+    <div class="note" style="margin-top:12px;">These are <strong>outdoor air temperatures at the nearest weather station</strong>, not the temperature inside the package. A shipper with conditioned gel packs, a shaded porch, or a hot mailbox all move the product's real exposure. Use this as evidence for the pharmacist's judgment, not as the judgment itself.</div>
+  </div>
+
+</div>
+
+<script>
+const WEATHER_API_KEY = '9a54213295e4acad6a2af136430650e5'; // OpenWeatherMap — used only to turn a ZIP into coordinates
+const NWS_HEADERS = { 'Accept': 'application/geo+json' };
+const DEFAULT_LOOKBACK_DAYS = 3;
+const MAX_LOOKBACK_DAYS = 7; // NWS keeps roughly a week of observations
+
+let DRUGS = [];
+let lastResult = null;
+
+// ---- drug list ----
+async function loadDrugs() {
+  const sel = document.getElementById('drug-select');
+  try {
+    const r = await fetch('data/drugs.json?_=' + Date.now());
+    DRUGS = await r.json();
+  } catch(e) { DRUGS = []; }
+  DRUGS.sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Select a product…</option>' + DRUGS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
+  document.getElementById('sample-banner').style.display = DRUGS.some(d => d.sample) ? 'block' : 'none';
+}
+function fmtF(v) { return v === null || v === undefined ? '—' : `${v}°F`; }
+function fToC(f) { return Math.round((f - 32) * 5 / 9); }
+function rangeText(lo, hi) {
+  if (lo == null && hi == null) return '—';
+  const f = `${lo != null ? lo + '°F' : '…'} to ${hi != null ? hi + '°F' : '…'}`;
+  const c = `${lo != null ? fToC(lo) + '°C' : '…'} to ${hi != null ? fToC(hi) + '°C' : '…'}`;
+  return `${f} (${c})`;
+}
+function currentDrug() { const v = document.getElementById('drug-select').value; return v === '' ? null : DRUGS[+v]; }
+function drugLimits(d) {
+  // The sheet's Min/Max Temp are the excursion allowance. If a min is blank,
+  // freeze-sensitive products fall back to the 32°F freeze line.
+  const ceil = d.excursionMaxF ?? d.maxF ?? null;
+  const floor = d.excursionMinF ?? d.minF ?? (d.freezeSensitive ? 32 : null);
+  return { ceil, floor };
+}
+function onDrugChange() {
+  const d = currentDrug(); const el = document.getElementById('drug-facts');
+  if (!d) { el.innerHTML = ''; return; }
+  const { ceil, floor } = drugLimits(d);
+  el.innerHTML = `${d.flag ? `<div class="banner warn" style="margin-top:12px;">⚠ ${d.flag}</div>` : ''}<div class="drug-facts">
+    <div><div class="k">Excursion allowance</div><div class="v">${rangeText(floor, ceil)}</div></div>
+    <div><div class="k">Excursion length</div><div class="v">${d.excursionNote || '—'}</div></div>
+    <div style="grid-column: 1 / -1;"><div class="k">Storage</div><div class="v" style="font-weight:400;">${d.storage || rangeText(d.minF, d.maxF)}</div></div>
+    <div><div class="k">Freeze sensitive</div><div class="v">${d.freezeSensitive ? 'Yes — do not freeze' : 'No'}</div></div>
+    <div><div class="k">Protect from light</div><div class="v">${d.protectFromLight ? 'Yes' : 'No'}</div></div>
+    <div><div class="k">NDC</div><div class="v" style="font-weight:400;">${d.ndc || '—'}</div></div>
+  </div>`;
+  if (lastResult) renderResult();
+}
+
+// ---- location → nearest NWS station → observations ----
+async function geocodeZip(zip) {
+  const r = await fetch(`https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${WEATHER_API_KEY}`);
+  if (!r.ok) throw new Error('ZIP not found');
+  const d = await r.json();
+  if (d.lat == null) throw new Error('ZIP not found');
+  return { name: d.name || zip, lat: d.lat, lon: d.lon };
+}
+function distMiles(a, b) {
+  const R = 3958.8, toR = x => x * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLon = toR(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+async function nwsPoint(loc) {
+  const r = await fetch(`https://api.weather.gov/points/${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`, { headers: NWS_HEADERS });
+  if (!r.ok) throw new Error('NWS point lookup failed');
+  const p = (await r.json()).properties;
+  return { stationsUrl: p.observationStations, tz: p.timeZone, place: p.relativeLocation && p.relativeLocation.properties };
+}
+async function nearestStations(url, loc, n) {
+  const r = await fetch(url, { headers: NWS_HEADERS });
+  if (!r.ok) throw new Error('NWS station list failed');
+  const feats = (await r.json()).features || [];
+  return feats.slice(0, n).map(f => ({
+    id: f.properties.stationIdentifier, name: f.properties.name,
+    miles: distMiles(loc, { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] }),
+  }));
+}
+async function observations(stationId, start, end) {
+  const u = `https://api.weather.gov/stations/${stationId}/observations?start=${start.toISOString()}&end=${end.toISOString()}&limit=500`;
+  const r = await fetch(u, { headers: NWS_HEADERS });
+  if (!r.ok) return [];
+  return ((await r.json()).features || [])
+    .map(f => ({ t: new Date(f.properties.timestamp), c: f.properties.temperature && f.properties.temperature.value }))
+    .filter(o => o.c !== null && o.c !== undefined && !isNaN(o.t));
+}
+
+// Bucket observations into local hours (max/min per hour), then local days.
+function summarize(obs, tz, ceil, floor) {
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', hour12: false });
+  const hours = {};
+  obs.forEach(o => {
+    const parts = Object.fromEntries(fmt.formatToParts(o.t).map(p => [p.type, p.value]));
+    const day = `${parts.year}-${parts.month}-${parts.day}`, h = parseInt(parts.hour, 10) % 24;
+    const f = Math.round(o.c * 9 / 5 + 32);
+    const k = day + 'T' + h;
+    if (!hours[k]) hours[k] = { day, h, max: f, min: f };
+    else { hours[k].max = Math.max(hours[k].max, f); hours[k].min = Math.min(hours[k].min, f); }
+  });
+  const days = {};
+  Object.values(hours).forEach(x => {
+    const d = days[x.day] || (days[x.day] = { day: x.day, high: -999, low: 999, highH: null, lowH: null, above: 0, below: 0, hours: 0 });
+    d.hours++;
+    if (x.max > d.high) { d.high = x.max; d.highH = x.h; }
+    if (x.min < d.low) { d.low = x.min; d.lowH = x.h; }
+    if (ceil != null && x.max > ceil) d.above++;
+    if (floor != null && x.min < floor) d.below++;
+  });
+  return Object.values(days).sort((a, b) => a.day.localeCompare(b.day));
+}
+function hourText(h) { return h === null ? '' : (h === 0 ? '12am' : h < 12 ? h + 'am' : h === 12 ? '12pm' : (h - 12) + 'pm'); }
+function dayText(key) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+async function runCheck() {
+  const status = document.getElementById('status');
+  const zip = (document.getElementById('zip').value || '').trim();
+  if (!/^\d{5}$/.test(zip)) { status.textContent = 'Enter a 5-digit US ZIP.'; return; }
+  const sinceVal = document.getElementById('since').value;
+  const now = new Date();
+  let start = sinceVal ? new Date(sinceVal + 'T00:00:00') : new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 86400000);
+  if (now - start > MAX_LOOKBACK_DAYS * 86400000) { start = new Date(now.getTime() - MAX_LOOKBACK_DAYS * 86400000); status.textContent = `Observations only go back ~${MAX_LOOKBACK_DAYS} days — window trimmed.`; }
+  document.getElementById('check-btn').disabled = true;
+  status.textContent = 'Locating ZIP…';
+  try {
+    const loc = await geocodeZip(zip);
+    status.textContent = 'Finding nearest weather station…';
+    const pt = await nwsPoint(loc);
+    const stations = await nearestStations(pt.stationsUrl, loc, 4);
+    let used = null, obs = [];
+    for (const s of stations) {
+      status.textContent = `Reading observations from ${s.id}…`;
+      obs = await observations(s.id, start, now);
+      if (obs.length >= 12) { used = s; break; }   // sparse station → try the next-nearest
+    }
+    if (!used) throw new Error('No station near this ZIP has enough observations for that window.');
+    lastResult = { zip, loc, place: pt.place, tz: pt.tz, station: used, obs, start, end: now };
+    status.textContent = '';
+    renderResult();
+  } catch(e) {
+    status.textContent = e.message || 'Could not load observations.';
+    console.error(e);
+  } finally { document.getElementById('check-btn').disabled = false; }
+}
+
+function renderResult() {
+  const r = lastResult; if (!r) return;
+  const d = currentDrug();
+  const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
+  const days = summarize(r.obs, r.tz, ceil, floor);
+  document.getElementById('results').style.display = 'block';
+  const placeName = r.place ? `${r.place.city}, ${r.place.state}` : r.loc.name;
+  document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings, ${dayText(days[0].day)} → ${dayText(days[days.length - 1].day)} (${r.tz.replace('_', ' ')})`;
+
+  const overall = days.reduce((a, x) => ({ high: Math.max(a.high, x.high), low: Math.min(a.low, x.low) }), { high: -999, low: 999 });
+  const above = days.reduce((n, x) => n + x.above, 0), below = days.reduce((n, x) => n + x.below, 0);
+  const v = document.getElementById('verdict');
+  if (!d) {
+    v.className = 'banner info';
+    v.innerHTML = `<div class="verdict">Ambient ranged ${fmtF(overall.low)} – ${fmtF(overall.high)}</div>Select a product above to compare against its excursion allowance.`;
+  } else if (above === 0 && below === 0) {
+    v.className = 'banner ok';
+    v.innerHTML = `<div class="verdict">Ambient stayed within ${d.name}'s allowance</div>Outdoor air ranged ${fmtF(overall.low)} – ${fmtF(overall.high)}; the allowance is ${rangeText(floor, ceil)}. No hour exceeded it.`;
+  } else {
+    const parts = [];
+    if (above) parts.push(`<strong>${above} hour${above === 1 ? '' : 's'} above the ${fmtF(ceil)} ceiling</strong> (peak ${fmtF(overall.high)})`);
+    if (below) parts.push(`<strong>${below} hour${below === 1 ? '' : 's'} below the ${fmtF(floor)} floor</strong> (low ${fmtF(overall.low)})`);
+    v.className = 'banner bad';
+    v.innerHTML = `<div class="verdict">Ambient exceeded ${d.name}'s allowance</div>${parts.join(' · ')}. Allowance: ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}.`;
+  }
+
+  let html = `<tr><th>Day</th><th>High</th><th>Low</th>${ceil != null ? `<th>Hours &gt; ${ceil}°F</th>` : ''}${floor != null ? `<th>Hours &lt; ${floor}°F</th>` : ''}<th>Readings</th></tr>`;
+  days.forEach(x => {
+    html += `<tr><td>${dayText(x.day)}</td>
+      <td class="${ceil != null && x.high > ceil ? 'hot' : ''}">${fmtF(x.high)} <span class="note">${hourText(x.highH)}</span></td>
+      <td class="${floor != null && x.low < floor ? 'cold' : ''}">${fmtF(x.low)} <span class="note">${hourText(x.lowH)}</span></td>
+      ${ceil != null ? `<td class="${x.above ? 'hot' : ''}">${x.above}</td>` : ''}
+      ${floor != null ? `<td class="${x.below ? 'cold' : ''}">${x.below}</td>` : ''}
+      <td class="note">${x.hours} hrs</td></tr>`;
+  });
+  document.getElementById('days-table').innerHTML = html;
+}
+
+function copySummary() {
+  const r = lastResult; if (!r) return;
+  const d = currentDrug();
+  const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
+  const days = summarize(r.obs, r.tz, ceil, floor);
+  const lines = [`EXCURSION CHECK — ZIP ${r.zip}${r.place ? ' (' + r.place.city + ', ' + r.place.state + ')' : ''} · station ${r.station.name} (${r.station.id}, ${r.station.miles.toFixed(1)} mi) · outdoor air, not product temperature`];
+  if (d) lines.push(`Product: ${d.name} · storage ${d.storage || rangeText(d.minF, d.maxF)} · excursion allowance ${rangeText(floor, ceil)}${d.excursionNote ? ' — ' + d.excursionNote : ''}`);
+  days.forEach(x => lines.push(`${dayText(x.day)}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}${ceil != null ? `, ${x.above}h > ${ceil}°F` : ''}${floor != null ? `, ${x.below}h < ${floor}°F` : ''}`));
+  const above = days.reduce((n, x) => n + x.above, 0), below = days.reduce((n, x) => n + x.below, 0);
+  if (d) lines.push(above || below ? `Result: ambient exceeded allowance — ${above}h above ceiling, ${below}h below floor.` : 'Result: ambient stayed within allowance for the whole window.');
+  const status = document.getElementById('copy-status');
+  if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n')).then(() => { status.textContent = '✓ Summary copied'; setTimeout(() => status.textContent = '', 2500); });
+}
+
+// ---- theme + boot ----
+function currentTheme() { const f = document.documentElement.getAttribute('data-theme'); if (f) return f; return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+function syncThemeIcon() { const b = document.getElementById('theme-toggle'); if (b) b.textContent = currentTheme() === 'dark' ? '☀️' : '🌙'; }
+function toggleTheme() { const n = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); try { localStorage.setItem('theme', n); } catch(e) {} syncThemeIcon(); }
+syncThemeIcon();
+(function boot() {
+  const today = new Date();
+  document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
+  document.getElementById('today-date').textContent = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const since = new Date(today.getTime() - DEFAULT_LOOKBACK_DAYS * 86400000);
+  document.getElementById('since').value = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}`;
+  document.getElementById('since').max = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  loadDrugs();
+})();
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
+</script>
+</body>
+</html>

@@ -1,0 +1,545 @@
+[
+ {
+  "name": "Actemra",
+  "ndc": "50242-01-3801",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 2 weeks",
+  "storage": "Can be stored for up to 2 weeks at or below 86F. Do not put back in the refrigerator. Always store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Adalimumab-fkjp 20mg/0.4mL",
+  "ndc": "49502-0417-02",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 14 days. Discard pen if it has been stored at room temperature and not used with 14 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Afinitor 10mg",
+  "ndc": "00078-0567-51",
+  "excursionMaxF": 86,
+  "excursionMinF": 59,
+  "excursionNote": "Allowance for brief excursions between 59-86F, provided that the average temperature for transit time does not exceed 77F per USP 659.",
+  "storage": "Tablets should be stored at controlled room temperature (between 68 and 77F). There is an allowance for brief excursions between 59-86F, provided that the average temperature for transit time does not exceed 77F per USP 659. Store in original container to protect from light and moisture. (generic and brand)",
+  "protectFromLight": true,
+  "freezeSensitive": false
+ },
+ {
+  "name": "Aimovig",
+  "ndc": "All",
+  "excursionMaxF": 104,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 7 days (stable up to 2 days at 86-104°F)",
+  "storage": "Use within 7 days if kept at room temperature (stability data shows product is stable up to 2 days at 86-104°F) -- Do NOT return to fridge once removed and brought to room temp",
+  "protectFromLight": true,
+  "freezeSensitive": true,
+  "flag": "Temperature cell carried a footnote marker in the source sheet — read the excursion text"
+ },
+ {
+  "name": "Amjevita 40mg/0.8mL",
+  "ndc": "55513040002",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 14 days. Discard pen if it has been stored at room temperature and not used with 14 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Avonex",
+  "ndc": "All",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 7 days -- Do not exceed 77°F",
+  "storage": "Store at 36–46°F. If refrigeration is unavailable, may store at 77°F or less for up to 7 days. After removal from refrigerator, do not store product above 77°F. If the product has been exposed to conditions other than recommended, discard the product and do not use",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Basaglar",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 28 days",
+  "storage": "Store at 36–46°F. May store at 86°F or less for up to 28 days before and after opening. After removal from refrigerator, do not store product above 86°F. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Discard pen 28 days after first use, whether refrigerated or not.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Cimzia",
+  "ndc": "All",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 7 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 7 days. Discard syringe if it has been stored at room temperature and not used with 7 days. Do not return to refrigerator once syringe has reached room temperature. Do not freeze. Discard syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Cimzia 200mg Starter Kit",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 7 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 7 days. Discard syringe if it has been stored at room temperature and not used with 7 days. Do not return to refrigerator once syringe has reached room temperature. Do not freeze. Discard syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Copaxone 40mg/mL Solution",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than one month",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F-59F) for up to one month. Discard syringe if it has been stored at room temperature and not used with one month. Do not freeze. Discard syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Cosentyx 150mg/mL Pen",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 4 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F) for up to 4 days. Discard pen if it has been stored at room temperature and not used with 4 days. May be placed back in the refrigerator ONCE (if 4 days has not passed). Do not remove from the refrigerator again until ready to use or pen expires. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Cyltezo Pen 40mg/0.8mL",
+  "ndc": "00597037597",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 14 days. Discard pen/syringe if it has been stored at room temperature and not used with 14 days. Do not freeze. Discard pen/syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": false,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Dupixent",
+  "ndc": "All",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days -- Do not exceed 77°F",
+  "storage": "Store at 36–46°F. If refrigeration is unavailable, may store at 77°F or less for up to 14 days. After removal from refrigerator, do not store product above 77°F. If the product has been exposed to conditions other than recommended, discard the product and do not use",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Emgality",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 7 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F) for up to 7 days. Discard pen/syringe if it has been stored at room temperature and not used with 7 days. Do not place back in the refrigerator once it reachs room temperature. Do not freeze. Discard pen/syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Enbrel** all formulations",
+  "ndc": "All",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for up to 30ds",
+  "storage": "Store in fridge 36-46°F (may be stored at room temp (up to 77°F) for up to 30 days) -- Do NOT return to fridge after it reaches room temp.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Fiasp Flex Touch Pen and vials",
+  "ndc": "Pens & vials",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, store at room temp or fridge up to 28 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Fiasp Flex Touch Penfill cartridges",
+  "ndc": "00169-3205-15",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, must store at room temp for up to 28 days (do NOT refrigerate)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Forteo",
+  "ndc": null,
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "No excursions allowed",
+  "storage": "Store at 36-46F at all times, except when administering the medication. Recap the pen when not in use to protect from physical damage and light. Administer immediately after removing from the refrigerator and minimize the time out of the refrigerator. Do not freeze. Discard the medication if it has been frozen, even if it has thawed. Throw away the device 28 days after first use, even if there is medication left.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Genotropin 12mg Powder",
+  "ndc": null,
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "No excursions allowed",
+  "storage": "Store powder at 36-46F in original container until expiration date on box. Do Not Freeze. Store reconstituted genotropin in refrigerator (36-46F) for 28 days. Store in box with cap on to protect from light. Do not shake. Discard any unused medication after 28 days. Do not freeze.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Glatiramer 20mg/mL",
+  "ndc": "00378-6960-93",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than one month",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F-59F) for up to one month. Discard syringe if it has been stored at room temperature and not used with one month. Do not freeze. Discard syringe if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Humalog KwikPen",
+  "ndc": "00002-8799-59",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 28 days",
+  "storage": "Store at 36–46°F. May store at 86°F or less for up to 28 days before and after opening. After removal from refrigerator, do not store product above 86°F. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Discard pen 28 days after first use. Do not put pen back in the refrigerator after first use.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Humira** verify with mfg",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days -- Do not exceed 77°F",
+  "storage": "Store in fridge 36-46°F (may be stored at room temp (up to 77°F) for up to 14 days)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Insulin Aspart Flexpen and Penfill",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store at 36–46°F. May store at 86°F or less for up to 28 days before and after opening. After removal from refrigerator, do not store product above 86°F. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Discard pen 28 days after first use. Do not put pen back in the refrigerator after first use.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Insulin Aspart Protamine & Insulin Aspart vials",
+  "ndc": null,
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, store at room temp or fridge up to 28 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Insulin Aspart vials",
+  "ndc": "73070-0100-11",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, store at room temp or fridge up to 28 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Lyumjev Tempo Pen",
+  "ndc": "00002-8235-05",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 28 days - do not exceed 86°F",
+  "storage": "Store at 36–46°F. May store at 86°F or less for up to 28 days before and after opening. After removal from refrigerator, do not store product above 86°F. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Discard pen 28 days after first use. Do not put pen back in the refrigerator after first use.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Monovisc",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": null,
+  "excursionNote": "Must be stored at no more than 77 degrees F",
+  "storage": "From CP (no prescribing information available unless you are administering): Store below 77F in original box until time of use. Do not save unused portion. Do not freeze.",
+  "protectFromLight": true,
+  "freezeSensitive": true,
+  "flag": "Min temp is blank in the source sheet"
+ },
+ {
+  "name": "Mounjaro",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": null,
+  "excursionNote": "Up to 86°F for no more than a total of 21 days for single use auto injector and 30 days for vials/kwikpens",
+  "storage": "May store up to 21 days at room temp (may go in and out of fridge -- cumulative 21 days)",
+  "protectFromLight": false,
+  "freezeSensitive": false,
+  "flag": "Max 86°F taken from the excursion text; min temp is blank in the source sheet"
+ },
+ {
+  "name": "Nivestym",
+  "ndc": "480mcg/0.8mL",
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 24 hours",
+  "storage": "Store in the refrigerator (36-46F) in the original carton to protect from light. Discard any vial or prefilled syringe that has been at room temperature for more than 24 hours. Avoid freezing, discard if frozen more than once.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Norditropin FP",
+  "ndc": "00169-77-0821",
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 21 days",
+  "storage": "Store at 36-46F. Do not store near the refrigerator cooling element. Do not freeze. Avoid direct light. After first use, pens may be stored in the refrigerator for 4 weeks or at room temperature (up to 77F) for 3 weeks.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Novolog Flexpen and Penfill",
+  "ndc": "Pens & penfill cartridges",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, must store at room temp for up to 28 days (do NOT refrigerate)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Novolog Mix 70/30 Pen",
+  "ndc": "00169-3696-19",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 14 days",
+  "storage": "Store at 36–46°F. May store at room temperature (86°F or less) for up to 14 days before and after opening. After removal from refrigerator, do not store product above 86°F. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Discard pen 14 days after first use. Do not put pen back in the refrigerator after first use.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Novolog vials",
+  "ndc": "00169-3303-12",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Once opened, store at room temp or fridge up to 28 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Omnitrope",
+  "ndc": null,
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "No excursions allowed",
+  "storage": "Before use, store at 36-46F in the original carton to protect from light. After first use, store cartridges in the refrigerator for up to 28 days. Reconstituted vials may be stored in the refrigerator for up to 21 days after reconstitution.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Opzelura",
+  "ndc": "50881-0007-05",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "MAY BE STORED AT 59-86°F FOR UP TO 28 DAYS. MAY BE STORED AT 86-104°F FOR UP TO 20 DAYS. MAY BE STORED AT -4-59°F FOR UP TO 4 DAYS",
+  "storage": "STORE AT ROOM TEMPERATURE AT 68-77°F. MAY BE STORED AT 59-86°F FOR UP TO 28 DAYS. MAY BE STORED AT 86-104°F FOR UP TO 20 DAYS. MAY BE STORED AT -4-59°F FOR UP TO 4 DAYS",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Orencia Clickjet 125mg/mL",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 6 hours",
+  "storage": "Store in the refrigerator (36-46F) in the original carton to protect from light. Do not freeze. Should warm up to room temperature (max 77F) before use, but cannot go back in the fridge once it has. Must be used within 6 hours of reaching room temperature or be discarded.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Ozempic",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. Once opened, can be stored in fridge or at room temp up to 56 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Praluent 75mg/mL",
+  "ndc": "61755-0020-02",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 30 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 30 days. Discard pen if it has been stored at room temperature and not used with 30 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Repatha 140mg/mL",
+  "ndc": "72511076002",
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 30 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to 30 days. Discard pen if it has been stored at room temperature and not used with 30 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Saxenda",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. After initial use, the pen can be stored for 30 days at controlled room temperature (59 - 86°F; 15 - 30*C) or in a refrigerator (36 - 46°F; 2 - 8*C)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Skyrizi",
+  "ndc": null,
+  "excursionMaxF": 46,
+  "excursionMinF": 36,
+  "excursionNote": "No information given - must contact manufacturer",
+  "storage": "Email sent to request information. From PI:Store in the refrigerator (36-46F) in the original carton to protect from light. Do not shake. Do not freeze.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Sogroya 10mg/1.5mL",
+  "ndc": "00169-2030-11",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 72 hours total - May go back into fridge, record excursion time",
+  "storage": "Store in a refrigerator at 2°C to 8°C (36°F to 46°F) with the cap on and in the original carton to protect from light. Do not freeze. Discard if pen has been kept above 86F. May be stored at room temperature (up to 77F) for up to 72 hours total excursion time (may be placed back in the refrigerator.) Must be discarded 6 weeks after first use if refrigerated while not in use, or in 72 hours if kept at room temperature.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Sogroya 15mg/1.5mL",
+  "ndc": "00169203711",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 72 hours total - May go back into fridge, record excursion time",
+  "storage": "Store in a refrigerator at 2°C to 8°C (36°F to 46°F) with the cap on and in the original carton to protect from light. Do not freeze. Discard if pen has been kept above 86F. May be stored at room temperature (up to 77F) for up to 72 hours total excursion time (may be placed back in the refrigerator.) Must be discarded 6 weeks after first use if refrigerated while not in use, or in 72 hours if kept at room temperature.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Stelara 45mg/0.5mL",
+  "ndc": "57894-0060-03",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than 30 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F) for up to 30 days. Do not return to refrigerator after reaching room temperature. Discard pen if it has been stored at room temperature and not used within 30 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Taltz",
+  "ndc": "00002-1445-11",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 5 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (86F) for up to 5 days. Do not return to refrigerator after reaching room temperature. Discard pen if it has been stored at room temperature and not used within 5 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Tremfya",
+  "ndc": "57894-0640-11",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "< 4hrs",
+  "storage": "Store in fridge. Do not leave at room temp >4 hrs.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Tresiba",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. Can be stored at room temp <86* for up to 56 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Trulicity",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 14 days (cumulative) at room temp (can go in and out of fridge multiple times)",
+  "storage": "Store in fridge (may be stored at room temp up to 14 days -- can go in and out multiple times as long as total combined length out of fridge is not > 14 days",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Victoza",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. After initial use, the pen can be stored for 30 days at controlled room temperature (59 - 86°F; 15 - 30*C) or in a refrigerator (36 - 46°F; 2 - 8*C)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Wegovy",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. May be stored at room temp (46-86°F) up to 28 days.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Xultophy",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "see storage and stability calculator https://virtual.mi-owi.com/mi/calculator",
+  "storage": "Store in fridge. After the first use, the pen can be stored for 21 days at a controlled room temperature of 15 - 30*C (59 - 86°F) or in a fridge 2 - 8 degrees C (36 - 46°F)",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Yusimy 40mg/0.8mL",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 14 days",
+  "storage": "Store at 46-36F. May be stored at room temperature (77F) for up to14 days. Do not return to refrigerator after reaching room temperature. Discard pen if it has been stored at room temperature and not used within14 days. Do not freeze. Discard pen if it has been frozen, even if it has thawed. Store in original carton to protect from light.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Zarxio",
+  "ndc": null,
+  "excursionMaxF": 77,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 77°F for no more than 8 days",
+  "storage": "Store in the refrigerator (36-46F) in the original carton to protect from light. Discard any vial or prefilled syringe that has been at room temperature (up to 77F) for more than 8 days. Do not freeze. Do not shake.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ },
+ {
+  "name": "Zepbound",
+  "ndc": "All",
+  "excursionMaxF": 86,
+  "excursionMinF": 36,
+  "excursionNote": "Up to 86°F for no more than a total of 21 days for single use auto injector",
+  "storage": "SOAJ: store in the refrigerator (36-46F) in original carton to protect from light. If needed, may be stored at room temperature (up to 86F) for up to a total 21 days. May be placed back in the refrigerator after reaching room temperature. Do not freeze.",
+  "protectFromLight": true,
+  "freezeSensitive": true
+ }
+]
