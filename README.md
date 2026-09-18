@@ -49,6 +49,10 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   driving each winter-pack state, hollow dots mark cold pockets, and
   **Copy pack-out note** produces a paste-ready list including the exceptions.
   Overnight and hub lows are shown for context only.
+- **Refresh.** Forecasts are cached for an hour, so the map card shows how old
+  the data is ("Forecasts fetched 20 minutes ago") and a **Refresh** button
+  discards the cache and pulls fresh ones. It is disabled while a load runs,
+  and overlapping loads (refresh vs. retry-incomplete) are guarded.
 - **Load behaviour.** A cold load needs a forecast for ~2,300 towns (two NWS
   calls each). Requests go through a bounded queue (`MAX_INFLIGHT = 10`) and
   every call — including the `/points/` lookup — retries throttling and outages
