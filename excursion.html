@@ -166,6 +166,18 @@
     details.more { margin-top: 12px; }
     details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
     .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
+    .drug-pick { position: relative; }
+    .drug-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: transparent;
+      color: var(--text-faint); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 8px; }
+    .drug-clear:hover { color: var(--text); }
+    .drug-results { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px;
+      list-style: none; max-height: 300px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .drug-results li { padding: 11px 12px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1.3; }
+    .drug-results li .meta { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .drug-results li mark { background: transparent; color: var(--brand); font-weight: 700; }
+    .drug-results li:hover, .drug-results li.active { background: var(--surface-2); }
+    .drug-results li.none { color: var(--text-muted); cursor: default; }
     .zip-place { font-size: 14px; font-weight: 600; margin-top: 4px; min-height: 18px; color: var(--brand); }
     .zip-place.err { color: var(--text-muted); font-weight: 400; }
     .tips-card { border-left: 5px solid var(--brand); background: color-mix(in srgb, var(--brand) 9%, var(--surface)); }
@@ -288,7 +300,14 @@
   <div class="grid-2">
     <div class="card">
       <div class="section-label">1 · Which product?</div>
-      <select id="drug-select" onchange="onDrugChange()"><option value="">Loading…</option></select>
+      <div class="drug-pick">
+        <input id="drug-search" type="text" autocomplete="off" placeholder="Type a product name…"
+               oninput="onDrugSearch()" onfocus="onDrugSearch()" onkeydown="onDrugKey(event)"
+               role="combobox" aria-expanded="false" aria-controls="drug-results" aria-autocomplete="list" />
+        <button type="button" class="drug-clear" id="drug-clear" onclick="clearDrug()" title="Clear" style="display:none;">&times;</button>
+        <ul id="drug-results" class="drug-results" role="listbox" style="display:none;"></ul>
+      </div>
+      <select id="drug-select" onchange="onDrugChange()" style="display:none;" tabindex="-1" aria-hidden="true"><option value="">Loading…</option></select>
       <div id="drug-facts" class="allow-line"></div>
     </div>
 
@@ -362,6 +381,14 @@ const MAX_LOOKBACK_DAYS = 7; // NWS keeps roughly a week of observations
 // range for the ship day plus the next two days, so ambient on those days
 // doesn't count against the drug. Only the delayed days beyond that do.
 const PACKOUT_RATING_HOURS = 48;
+// Our gel packs are polymer ice: water held in a superabsorbent polymer. The
+// polymer is a thickener, not a phase-change additive, so the packs melt at
+// essentially 32°F. That is the whole basis for treating "still has ice" as
+// proof the box stayed cold, and it is why packs that are still SOLID carry a
+// freeze risk to the product. If the packs are ever changed to an engineered
+// phase-change material (many melt at 41°F), change this and re-read the
+// frozen/slushy wording.
+const PACK_MELT_F = 32;
 const PACKOUT_COVERED_DAYS = PACKOUT_RATING_HOURS / 24;
 
 let DRUGS = [];
@@ -378,13 +405,12 @@ function rangeText(lo, hi) {
   return `${f} (${c})`;
 }
 // Pull "no more than 14 days" / "2 weeks" / "28 days" out of the excursion text.
+// Allowance expressed in whole days for the day-by-day scoring. An allowance
+// shorter than a day still counts as one scored day, but allowanceText() is
+// what the pharmacist reads, so "4 hours" never displays as "1 day".
 function allowanceDays(d) {
-  const t = (d.excursionNote || '') + ' ' + (d.storage || '');
-  const m = t.match(/(\d+)\s*(hour|hours|hr|hrs|day|days|week|weeks)\b/i);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  if (/^h/i.test(m[2])) return Math.max(1, Math.ceil(n / 24)); // "24 hours" → 1 day
-  return /week/i.test(m[2]) ? n * 7 : n;
+  const h = allowanceHours(d);
+  return h == null ? null : Math.max(1, Math.ceil(h / 24));
 }
 function setZip(z) { document.getElementById('zip').value = z; showPlace(); }
 
@@ -411,12 +437,103 @@ async function showPlace() {
   }
 }
 function currentDrug() { const v = document.getElementById('drug-select').value; return v === '' ? null : DRUGS[+v]; }
+
+// ---- product search -------------------------------------------------------
+// 55 products in a native <select> is a lot of scrolling on a phone while
+// someone waits on the line. The select stays as the value holder; this is a
+// type-ahead over it. Matching is on any word start, so "kwik" finds
+// "Mounjaro vials / KwikPen" and "hum" finds Humira and Humalog.
+const LAST_DRUG_KEY = 'excursion-last-drug';
+let drugMatches = [], drugCursor = -1;
+
+function drugMatch(d, q) {
+  if (!q) return true;
+  const name = d.name.toLowerCase();
+  return name.split(/[^a-z0-9]+/).some(w => w.startsWith(q)) || name.startsWith(q);
+}
+function highlight(name, q) {
+  if (!q) return name;
+  const i = name.toLowerCase().indexOf(q);
+  if (i < 0) return name;
+  return name.slice(0, i) + '<mark>' + name.slice(i, i + q.length) + '</mark>' + name.slice(i + q.length);
+}
+function drugMeta(d) {
+  if (d.noExcursion) return 'no room-temperature allowance';
+  if (d.calculatorUrl) return 'allowance via manufacturer calculator';
+  const at = allowanceText(d);
+  return `${d.excursionMaxF != null ? 'up to ' + fmtF(d.excursionMaxF) : ''}${at ? ' for ' + at : ''}`.trim() || '—';
+}
+function onDrugSearch() {
+  const q = (document.getElementById('drug-search').value || '').trim().toLowerCase();
+  const list = document.getElementById('drug-results');
+  document.getElementById('drug-clear').style.display = q ? 'block' : 'none';
+  drugMatches = DRUGS.map((d, i) => ({ d, i })).filter(x => drugMatch(x.d, q));
+  drugCursor = drugMatches.length ? 0 : -1;
+  if (!drugMatches.length) {
+    list.innerHTML = '<li class="none">No product matches that.</li>';
+  } else {
+    list.innerHTML = drugMatches.map((x, n) => `<li role="option" class="${n === 0 ? 'active' : ''}" onmousedown="pickDrug(${x.i})">${highlight(x.d.name, q)}<span class="meta">${drugMeta(x.d)}</span></li>`).join('');
+  }
+  list.style.display = 'block';
+  document.getElementById('drug-search').setAttribute('aria-expanded', 'true');
+}
+function moveDrugCursor(delta) {
+  const list = document.getElementById('drug-results');
+  const items = list.querySelectorAll('li[role=option]');
+  if (!items.length) return;
+  drugCursor = (drugCursor + delta + items.length) % items.length;
+  items.forEach((el, n) => el.className = n === drugCursor ? 'active' : '');
+  items[drugCursor].scrollIntoView({ block: 'nearest' });
+}
+function onDrugKey(e) {
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveDrugCursor(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveDrugCursor(-1); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (drugMatches[drugCursor]) pickDrug(drugMatches[drugCursor].i); }
+  else if (e.key === 'Escape') closeDrugList();
+}
+function closeDrugList() {
+  const list = document.getElementById('drug-results');
+  if (list) { list.style.display = 'none'; }
+  const inp = document.getElementById('drug-search');
+  if (inp) inp.setAttribute('aria-expanded', 'false');
+}
+function pickDrug(i) {
+  document.getElementById('drug-select').value = String(i);
+  document.getElementById('drug-search').value = DRUGS[i].name;
+  document.getElementById('drug-clear').style.display = 'block';
+  closeDrugList();
+  try { localStorage.setItem(LAST_DRUG_KEY, DRUGS[i].name); } catch(e) {}
+  onDrugChange();
+}
+function clearDrug() {
+  document.getElementById('drug-select').value = '';
+  document.getElementById('drug-search').value = '';
+  document.getElementById('drug-clear').style.display = 'none';
+  closeDrugList();
+  try { localStorage.removeItem(LAST_DRUG_KEY); } catch(e) {}
+  onDrugChange();
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest || !e.target.closest('.drug-pick')) closeDrugList();
+});
 function drugLimits(d) {
-  // The sheet's Min/Max Temp are the excursion allowance. If a min is blank,
-  // freeze-sensitive products fall back to the 32°F freeze line.
-  const ceil = d.excursionMaxF ?? d.maxF ?? null;
-  const floor = d.excursionMinF ?? d.minF ?? (d.freezeSensitive ? 32 : null);
+  // excursionMaxF is the room-temperature ALLOWANCE ceiling, taken from the
+  // excursion text by scripts/convert-drugs.py — not the sheet's Max Temp
+  // column, which for several products is the fridge ceiling instead.
+  const ceil = d.excursionMaxF ?? null;
+  const floor = d.excursionMinF ?? (d.freezeSensitive ? 32 : null);
   return { ceil, floor };
+}
+
+// How long the product may be out of the fridge, in hours. Short allowances
+// (Tremfya 4h, Orencia 6h) must not be rounded up to a day.
+function allowanceHours(d) { return d.allowanceHours ?? null; }
+function allowanceText(d) {
+  const h = allowanceHours(d);
+  if (h == null) return null;
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'}`;
+  const days = Math.round(h / 24);
+  return `${days} day${days === 1 ? '' : 's'}`;
 }
 
 // ---- location → nearest NWS station → observations ----
@@ -523,13 +640,35 @@ async function loadDrugs() {
   try { const r = await fetch('data/drugs.json?_=' + Date.now()); DRUGS = await r.json(); } catch(e) { DRUGS = []; }
   DRUGS.sort((a, b) => a.name.localeCompare(b.name));
   sel.innerHTML = '<option value="">Select a product…</option>' + DRUGS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
+  const input = document.getElementById('drug-search');
+  if (input) input.placeholder = `Type a product name… (${DRUGS.length} on file)`;
+  // most calls are about the same handful of products, so offer the last one
+  try {
+    const last = localStorage.getItem(LAST_DRUG_KEY);
+    const i = last ? DRUGS.findIndex(d => d.name === last) : -1;
+    if (i >= 0) pickDrug(i);
+  } catch(e) {}
 }
 function onDrugChange() {
   const d = currentDrug(); const el = document.getElementById('drug-facts');
   if (!d) { el.innerHTML = ''; decide(); return; }
   const { ceil, floor } = drugLimits(d);
-  const days = allowanceDays(d);
-  el.innerHTML = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${days != null ? ` for ${days} day${days === 1 ? '' : 's'}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}${d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : ''}<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
+  const at = allowanceText(d);
+  let headline;
+  if (d.noExcursion) headline = `<b>No room-temperature allowance.</b> Must stay ${rangeText(floor, ceil)} at all times`;
+  else if (d.calculatorUrl) headline = `Allowance depends on the presentation and whether it has been started — <a href="${d.calculatorUrl}" target="_blank" rel="noopener">manufacturer calculator</a>`;
+  else if (d.refrigerated === false) headline = `<b>Room-temperature product</b> — keep within ${rangeText(floor, ceil)}${at ? `, up to ${at} at the edges` : ''}`;
+  else headline = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${at ? ` for ${at}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}`;
+  // the two rules that change what the patient is told if the product is kept
+  const rules = [];
+  if (d.cumulative) rules.push('allowance is <b>cumulative</b> — time out of the fridge adds up across trips');
+  if (d.returnToFridge === false) rules.push('<b>do not return it to the fridge</b> once it reaches room temperature');
+  else if (d.returnToFridge === true) rules.push('may go back in the fridge');
+  el.innerHTML = headline
+    + (rules.length ? `<div class="note" style="margin-top:4px;">${rules.join(' · ')}</div>` : '')
+    + (d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : '')
+    + (d.derivation ? `<div class="note" style="margin-top:4px;">ℹ ${d.derivation}</div>` : '')
+    + `<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
   decide();
 }
 function setPack(state) {
@@ -571,26 +710,92 @@ function decide() {
   const d = currentDrug();
   const productFrozen = document.getElementById('product-frozen').checked;
   const v = document.getElementById('verdict');
-  const show = (cls, big, why, tell) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}`; };
+  const show = (cls, big, why, tell, after) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}${after || ''}`; };
   const li = (items) => `<ul class="verdict-list">${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
   const K = '<span class="lean keep">keep</span>', R = '<span class="lean replace">replace</span>';
   // Judgment card: the numbers as bullets, then one bullet per factor with which way it leans, then both scripts.
-  const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div><div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
+  const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div>${aftercare(d)}<div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
+
+  // What the patient must be told when the product is KEPT. A one-time
+  // allowance that has been partly spent changes how they store it from here.
+  const aftercare = (d) => {
+    if (!d) return '';
+    const bits = [];
+    if (d.returnToFridge === false) bits.push(`<strong>Do not put it back in the refrigerator</strong> — ${d.name}'s label says once it reaches room temperature it stays there`);
+    else if (d.cumulative) bits.push(`The allowance is <strong>cumulative</strong> (${allowanceText(d) || 'see the label'} total out of the fridge) and this trip has already used part of it — it can go back in the fridge, but the clock does not reset`);
+    else if (allowanceHours(d) != null) bits.push(`The ${allowanceText(d).replace(/^(\d+) (day|hour)s?$/, '$1-$2')} allowance is <strong>one-time</strong> and partly spent — have them use it promptly rather than banking it`);
+    if (d.protectFromLight) bits.push('keep it in the original carton, away from light');
+    return bits.length ? `<div class="verdict-tell"><b>Then tell them</b>${bits.join('. ')}.</div>` : '';
+  };
 
   if (productFrozen) return show('replace', 'REPLACE', `The medication itself shows signs of freezing${d ? ` — ${d.name} must not be used after freezing` : ''}. Discard regardless of the ice packs or the weather.`, '"Please don\'t use this one. I\'m sending a replacement and we\'ll arrange the return."');
-  if (!d || !packState) return show('wait', 'Pick a product and how the packs felt.', '', '');
+  if (!d) return show('wait', 'Pick a product and how the packs felt.', '', '');
+  if (!packState && d.refrigerated !== false) return show('wait', 'Pick a product and how the packs felt.', '', '');
 
   const { ceil, floor } = drugLimits(d);
   const allow = allowanceDays(d);
   const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor) : null;
 
-  if (packState === 'frozen') return show('ok', 'OK TO USE', `Frozen packs mean the cold chain held the whole way.${d.freezeSensitive ? ' The only risk is the product touching a frozen pack — you\'ve already asked about ice crystals, so it\'s fine.' : ''}`, '"The packs were still frozen, so it stayed cold the whole trip — it\'s fine. Put it in the fridge and use as normal."');
-  if (packState === 'slushy') return show('ok', 'OK TO USE', 'Slushy packs are the ideal arrival: they were still melting, which means the inside of the box never warmed up.', '"Slushy packs are exactly how it should arrive — it stayed cold. Into the fridge and use as normal."');
+  // Room-temperature products (Afinitor, Monovisc, Opzelura) have no cold chain
+  // to break, so the pack question tells us nothing — go straight to the air.
+  if (d.refrigerated === false && !days)
+    return show('call', 'RUN THE TEMPERATURE CHECK',
+      `${d.name} is a room-temperature product, not a refrigerated one, so the ice packs don't tell us anything. What matters is whether the air stayed inside ${rangeText(floor, ceil)}. Enter the ZIP and dates and press <em>Check the temperature</em>.`, '');
+
+  // Packs with any ice left sit at their melting point and stay there, so ice
+  // is proof the box never warmed up. The catch is that it proves it about the
+  // PACK, not the product, and solid packs are colder than slushy ones.
+  if (packState === 'frozen') {
+    if (d.freezeSensitive) return judge('CHECK FOR FREEZING FIRST', [
+      `Packs still frozen solid means the box never rose above ${fmtF(PACK_MELT_F)} — heat is not the question here`,
+      `<strong>${d.name} must not be used if it froze</strong>, and a solid pack is at or below freezing where the product touches it`,
+      'Freeze damage is not always visible, so appearance can confirm freezing but cannot rule it out',
+    ], [
+      `<strong>Appearance:</strong> clear, no crystals, no cloudiness or particles, looks like the last dose ${K} · anything off ${R}`,
+      `<strong>Where it sat:</strong> product separated from the packs by the insert ${K} · loose in the box against a pack ${R}`,
+      `<strong>Trip length:</strong> arrived on time with packs barely started ${K} · arrived early and deeply frozen ${R}`,
+    ], `"It looks completely normal, so it's fine to use. Put it in the fridge as usual."`,
+       `"Because it may have been against a frozen pack, I'd rather replace it than risk it. Please set it aside; we'll send a new one."`);
+    return show('ok', 'OK TO USE', `Packs still frozen solid means the box never rose above ${fmtF(PACK_MELT_F)} — the cold chain held the whole way, and ${d.name} is not freeze-sensitive.`,
+      '"The packs were still frozen, so it stayed cold the whole trip. It\'s fine. Put it in the fridge and use as normal."', aftercare(d));
+  }
+  if (packState === 'slushy') return show('ok', 'OK TO USE',
+    `The ideal arrival. Ice and liquid together means the packs were still melting, so the coldest point in the box was about ${fmtF(PACK_MELT_F)} and the total heat that got in was less than the ice could absorb — and unlike solid packs there is no freeze risk left.`,
+    '"Slushy packs are exactly how it should arrive. It stayed cold the whole way. Into the fridge and use as normal."', aftercare(d));
 
   // cool / warm: what did the outdoor temperature do?
   if (!days) return show('call', packState === 'cool' ? 'LIKELY OK — run the temperature check' : 'RUN THE TEMPERATURE CHECK', packState === 'cool'
     ? 'Cool packs mean they only just finished melting, so the product has stayed cool. Enter the ZIP and dates and press <em>Check the temperature</em> to confirm it stayed inside the allowance.'
     : 'Warm packs mean the pack-out is spent, so what matters is how hot it got outside and for how many days. Enter the ZIP and dates and press <em>Check the temperature</em>.', '');
+
+  // Products with no room-temperature allowance at all (Forteo, Genotropin,
+  // Omnitrope). There is nothing to spend, so thawed packs mean an excursion
+  // by definition and the manufacturer decides, not the weather.
+  if (d.noExcursion && packState !== 'frozen' && packState !== 'slushy')
+    return judge('JUDGMENT CALL — no allowance to spend', [
+      `<strong>${d.name} has no room-temperature allowance.</strong> Its label is ${rangeText(floor, ceil)} at all times`,
+      `The packs had thawed, so the product was out of that range for some part of the trip`,
+      `Nothing in the weather data can clear this one — only the manufacturer's stability data can`,
+    ], [
+      `<strong>Call the manufacturer's medical information line</strong> with the shipped and received dates and the numbers below. They answer from their own stability data, usually same day`,
+      `<strong>How long the packs had been thawed:</strong> arrived cool, likely just melted ${K} · warm to the touch ${R}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+    ], '"I want to check one thing with the manufacturer before you use it. I\'ll call you straight back today."',
+       '"This one has no allowance for time out of the fridge, so I\'m replacing it rather than guessing. Please set it aside; we\'ll send a new one."');
+
+  // Insulins whose allowance depends on the presentation and whether the pen
+  // has been started. The sheet points at the manufacturer's calculator.
+  if (d.calculatorUrl && packState !== 'frozen' && packState !== 'slushy')
+    return judge('JUDGMENT CALL — look up the allowance', [
+      `<strong>${d.name}'s allowance depends on the presentation and whether the pen has been started</strong>, so the sheet doesn't carry one number`,
+      `Use the manufacturer's calculator: <a href="${d.calculatorUrl}" target="_blank" rel="noopener">storage and stability calculator</a>`,
+      `The observed temperatures below are what you feed into it`,
+    ], [
+      `<strong>The calculator's answer</strong> for this presentation, in-use state and exposure — that is the decision`,
+      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so exposure was short ${K}` : `warm, so the pack-out was spent ${R}`}`,
+      `<strong>Appearance:</strong> clear and normal ${K} · cloudy, clumped or frosted ${R}`,
+    ], '"Let me check this against the manufacturer\'s stability tool and call you right back."',
+       '"Going by the manufacturer\'s stability data this one is past what it allows, so I\'m replacing it. Please set it aside."');
 
   // score days: warm packs → every day; cool packs → only days beyond the 48-hour rating
   const { exposed, above, below } = splitCovered(days, lastResult.start);
@@ -615,10 +820,10 @@ function decide() {
 
   if (sAbove === 0) {
     const durOk = allow == null || nDays <= allow;
-    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allow}-day allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
+    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allowanceText(d)} allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
     return judge('JUDGMENT CALL — duration', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
-      `<strong>${nDays} days</strong> in transit — the allowance is ${allow} day${allow === 1 ? '' : 's'}`,
+      `<strong>${nDays} days</strong> in transit — the allowance is ${allowanceText(d)}`,
       `Allowance: ${d.excursionNote || rangeText(floor, ceil)}`,
     ], [
       `<strong>Time, not heat:</strong> refrigerated for part of the window (climate-controlled carrier hold, patient fridged it on day one) ${K} · out of refrigeration the whole time ${R}`,
@@ -630,12 +835,12 @@ function decide() {
   return judge('JUDGMENT CALL — possible heat excursion', [
     `Outdoor air reached <strong>${fmtF(hi)}</strong> — the ceiling is ${fmtF(ceil)}`,
     `Up to <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
-    `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allow != null && !/day|week/i.test(d.excursionNote || '') ? ` (${allow} days)` : ''}`,
+    `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allowanceText(d) && !/day|week|hour/i.test(d.excursionNote || '') ? ` (${allowanceText(d)})` : ''}`,
     'Worst case: assumes outdoor air the whole time — a van in the sun can run hotter, a box with packs runs cooler',
   ], [
     `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool ${K}` : `barely warm ${K} · warm to the touch ${R}`}`,
     `<strong>Appearance:</strong> looks normal (color, clarity, no particles) ${K} · anything off ${R}`,
-    `<strong>Exposure vs allowance:</strong> ${sAbove}h${allow != null ? ` against ${allow} days` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
+    `<strong>Exposure vs allowance:</strong> ${sAbove}h${allowanceText(d) ? ` against ${allowanceText(d)}` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
     `<strong>Patient:</strong> refrigerated it as soon as it arrived ${K} · left it out for hours ${R}`,
   ], '"It looks normal and the exposure was well within what this medication tolerates, so it\'s fine to use — into the fridge."', '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 }
