@@ -49,6 +49,13 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   driving each winter-pack state, hollow dots mark cold pockets, and
   **Copy pack-out note** produces a paste-ready list including the exceptions.
   Overnight and hub lows are shown for context only.
+- **Load behaviour.** A cold load needs a forecast for ~2,300 towns (two NWS
+  calls each). Requests go through a bounded queue (`MAX_INFLIGHT = 10`) and
+  every call — including the `/points/` lookup — retries throttling and outages
+  four times with exponential backoff. States that return nothing render grey
+  (never as "standard"), states that answered on only part of their footprint
+  are named, and a banner offers a one-click retry of just those. A partial
+  load is cached for 5 minutes instead of an hour so it self-heals.
 - Window, dwell and thresholds are named constants at the top of
   `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
   `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`). To refresh the footprint, mark
