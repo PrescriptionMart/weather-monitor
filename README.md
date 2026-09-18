@@ -231,29 +231,35 @@ shadows instead of soft blurs.
   whole layer is inert under `prefers-reduced-motion`.
 
 ### The party (`characters.js`, Excursion Check only, retro mode only)
-A four-character Shining Force homage that walks a strip of grass along the
-bottom of the Excursion Check. Sprites, portraits, turf and scattered flowers
-are all generated from pixel maps in the file, so no image assets ship.
+A nine-character Shining Force homage that follows you around the Excursion
+Check. Sprites, portraits, trees, turf, flowers and particles are all generated
+from pixel maps in the file, so no image assets ship.
 
-| | Role | Speaks about |
-|---|---|---|
-| **MAX** | Courier | transit, porches, clean verdicts |
-| **KHRIS** | Pharmacist | pack state, replacements, products with no allowance |
-| **GORT** | Pack Knight | the 48-hour rating, winter packing |
-| **ANRI** | Forecaster | the weather record, destinations, and Ice Run |
+| | Role | | | Role |
+|---|---|---|---|---|
+| **MAX** | Courier (leads) | | **LUKE** | Freezer Keeper |
+| **KHRIS** | Pharmacist | | **ZYLO** | Night Shift |
+| **GORT** | Pack Knight | | **ADAM** | Pack-out Engine |
+| **ANRI** | Forecaster, runs Ice Run | | **AMON** | Sky Scout (flies) |
+| **HANS** | Route Scout | | | |
 
-- **They comment on choices**, not just the verdict: picking Tremfya gets
-  "only 4 hours out of the fridge, do not dawdle", Forteo gets the
-  no-allowance warning from the pharmacist, Aimovig is flagged as having two
-  windows, and each pack state gets its own line.
-- **Lines queue.** A choice and the verdict that follows from it both have
-  something to say, so they take turns rather than one stomping the other.
-  Clicking the box advances, the way an RPG box should.
-- **Ice Run**: click ANRI for a 20-second round of catching parcels before
-  they land, scored with a rank at the end.
-- Clicking any character opens the dialogue box. The stage never intercepts a
-  click meant for the page, and the whole party is torn down when retro mode
-  is switched off.
+- **They follow the cursor** (or the last tap on a phone) in a conga line:
+  MAX heads for the cursor, everyone else trails the one ahead. AMON hovers
+  above. When you stop for a few seconds they settle into two ranks behind
+  the cursor and glance about. Footsteps kick up dust.
+- **They comment on choices**, not just the verdict, through the dialogue box:
+  Tremfya gets "only 4 hours out of the fridge", Forteo gets the no-allowance
+  warning from the pharmacist, Aimovig is flagged as banded, each pack state
+  has a line. Lines queue and clicking the box advances.
+- **Verdicts are events.** OK: the whole party hops with sparkles and MAX says
+  so overhead. REPLACE: a **Heat Wave** spawns beside the verdict card, the
+  front four charge it, three hits and it goes down, GORT calls the victory.
+- **Ambient chatter**: someone says something over their head every 7–16 s.
+- **Party roster** (top right, desktop only) lists everyone; click a name to
+  hail them. **Ice Run**: ask ANRI for a 20-second round of catching parcels.
+- The stage never intercepts a click meant for the page (only sprites are
+  clickable), the whole party is torn down when retro mode is switched off,
+  and none of it exists under `prefers-reduced-motion`.
 
 ### Data sources
 | Source | Used for | Key required |
