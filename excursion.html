@@ -367,7 +367,7 @@
       <div class="note" id="station-line"></div>
       <table class="days" id="days-table"></table>
       <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy note for NewLeaf</button><span class="copy-status" id="copy-status"></span></div>
-      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored against station air for the whole day. <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored against station air for the whole day. <a href="delay-guide.html">How late is too late</a> · <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
     </div>
   </details>
 
@@ -782,7 +782,11 @@ function onDrugChange() {
   else if (d.refrigerated === false) headline = `<b>Room-temperature product</b> — keep within ${rangeText(floor, ceil)}${at ? `, up to ${at} at the edges` : ''}`;
   else headline = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${at ? ` for ${at}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}`;
   // the two rules that change what the patient is told if the product is kept
+  // the duration half of a delay call, answerable the moment a product is picked
+  const maxLate = d.noExcursion ? 0 : (allowanceDays(d) != null ? allowanceDays(d) + 1 : null);
   const rules = [];
+  if (maxLate === 0) rules.push('<b>any delay is a manufacturer call</b> — there is no allowance to spend');
+  else if (maxLate != null) rules.push(`absorbs a delay of up to <b>${maxLate} day${maxLate === 1 ? '' : 's'}</b> on duration alone`);
   if (d.cumulative) rules.push('allowance is <b>cumulative</b> — time out of the fridge adds up across trips');
   if (d.returnToFridge === false) rules.push('<b>do not return it to the fridge</b> once it reaches room temperature');
   else if (d.returnToFridge === true) rules.push('may go back in the fridge');

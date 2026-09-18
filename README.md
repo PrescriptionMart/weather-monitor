@@ -123,6 +123,14 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   the thermometer, ask when it went in the fridge, say what you checked then
   the answer, weaker dose vs missed dose, manufacturer med-info line, a
   safety-net line for anxious patients, log it).
+- **How late is too late (`delay-guide.html`)** — the duration half of a delay
+  call, for every product, with no ZIP and no weather. Enter how many days late
+  and it splits the list into still-inside and past-the-allowance. A package is
+  inside while `days late <= allowance days + 1` (next-day transit, and the
+  48-hour pack-out covers the ship day and the day after). At 2 days late only
+  Forteo, Genotropin and Omnitrope are past it, because they have no allowance
+  at all. Computed live from `data/drugs.json`, so it tracks the sheet. The
+  selected product's figure also shows on the Excursion Check allowance line.
 - **Basis & references (`excursion-basis.html`)** — what each rule rests on
   (USP <659>/<1079>, CDC excursion procedure, ISTA 7D/7E, URAC P-MD, 22 TAC
   §291.12, JAPhA 2023 mail-transit study, manufacturer allowances), where

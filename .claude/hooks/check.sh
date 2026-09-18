@@ -10,7 +10,7 @@ fail=0
 tmp="$(mktemp --suffix=.js)"
 trap 'rm -f "$tmp"' EXIT
 
-for f in index.html winter-pack.html excursion.html excursion-basis.html; do
+for f in index.html winter-pack.html excursion.html excursion-basis.html delay-guide.html; do
   python3 - "$f" > "$tmp" <<'PY'
 import sys, re
 html = open(sys.argv[1]).read()
