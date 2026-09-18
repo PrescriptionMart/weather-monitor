@@ -366,8 +366,8 @@
     <div class="card" style="margin-top:8px;">
       <div class="note" id="station-line"></div>
       <table class="days" id="days-table"></table>
-      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy summary</button><span class="copy-status" id="copy-status"></span></div>
-      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored worst-case (outdoor air the whole time). <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy note for NewLeaf</button><span class="copy-status" id="copy-status"></span></div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored against station air for the whole day. <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
     </div>
   </details>
 
@@ -382,6 +382,31 @@ const MAX_LOOKBACK_DAYS = 7; // NWS keeps roughly a week of observations
 // Our pack-outs are rated for 48 hours: the gel packs hold the product in
 // range for the ship day plus the next two days, so ambient on those days
 // doesn't count against the drug. Only the delayed days beyond that do.
+// Carrier pick-up happens at the same hour every day, so the pack-out's 48
+// hours can be anchored to it instead of to the calendar. SET THIS to the real
+// pick-up hour (24h clock). Setting it EARLIER than reality is conservative
+// (less time credited to the packs); setting it LATER is permissive, so when
+// in doubt leave it low.
+// How good the weather evidence has to be before a verdict is allowed to be a
+// clean OK. Below these, the numbers are a FLOOR (we only know the hours we
+// actually observed) and the tool says so instead of clearing the shipment.
+const OBS_HOURS_GOOD = 18;      // distinct clock-hours observed, out of 24
+const MAX_STATION_MILES = 25;   // beyond this the station is indicative, not decisive
+// How far under the ceiling a peak has to sit before we call it clean. The
+// ceilings come from the stability sheet and several could not be verified
+// against a label, so a reading that lands near the line should not be cleared
+// on a number that might be a few degrees off.
+const CEILING_MARGIN_F = 5;
+const CEILING_MARGIN_UNCERTAIN_F = 10;  // for rows carrying a flag
+// Our carrier pick-up is 16:00 every day, so the pack-out's rated hours are
+// anchored to it rather than to the calendar. If pick-up ever moves, change it
+// here: setting it EARLIER than reality is conservative (less time credited to
+// the packs), setting it LATER silently excuses real exposure.
+const PICKUP_HOUR = 16;
+// Pick-up happens in Houston, so the pack-out clock is anchored to Central
+// time no matter where the package lands. Anchoring it to the destination
+// would credit extra hours on westbound shipments.
+const ORIGIN_TZ = 'America/Chicago';
 const PACKOUT_RATING_HOURS = 48;
 // Our gel packs are polymer ice: water held in a superabsorbent polymer. The
 // polymer is a thickener, not a phase-change additive, so the packs melt at
@@ -391,11 +416,11 @@ const PACKOUT_RATING_HOURS = 48;
 // phase-change material (many melt at 41°F), change this and re-read the
 // frozen/slushy wording.
 const PACK_MELT_F = 32;
-const PACKOUT_COVERED_DAYS = PACKOUT_RATING_HOURS / 24;
 
 let DRUGS = [];
 let lastResult = null;
 let packState = null;
+let _scored = null;   // the days a verdict was based on, for the evidence footer
 
 // ---- drug list ----
 function fmtF(v) { return v === null || v === undefined ? '—' : `${v}°F`; }
@@ -598,7 +623,7 @@ async function observations(stationId, start, end) {
 }
 
 // Bucket observations into local hours (max/min per hour), then local days.
-function summarize(obs, tz, ceil, floor) {
+function summarize(obs, tz, ceil, floor, win) {
   const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', hour12: false });
   const hours = {};
   obs.forEach(o => {
@@ -618,14 +643,90 @@ function summarize(obs, tz, ceil, floor) {
     if (ceil != null && x.max > ceil) d.above++;
     if (floor != null && x.min < floor) d.below++;
   });
-  return Object.values(days).sort((a, b) => a.day.localeCompare(b.day));
+  const out = Object.values(days).sort((a, b) => a.day.localeCompare(b.day));
+  // A day is only as good as the hours actually reported. Unobserved hot hours
+  // are invisible to the counters above, so mark thin days rather than let
+  // their silence read as a clean record. The first and last day of a window
+  // are legitimately partial, so each day is judged against the hours it could
+  // have had, not a flat 24.
+  out.forEach(x => {
+    const possible = hoursPossible(x.day, win);
+    x.possible = possible;
+    x.thin = x.hours < Math.min(OBS_HOURS_GOOD, Math.max(1, Math.floor(possible * 0.75)));
+  });
+  return out;
+}
+
+// How many clock-hours of this local day fall inside the shipped→received
+// window. Without a window we assume a full day.
+function hoursPossible(dayKey, win) {
+  if (!win || !win.start || !win.end) return 24;
+  const tz = win.tz || ORIGIN_TZ;
+  const from = Math.max(win.start.getTime(), dayStart(dayKey, tz).getTime());
+  const to = Math.min(win.end.getTime(), dayEnd(dayKey, tz).getTime());
+  return Math.max(0, Math.min(24, Math.ceil((to - from) / 3600000)));
+}
+
+// Is the ceiling for this product one we could not verify? Flagged rows and
+// after-first-use rows get the wider margin.
+function ceilingUncertain(d) { return !!(d && (d.flag || d.inUseAllowance)); }
+function ceilingMargin(d) { return ceilingUncertain(d) ? CEILING_MARGIN_UNCERTAIN_F : CEILING_MARGIN_F; }
+
+// One line describing how good the evidence behind a verdict is.
+function evidenceLine(r, scored) {
+  if (!r || !r.station) return '';
+  const far = r.station.miles > MAX_STATION_MILES;
+  const thin = (scored || []).filter(x => x.thin);
+  const bits = [`${r.obs.length} readings from ${r.station.name}, ${r.station.miles.toFixed(1)} mi away`];
+  if (far) bits.push(`<strong>that is over ${MAX_STATION_MILES} mi</strong>, so treat it as indicative of the area, not of the porch`);
+  if (thin.length) bits.push(`<strong>${thin.length} scored day${thin.length === 1 ? '' : 's'} reported fewer than ${OBS_HOURS_GOOD} of 24 hours</strong>, so the hours below are a floor, not a count`);
+  return bits.join('. ') + '.';
+}
+function evidenceWeak(r, scored) {
+  if (!r) return true;
+  const far = r.station ? r.station.miles > MAX_STATION_MILES : false;
+  return far || (scored || []).some(x => x.thin);
 }
 function localDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 // Last calendar day covered by the pack-out for a shipment that left on `start`.
-function coveredUntilKey(start) { const d = new Date(start); d.setDate(d.getDate() + PACKOUT_COVERED_DAYS); return localDateKey(d); }
-function splitCovered(days, start) {
-  const until = coveredUntilKey(start);
-  days.forEach(x => { x.covered = x.day <= until; });
+// ---- timezone-safe day boundaries ---------------------------------------
+// Day keys are local to the weather station, which is rarely the browser's own
+// zone. Building Dates with new Date(y, m, d) would use the browser's offset
+// and silently shift every boundary. These resolve a local wall-clock time in
+// a named zone to a real instant, DST included.
+function tzOffsetMs(instant, tz) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    .formatToParts(instant).map(x => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - instant.getTime();
+}
+function zonedInstant(y, m, d, hour, tz) {
+  const guess = Date.UTC(y, m - 1, d, hour, 0, 0);
+  let off = tzOffsetMs(new Date(guess), tz);
+  let t = guess - off;
+  off = tzOffsetMs(new Date(t), tz);      // second pass settles DST edges
+  return new Date(guess - off);
+}
+function dayStart(dayKey, tz) { const [y, m, d] = dayKey.split('-').map(Number); return zonedInstant(y, m, d, 0, tz); }
+// The next local midnight, minus a millisecond. Not "+24h": on a DST fall-back
+// day that would drop the extra hour, and on spring-forward it would overrun.
+function dayEnd(dayKey, tz) {
+  const [y, m, d] = dayKey.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return new Date(zonedInstant(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, tz).getTime() - 1);
+}
+
+// The instant the pack-out leaves its rating: pick-up on the ship date in
+// Houston, plus the rated hours. A day is only "covered" if the whole day
+// falls before it — a day that straddles the boundary is scored in full,
+// which is the safe side.
+function coveredUntil(start) {
+  const pickup = zonedInstant(start.getFullYear(), start.getMonth() + 1, start.getDate(), PICKUP_HOUR, ORIGIN_TZ);
+  return new Date(pickup.getTime() + PACKOUT_RATING_HOURS * 3600 * 1000);
+}
+function splitCovered(days, start, tz) {
+  const until = coveredUntil(start);
+  days.forEach(x => { x.covered = dayEnd(x.day, tz || ORIGIN_TZ) <= until; });
   const exposed = days.filter(x => !x.covered);
   return { exposed, above: exposed.reduce((n, x) => n + x.above, 0), below: exposed.reduce((n, x) => n + x.below, 0) };
 }
@@ -715,9 +816,10 @@ function decide() {
   const v = document.getElementById('verdict');
   const show = (cls, big, why, tell, after) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}${after || ''}`; };
   const li = (items) => `<ul class="verdict-list">${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
+  const evid = (sc) => { const t = evidenceLine(lastResult, sc); return t ? `<div class="verdict-tell"><b>Evidence</b>${t}</div>` : ''; };
   const K = '<span class="lean keep">keep</span>', R = '<span class="lean replace">replace</span>';
   // Judgment card: the numbers as bullets, then one bullet per factor with which way it leans, then both scripts.
-  const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div>${aftercare(d)}<div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>`; };
+  const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div>${aftercare(d)}<div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>${evid(_scored)}`; };
 
   // What the patient must be told when the product is KEPT. A one-time
   // allowance that has been partly spent changes how they store it from here.
@@ -737,7 +839,7 @@ function decide() {
 
   const { ceil, floor } = drugLimits(d);
   const allow = allowanceDays(d);
-  const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor) : null;
+  const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor, lastResult) : null;
 
   // Room-temperature products (Afinitor, Monovisc, Opzelura) have no cold chain
   // to break, so the pack question tells us nothing — go straight to the air.
@@ -801,11 +903,12 @@ function decide() {
        '"Going by the manufacturer\'s stability data this one is past what it allows, so I\'m replacing it. Please set it aside."');
 
   // score days: warm packs → every day; cool packs → only days beyond the 48-hour rating
-  const { exposed, above, below } = splitCovered(days, lastResult.start);
+  const { exposed, above, below } = splitCovered(days, lastResult.start, lastResult.tz);
   const scored = packState === 'warm' ? days : exposed;
   const sAbove = scored.reduce((n, x) => n + x.above, 0), sBelow = scored.reduce((n, x) => n + x.below, 0);
   const hi = scored.length ? Math.max(...scored.map(x => x.high)) : null, lo = scored.length ? Math.min(...scored.map(x => x.low)) : null;
   const nDays = scored.length;
+  _scored = scored;
 
   if (packState === 'cool' && exposed.length === 0)
     return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, '"It arrived within the time our packaging is rated for and was still cool — it\'s fine. Into the fridge and use as normal."');
@@ -813,8 +916,8 @@ function decide() {
   if (sBelow > 0 && floor != null)
     return judge('JUDGMENT CALL — cold exposure', [
       `Outdoor air dropped to <strong>${fmtF(lo)}</strong> — the floor is ${fmtF(floor)}`,
-      `Up to <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
-      'Worst case: assumes outdoor air the whole time — inside a box with packs it stays warmer than that',
+      `${scored.some(x => x.thin) ? 'At least' : 'Up to'} <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+      'Station air, assumed for the whole window — inside a box with packs it stays warmer than that',
     ], [
       `<strong>Appearance:</strong> no ice crystals, not cloudy, looks normal ${K} · any sign of freezing ${R} (freeze damage isn't always visible — weigh with the next two)`,
       `<strong>How cold, how long:</strong> a few hours a little under the floor ${K} · well below freezing for a long stretch ${R}`,
@@ -833,7 +936,39 @@ function decide() {
       `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
     ], '"The temperature held the whole way. Let me confirm one storage detail and call you right back."',
        '"I\'d rather replace this than clear it on a number that may not apply to an unopened pen. Please set it aside; we\'ll send a new one."');
-    if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allowanceText(d)} allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
+    if (durOk) {
+      // Thin or distant weather data cannot clear a shipment: the hours we
+      // report are only the hours the station happened to report.
+      if (evidenceWeak(lastResult, scored)) return judge('JUDGMENT CALL — the weather record is thin', [
+        `Nothing we observed went above the ${fmtF(ceil)} ceiling (peak ${fmtF(hi)}) across ${nDays} day${nDays === 1 ? '' : 's'}`,
+        `<strong>But the record has gaps.</strong> ${evidenceLine(lastResult, scored)}`,
+        'An unobserved hot hour would not show up in these numbers at all',
+      ], [
+        `<strong>Pack state, which does not rely on the weather record:</strong> ${packState === 'cool' ? `still cool on arrival, so the pack-out was still working ${K}` : `warm on arrival, so it was spent ${R}`}`,
+        `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+        `<strong>Do the gaps cover the hot part of the day?</strong> readings through the afternoon ${K} · only overnight readings ${R}`,
+      ], '"Everything we can see says it stayed in range, and the packs back that up. It\'s fine to use."',
+         '"The weather record for your area has gaps, so I\'d rather replace it than assume. Please set it aside; we\'ll send a new one."');
+
+      // A peak just under the ceiling is only as good as the ceiling, and
+      // several ceilings could not be verified against a label.
+      const headroom = (ceil != null && hi != null) ? ceil - hi : null;
+      const margin = ceilingMargin(d);
+      if (headroom != null && headroom < margin) return judge('JUDGMENT CALL — it ran close to the limit', [
+        `Peak was <strong>${fmtF(hi)}</strong> against a ${fmtF(ceil)} ceiling — ${headroom}°F of headroom`,
+        ceilingUncertain(d)
+          ? `<strong>${d.name}'s ceiling could not be verified against the label</strong>, so ${headroom}°F is not enough room to clear it on`
+          : `Our margin for a clean pass is ${margin}°F and this sits inside it`,
+        'Station air is a proxy for the box, not a measurement of it — a van or a sunny porch runs hotter',
+      ], [
+        `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran colder than the air ${K}` : `warm, so the box tracked the air ${R}`}`,
+        `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+        `<strong>How long it sat near the peak:</strong> a brief afternoon high ${K} · hot most of the day ${R}`,
+      ], '"It stayed within what this medication tolerates and the packs were still doing their job. It\'s fine to use."',
+         '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
+
+      return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allowanceText(d)} allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
+    }
     return judge('JUDGMENT CALL — duration', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
       `<strong>${nDays} days</strong> in transit — the allowance is ${allowanceText(d)}`,
@@ -847,9 +982,9 @@ function decide() {
 
   return judge('JUDGMENT CALL — possible heat excursion', [
     `Outdoor air reached <strong>${fmtF(hi)}</strong> — the ceiling is ${fmtF(ceil)}`,
-    `Up to <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+    `${scored.some(x => x.thin) ? 'At least' : 'Up to'} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
     `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allowanceText(d) && !/day|week|hour/i.test(d.excursionNote || '') ? ` (${allowanceText(d)})` : ''}`,
-    'Worst case: assumes outdoor air the whole time — a van in the sun can run hotter, a box with packs runs cooler',
+    'Station air, assumed for the whole window — a van or a sunny porch runs hotter, a box with live packs runs cooler',
   ], [
     `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool ${K}` : `barely warm ${K} · warm to the touch ${R}`}`,
     `<strong>Appearance:</strong> looks normal (color, clarity, no particles) ${K} · anything off ${R}`,
@@ -863,8 +998,8 @@ function renderDetails() {
   if (!r) { det.style.display = 'none'; return; }
   const d = currentDrug();
   const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
-  const days = summarize(r.obs, r.tz, ceil, floor);
-  splitCovered(days, r.start);
+  const days = summarize(r.obs, r.tz, ceil, floor, r);
+  splitCovered(days, r.start, r.tz);
   det.style.display = 'block';
   const placeName = r.place ? `${r.place.city}, ${r.place.state}` : r.loc.name;
   document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings · ${r.tz.replace('_', ' ')}`;
@@ -882,21 +1017,56 @@ function renderDetails() {
 const _decide = decide;
 decide = function() { _decide(); renderDetails(); };
 
-function copySummary() {
-  const r = lastResult; const d = currentDrug();
+// A NewLeaf activity note, not a report. Two or three lines: what was
+// checked, what the weather showed, what was decided. The long version lives
+// on screen; pasting it into a patient record helps no one.
+function noteText() {
+  const r = lastResult, d = currentDrug();
   const v = document.getElementById('verdict');
-  const lines = [`EXCURSION CHECK — ${d ? d.name : 'no product selected'} · packs: ${packState || 'n/a'}${document.getElementById('product-frozen').checked ? ' · PRODUCT FROZEN' : ''}`];
-  const why = ((v.querySelector('.verdict-why') || {}).textContent || '').replace(/\s+/g, ' ').trim();
-  lines.push('Call: ' + (v.querySelector('.verdict-big') || {}).textContent + (why ? ' — ' + why : ''));
-  v.querySelectorAll('.verdict-list li').forEach(el => lines.push('  - ' + el.textContent.replace(/\s+/g, ' ').trim()));
+  const call = ((v.querySelector('.verdict-big') || {}).textContent || '').replace(/\s+/g, ' ').trim();
+  const md = (dt) => `${dt.getMonth() + 1}/${dt.getDate()}`;
+  const packWord = { frozen: 'packs frozen solid', slushy: 'packs slushy', cool: 'packs thawed, cool', warm: 'packs thawed, warm' }[packState] || 'pack state not given';
+  const out = [];
+
+  let l1 = `Excursion check ${md(new Date())}: ${d ? d.name : 'product not selected'}`;
+  if (r) l1 += `, ZIP ${r.zip}`;
+  l1 += `. ${packWord}`;
+  if (document.getElementById('product-frozen').checked) l1 += ', PRODUCT SHOWED FREEZING';
+  out.push(l1 + '.');
+
   if (r) {
     const { ceil, floor } = d ? drugLimits(d) : { ceil: null, floor: null };
-    const days = summarize(r.obs, r.tz, ceil, floor); splitCovered(days, r.start);
-    lines.push(`ZIP ${r.zip} · station ${r.station.name} (${r.station.miles.toFixed(1)} mi) · ${r.start.toLocaleDateString()} → ${r.end.toLocaleDateString()} · outdoor air, not product`);
-    days.forEach(x => lines.push(`${dayText(x.day)}${x.covered && packState !== 'warm' ? ' (covered)' : ''}: high ${fmtF(x.high)} ${hourText(x.highH)}, low ${fmtF(x.low)} ${hourText(x.lowH)}`));
+    const days = summarize(r.obs, r.tz, ceil, floor, r);
+    splitCovered(days, r.start, r.tz);
+    const scored = packState === 'warm' ? days : days.filter(x => !x.covered);
+    const hi = scored.length ? Math.max(...scored.map(x => x.high)) : null;
+    const lo = scored.length ? Math.min(...scored.map(x => x.low)) : null;
+    const nAbove = scored.reduce((n, x) => n + x.above, 0);
+    const nBelow = scored.reduce((n, x) => n + x.below, 0);
+    const thin = scored.some(x => x.thin);
+    let l2 = `Ship ${md(r.start)}, recd ${md(r.end)}. `;
+    if (!scored.length) {
+      l2 += `Received inside the ${PACKOUT_RATING_HOURS}h pack-out rating.`;
+    } else {
+      l2 += `Ambient peak ${fmtF(hi)}`;
+      if (ceil != null) l2 += ` vs ${fmtF(ceil)} limit`;
+      if (nAbove) l2 += `, ${thin ? '>=' : ''}${nAbove}h over`;
+      if (nBelow && floor != null) l2 += `, ${thin ? '>=' : ''}${nBelow}h under ${fmtF(floor)} (low ${fmtF(lo)})`;
+      l2 += ` across ${scored.length}d scored.`;
+    }
+    out.push(l2 + ` ${r.station.id} ${r.station.miles.toFixed(0)}mi${thin ? ', partial record' : ''}.`);
   }
+  if (call) out.push(call.replace(/\s+/g, ' ') + '.');
+  return out.join('\n');
+}
+
+function copySummary() {
   const status = document.getElementById('copy-status');
-  if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n')).then(() => { status.textContent = '✓ Copied'; setTimeout(() => status.textContent = '', 2500); });
+  const text = noteText();
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => {
+    status.textContent = `\u2713 Copied (${text.split('\n').length} lines)`;
+    setTimeout(() => status.textContent = '', 2500);
+  });
 }
 
 // ---- theme + boot ----

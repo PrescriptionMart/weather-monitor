@@ -90,7 +90,22 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   *Your call — weigh* (one line per factor with a KEEP / REPLACE lean), then
   a keep-it and a replace-it script. Details (station, distance, daily
   highs/lows, copy-for-the-record) are expanded below the verdict and can be
-  collapsed. Constants: `PACKOUT_RATING_HOURS = 48`.
+  collapsed. Constants: `PACKOUT_RATING_HOURS = 48`, `PICKUP_HOUR`.
+- **What has to be true before a clean OK.** The weather record has to be good
+  enough (at least ~18 of 24 hours reported on every scored day, judged against
+  the hours that day could have had, and a station within 25 miles), and the
+  peak has to sit at least `CEILING_MARGIN_F` (5°F) under the ceiling, widened
+  to 10°F for products whose ceiling could not be verified. Anything short of
+  that is a judgment call naming the reason, never a silent pass. Every verdict
+  carries an evidence line: how many readings, from where, how far away.
+- **Pack-out coverage** is anchored to the daily carrier pick-up
+  (`PICKUP_HOUR`, Central, since we ship from Houston) plus the rated 48 hours,
+  not to calendar days. A day straddling the boundary is scored in full.
+  Setting `PICKUP_HOUR` earlier than reality is conservative; later is not.
+- **Timezones**: day boundaries resolve in the weather station's own zone, not
+  the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
+  resolves in Central regardless of destination.
+- **Copy note for NewLeaf** produces a 2-3 line activity note, not a report.
 - **On the call** — a highlighted card right under the verdict with seven one-line tips (packs are
   the thermometer, ask when it went in the fridge, say what you checked then
   the answer, weaker dose vs missed dose, manufacturer med-info line, a
