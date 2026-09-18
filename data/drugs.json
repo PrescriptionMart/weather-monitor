@@ -14,6 +14,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -32,6 +33,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -50,6 +52,7 @@
   "noExcursion": false,
   "refrigerated": false,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false,
   "derivation": "Tablets, controlled room temperature 68-77F. Not a cold-chain product."
@@ -69,6 +72,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false,
   "tiers": [
@@ -100,6 +104,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -118,6 +123,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -136,6 +142,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -154,6 +161,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -172,6 +180,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -190,6 +199,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -208,6 +218,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -226,6 +237,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": false,
   "freezeSensitive": true
  },
@@ -244,6 +256,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -262,6 +275,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -280,6 +294,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false,
   "flag": "The sheet gives 30 days for all formulations. Amgen gives 30 days for the prefilled syringe and SureClick, but 14 days for the multi-dose vial and dose tray. Confirm which formulation shipped before relying on 30 days."
@@ -299,6 +314,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -317,6 +333,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -335,6 +352,7 @@
   "noExcursion": true,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -353,6 +371,7 @@
   "noExcursion": true,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -371,6 +390,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -389,6 +409,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -407,6 +428,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -425,6 +447,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -443,6 +466,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -461,6 +485,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -479,6 +504,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -497,6 +523,7 @@
   "noExcursion": false,
   "refrigerated": false,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true,
   "derivation": "Room-temperature product, stored below 77F. The blank Min Temp cell is correct, not missing."
@@ -516,6 +543,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": false,
   "freezeSensitive": false,
   "derivation": "Both temperature cells are blank in the sheet. 86F/21 days taken from the excursion text (single-use autoinjector); vials and KwikPens get 30 days, split into their own row."
@@ -554,6 +582,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -572,8 +601,10 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": true,
   "protectFromLight": true,
-  "freezeSensitive": true
+  "freezeSensitive": true,
+  "flag": "The 21 days at 77F is an AFTER-FIRST-USE figure. The sheet's own storage note reads \"After first use, pens may be stored in the refrigerator for 4 weeks or at room temperature (up to 77F) for 3 weeks.\" An unopened pen in transit may have no room-temperature allowance at all. Verify against the label before relying on 21 days."
  },
  {
   "name": "Novolog Flexpen and Penfill",
@@ -590,6 +621,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -608,6 +640,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -626,6 +659,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -644,6 +678,7 @@
   "noExcursion": true,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -662,6 +697,7 @@
   "noExcursion": false,
   "refrigerated": false,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false,
   "tiers": [
@@ -698,6 +734,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -716,6 +753,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -734,6 +772,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -752,6 +791,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -770,6 +810,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -788,6 +829,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true,
   "derivation": "Max Temp cell still reads 46 (the fridge ceiling). The excursion text gives 77F for 24 hours."
@@ -807,8 +849,10 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": true,
   "protectFromLight": true,
   "freezeSensitive": true,
+  "flag": "The 72 hours is tied to first use — the sheet reads \"discarded 6 weeks after first use if refrigerated while not in use, or in 72 hours if kept at room temperature.\" The allowance for an unopened pen in transit may differ. Verify against the label.",
   "derivation": "Max Temp cell reads 86, which is the hard discard limit. The allowance ceiling is 77F."
  },
  {
@@ -826,8 +870,10 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": true,
   "protectFromLight": true,
   "freezeSensitive": true,
+  "flag": "The 72 hours is tied to first use — the sheet reads \"discarded 6 weeks after first use if refrigerated while not in use, or in 72 hours if kept at room temperature.\" The allowance for an unopened pen in transit may differ. Verify against the label.",
   "derivation": "Max Temp cell reads 86, which is the hard discard limit. The allowance ceiling is 77F."
  },
  {
@@ -845,6 +891,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -863,6 +910,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true,
   "flag": "The sheet disagrees with itself: the excursion column says 77°F, the storage note says 86°F. The stricter 77°F is used. Lilly's label says 86°F for 5 days, so confirm before relying on it.",
@@ -883,6 +931,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -901,6 +950,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -919,6 +969,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false,
   "derivation": "Label allows going in and out of the fridge so long as total time out stays under 14 days."
@@ -938,6 +989,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -956,6 +1008,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -974,6 +1027,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": false
  },
@@ -992,6 +1046,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -1010,6 +1065,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true
  },
@@ -1028,6 +1084,7 @@
   "noExcursion": false,
   "refrigerated": true,
   "calculatorUrl": null,
+  "inUseAllowance": false,
   "protectFromLight": true,
   "freezeSensitive": true,
   "derivation": "Single-use autoinjector; may be returned to the fridge, 21 days total."
