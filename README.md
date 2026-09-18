@@ -105,6 +105,19 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - **Timezones**: day boundaries resolve in the weather station's own zone, not
   the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
   resolves in Central regardless of destination.
+- **Budget consumed.** The allowance is a budget, so the tool says what the trip
+  spent of it: "about 36% of the 14-day allowance (5 of 14 days, 9 left)", or
+  "all of the 2-day allowance and 4 days more" when it overruns. Flat arithmetic
+  on the label's own number: labels publish a budget, not a rate, so nothing is
+  weighted or modelled. Cumulative products say it counts against the running
+  total.
+
+  > Mean kinetic temperature was built and then removed. It is valid as a
+  > compliance test against USP's 8°C limit for controlled cold temperature,
+  > but ~91% of this list (antibodies, insulins, peptides) fails by aggregation
+  > or fibrillation rather than rate-limited chemistry, so the number is not a
+  > stability prediction for them, and against a flat labelled allowance it
+  > added no decision power. See git history if it is ever wanted back.
 - **Copy note for NewLeaf** produces a 2-3 line activity note, not a report.
 - **On the call** — a highlighted card right under the verdict with seven one-line tips (packs are
   the thermometer, ask when it went in the fridge, say what you checked then

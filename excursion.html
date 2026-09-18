@@ -667,6 +667,25 @@ function hoursPossible(dayKey, win) {
   return Math.max(0, Math.min(24, Math.ceil((to - from) / 3600000)));
 }
 
+// How much of the product's room-temperature allowance this trip used up.
+// Flat arithmetic on the label's own number — no assumed kinetics, because
+// labels publish a budget ("14 days at up to 77F"), not a rate.
+function budgetUsed(d, nDays) {
+  const total = allowanceDays(d);
+  if (total == null || !nDays) return null;
+  return { used: nDays, total, pct: Math.min(100, Math.round(nDays / total * 100)) };
+}
+function budgetText(d, nDays) {
+  const b = budgetUsed(d, nDays);
+  if (!b) return null;
+  const allowance = (allowanceText(d) || '').replace(/^(\d+) (day|hour)s?$/, '$1-$2');
+  const over = b.used - b.total;
+  const body = over > 0
+    ? `<strong>all</strong> of the ${allowance} allowance and ${over} day${over === 1 ? '' : 's'} more`
+    : `about <strong>${b.pct}%</strong> of the ${allowance} allowance (${b.used} of ${b.total} day${b.total === 1 ? '' : 's'}${b.total - b.used ? `, ${b.total - b.used} left` : ''})`;
+  return body + (d.cumulative ? ', and this is cumulative so it counts against the running total' : '');
+}
+
 // Is the ceiling for this product one we could not verify? Flagged rows and
 // after-first-use rows get the wider margin.
 function ceilingUncertain(d) { return !!(d && (d.flag || d.inUseAllowance)); }
@@ -909,6 +928,7 @@ function decide() {
   const hi = scored.length ? Math.max(...scored.map(x => x.high)) : null, lo = scored.length ? Math.min(...scored.map(x => x.low)) : null;
   const nDays = scored.length;
   _scored = scored;
+  const budget = budgetText(d, nDays);
 
   if (packState === 'cool' && exposed.length === 0)
     return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, '"It arrived within the time our packaging is rated for and was still cool — it\'s fine. Into the fridge and use as normal."');
@@ -967,11 +987,13 @@ function decide() {
       ], '"It stayed within what this medication tolerates and the packs were still doing their job. It\'s fine to use."',
          '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
 
-      return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allowanceText(d)} allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
+      const why = `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`
+        + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '');
+      return show('ok', 'OK TO USE', why, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
     }
     return judge('JUDGMENT CALL — duration', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
-      `<strong>${nDays} days</strong> in transit — the allowance is ${allowanceText(d)}`,
+      `<strong>${nDays} days</strong> in transit — the allowance is ${allowanceText(d)}${budget ? `, so this trip would use ${budget}` : ''}`,
       `Allowance: ${d.excursionNote || rangeText(floor, ceil)}`,
     ], [
       `<strong>Time, not heat:</strong> refrigerated for part of the window (climate-controlled carrier hold, patient fridged it on day one) ${K} · out of refrigeration the whole time ${R}`,
@@ -985,7 +1007,7 @@ function decide() {
     `${scored.some(x => x.thin) ? 'At least' : 'Up to'} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
     `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allowanceText(d) && !/day|week|hour/i.test(d.excursionNote || '') ? ` (${allowanceText(d)})` : ''}`,
     'Station air, assumed for the whole window — a van or a sunny porch runs hotter, a box with live packs runs cooler',
-  ], [
+  ].concat(budget ? [`This trip would use ${budget}`] : []), [
     `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool ${K}` : `barely warm ${K} · warm to the touch ${R}`}`,
     `<strong>Appearance:</strong> looks normal (color, clarity, no particles) ${K} · anything off ${R}`,
     `<strong>Exposure vs allowance:</strong> ${sAbove}h${allowanceText(d) ? ` against ${allowanceText(d)}` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
