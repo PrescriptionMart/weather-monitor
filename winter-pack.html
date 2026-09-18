@@ -300,8 +300,12 @@
         <div style="font-size: 16px; font-weight: 500;" id="map-title">Loading forecast data...</div>
         <div style="font-size: 13px; color: var(--text-faint);" id="map-subtitle"></div>
       </div>
-      <div id="flagged-count" style="font-size: 13px; color: #C62828; font-weight: 500;"></div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="flagged-count" style="font-size: 13px; color: var(--high-fg); font-weight: 600;"></span>
+        <button class="btn" id="refresh-btn" onclick="refreshMap()" title="Discard the cached forecasts and fetch them again">&#8635; Refresh</button>
+      </div>
     </div>
+    <div id="cache-age" style="font-size: 12px; color: var(--text-faint); margin: -6px 0 10px;"></div>
     <div id="decision-banner" class="decision-banner loading">Loading forecasts…</div>
 
     <!-- load coverage: which states are missing or only partly answered -->
@@ -3035,7 +3039,8 @@ function saveCachedData(complete) {
   } catch(e) { /* localStorage may be full or disabled */ }
 }
 
-async function loadAll() {
+// `force` skips the cache — that is what the Refresh button does.
+async function loadAll(force) {
   document.getElementById('last-updated').textContent = 'Refreshing...';
   const today = new Date();
   document.getElementById('today-day').textContent = today.toLocaleDateString('en-US', { weekday: 'long' });
@@ -3044,8 +3049,9 @@ async function loadAll() {
 
   const topoPromise = loadTopoJSON();
 
-  const cached = getCachedData();
+  const cached = force ? null : getCachedData();
   if (cached) {
+    dataFetchedAt = cached.timestamp;
     stateData = cached.stateData || {};
     hubData = cached.hubData || {};
     progressEl.textContent = 'Loaded from cache';
@@ -3053,7 +3059,8 @@ async function loadAll() {
     buildDayPicker();
     renderDay(selectedDayIdx);
     renderCoverage();
-    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (cached)';
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (cached)';
+    renderCacheAge();
     setTimeout(() => { progressEl.textContent = ''; }, 2000);
     return;
   }
@@ -3081,13 +3088,55 @@ async function loadStates(list) {
     if (completed === list.length || now - lastRender > 800) { lastRender = now; renderDay(selectedDayIdx); }
   }));
   progressEl.textContent = '';
+  dataFetchedAt = Date.now();
   renderDay(selectedDayIdx);
   renderCoverage();
+  renderCacheAge();
   // Never let a throttled load poison the cache for an hour: a partial result
   // is kept only briefly so the next visit tries again.
   saveCachedData(incompleteStates().length === 0);
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+// ---- refresh --------------------------------------------------------------
+// Forecasts are cached for an hour, so the page can be showing data from a
+// while ago. Say how old it is, and let anyone force a fresh pull.
+let dataFetchedAt = null;
+let _loading = false;
+
+function ageText(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins === 1) return '1 minute ago';
+  if (mins < 60) return mins + ' minutes ago';
+  const hrs = Math.floor(mins / 60), rem = mins % 60;
+  return hrs + (hrs === 1 ? ' hour' : ' hours') + (rem ? ' ' + rem + ' min' : '') + ' ago';
+}
+function renderCacheAge() {
+  const el = document.getElementById('cache-age');
+  if (!el) return;
+  if (_loading) { el.textContent = 'Fetching fresh forecasts — this takes 2–3 minutes.'; return; }
+  if (!dataFetchedAt) { el.textContent = ''; return; }
+  el.textContent = `Forecasts fetched ${ageText(Date.now() - dataFetchedAt)}.`;
+}
+function setLoading(on) {
+  _loading = on;
+  const btn = document.getElementById('refresh-btn');
+  if (btn) { btn.disabled = on; btn.innerHTML = on ? 'Refreshing…' : '&#8635; Refresh'; }
+  renderCacheAge();
+}
+async function refreshMap() {
+  if (_loading) return;                     // a load is already running
+  setLoading(true);
+  try {
+    try { localStorage.removeItem(CACHE_KEY); } catch(e) {}
+    stateData = {};
+    renderDay(selectedDayIdx);              // clear the map so stale fills aren't mistaken for fresh ones
+    await loadAll(true);
+  } finally { setLoading(false); }
+}
+// keep the "fetched N minutes ago" line honest without a reload
+setInterval(renderCacheAge, 60000);
 
 // States that returned nothing, or answered on only part of their footprint.
 function incompleteStates() {
@@ -3110,11 +3159,15 @@ function renderCoverage() {
   el.style.display = 'flex';
 }
 async function retryIncomplete() {
+  if (_loading) return;
   const missing = incompleteStates();
   if (!missing.length) return;
-  document.getElementById('coverage-note').style.display = 'none';
-  document.getElementById('last-updated').textContent = 'Retrying...';
-  await loadStates(missing);
+  setLoading(true);
+  try {
+    document.getElementById('coverage-note').style.display = 'none';
+    document.getElementById('last-updated').textContent = 'Retrying...';
+    await loadStates(missing);
+  } finally { setLoading(false); }
 }
 
 function dayLabel(i) {
@@ -3328,7 +3381,7 @@ function toggleTheme() {
 }
 syncThemeIcon();
 
-loadAll();
+(async () => { setLoading(true); try { await loadAll(); } finally { setLoading(false); } })();
 
 // Register the service worker for installability + offline fallback.
 if ('serviceWorker' in navigator) {
