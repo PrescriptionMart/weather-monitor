@@ -93,6 +93,17 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   `protectFromLight`, `freezeSensitive`, optional `flag`. Update by editing
   the spreadsheet and re-converting.
 
+### Design system
+All four pages share one token block (copied into each page's `<style>`, since
+there is no build step): **Inter** throughout, a teal brand accent, **one coral
+CTA per page** (`.btn-cta` — refresh on Hub Forecasts, copy pack-out note on the
+map, check the temperature on Excursion Check) with dark-filled `.btn-primary`
+for everything else, gold reserved for advisories. The header and day banner form
+one full-bleed dark panel with a 48px rounded bottom; nav is pill-shaped; cards
+are 32px-radius hairline surfaces with **no drop shadows** (elevation comes from
+surface contrast). Header, tabs and content share one 1200px grid via a
+`max()` gutter. Dark mode maps the same tokens onto a charcoal scale.
+
 ### Data sources
 | Source | Used for | Key required |
 |--------|----------|--------------|
