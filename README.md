@@ -105,31 +105,19 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - **Timezones**: day boundaries resolve in the weather station's own zone, not
   the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
   resolves in Central regardless of destination.
-- **Where MKT is and is not valid here.** As a *compliance test* against USP's
-  8°C limit for controlled cold temperature it is valid for every product we
-  carry, because it tests a storage condition against a written standard rather
-  than predicting a molecule's fate. As a *stability prediction* it is weak
-  across this inventory: the 83.144 kJ/mol convention comes from small-molecule
-  chemistry, and ~91% of the list (23 antibodies, 12 insulins, 15 peptides) fails
-  by aggregation, unfolding or fibrillation rather than rate-limited chemistry.
-  Only Afinitor and Opzelura are small molecules, and both are room-temperature
-  products. What survives a wrong exponent is the ORDERING — any positive
-  activation energy ranks a sustained-hot window above a brief spike — so the
-  page reads it comparatively and never as a threshold.
-- **Mean kinetic temperature, used one way only.** The Haynes equation with the
-  ICH convention (83.144 kJ/mol, so dH/R is 10000 K), computed over the scored
-  days' hourly maxima. A low ambient MKT can **rule heat out**; it can never
-  rule heat in, because a shaded station is not an upper bound on a parcel in a
-  van. It is **never shown on the cold side**: a freeze is a phase change, not a
-  reaction rate, and MKT averages a freeze event into a comfortable number
-  (3 days at 40/22°F, 39 of them at or below freezing, returns 32°F). On a heat
-  judgment it appears as context only, separating a brief spike from a
-  sustained bake. It never overrides a verdict.
 - **Budget consumed.** The allowance is a budget, so the tool says what the trip
-  spent of it: "about 36% of the 14-day allowance (5 of 14 days, 9 left)". Flat
-  arithmetic on the label's own number, no assumed kinetics, because labels
-  publish a budget rather than a rate. Cumulative products say it counts against
-  the running total.
+  spent of it: "about 36% of the 14-day allowance (5 of 14 days, 9 left)", or
+  "all of the 2-day allowance and 4 days more" when it overruns. Flat arithmetic
+  on the label's own number: labels publish a budget, not a rate, so nothing is
+  weighted or modelled. Cumulative products say it counts against the running
+  total.
+
+  > Mean kinetic temperature was built and then removed. It is valid as a
+  > compliance test against USP's 8°C limit for controlled cold temperature,
+  > but ~91% of this list (antibodies, insulins, peptides) fails by aggregation
+  > or fibrillation rather than rate-limited chemistry, so the number is not a
+  > stability prediction for them, and against a flat labelled allowance it
+  > added no decision power. See git history if it is ever wanted back.
 - **Copy note for NewLeaf** produces a 2-3 line activity note, not a report.
 - **On the call** — a highlighted card right under the verdict with seven one-line tips (packs are
   the thermometer, ask when it went in the fridge, say what you checked then
