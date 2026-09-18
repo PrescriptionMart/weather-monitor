@@ -224,8 +224,36 @@ shadows instead of soft blurs.
   means the mode degrades gracefully if the font never downloads. The font is
   fetched only when the mode is first switched on, never on a normal load.
   The setting is remembered and restores silently.
+- **Retro mode can be left with a button.** An EXIT RETRO control appears next
+  to the theme toggle while the mode is on, so nobody has to remember the code
+  to get out.
 - Everything here is decoration. Nothing gates or delays a verdict, and the
   whole layer is inert under `prefers-reduced-motion`.
+
+### The party (`characters.js`, Excursion Check only, retro mode only)
+A four-character Shining Force homage that walks a strip of grass along the
+bottom of the Excursion Check. Sprites, portraits, turf and scattered flowers
+are all generated from pixel maps in the file, so no image assets ship.
+
+| | Role | Speaks about |
+|---|---|---|
+| **MAX** | Courier | transit, porches, clean verdicts |
+| **KHRIS** | Pharmacist | pack state, replacements, products with no allowance |
+| **GORT** | Pack Knight | the 48-hour rating, winter packing |
+| **ANRI** | Forecaster | the weather record, destinations, and Ice Run |
+
+- **They comment on choices**, not just the verdict: picking Tremfya gets
+  "only 4 hours out of the fridge, do not dawdle", Forteo gets the
+  no-allowance warning from the pharmacist, Aimovig is flagged as having two
+  windows, and each pack state gets its own line.
+- **Lines queue.** A choice and the verdict that follows from it both have
+  something to say, so they take turns rather than one stomping the other.
+  Clicking the box advances, the way an RPG box should.
+- **Ice Run**: click ANRI for a 20-second round of catching parcels before
+  they land, scored with a rank at the end.
+- Clicking any character opens the dialogue box. The stage never intercepts a
+  click meant for the page, and the whole party is torn down when retro mode
+  is switched off.
 
 ### Data sources
 | Source | Used for | Key required |

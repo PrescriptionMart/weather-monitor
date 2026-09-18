@@ -25,7 +25,9 @@ PY
   fi
 done
 
-if node --check retro.js; then echo "ok: retro.js — parses"; else echo "FAIL: retro.js"; fail=1; fi
+for j in retro.js characters.js; do
+  if node --check "$j"; then echo "ok: $j — parses"; else echo "FAIL: $j"; fail=1; fi
+done
 
 for j in data/faa-events.json data/drugs.json; do
   if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$j"; then

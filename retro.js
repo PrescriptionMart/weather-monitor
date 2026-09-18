@@ -53,6 +53,24 @@
     if (taps >= 5) { taps = 0; toggle(); }
   });
 
+  // Turning it ON is a hidden code, but turning it OFF should not require
+  // remembering one. A small exit button sits by the theme toggle and is only
+  // visible while the mode is active.
+  function addExit() {
+    var right = document.querySelector('.header-right');
+    if (!right || document.getElementById('retro-exit')) return;
+    var b = document.createElement('button');
+    b.id = 'retro-exit';
+    b.type = 'button';
+    b.className = 'retro-exit';
+    b.textContent = 'EXIT RETRO';
+    b.title = 'Turn retro mode off';
+    b.addEventListener('click', function () { setRetro(false); });
+    right.insertBefore(b, right.firstChild);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addExit);
+  else addExit();
+
   // restore silently on load
   try { if (localStorage.getItem(KEY) === 'on') setRetro(true, true); } catch (e) {}
 

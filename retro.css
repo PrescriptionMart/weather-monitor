@@ -127,3 +127,92 @@
   .scanning::after, .retro-toast, :root[data-retro="on"] body::before { animation: none !important; transition: none !important; }
   .btn:active, .pack-btn:active, .chip:active, .tab:hover { transform: none !important; }
 }
+
+/* ---- the party (retro mode, Excursion Check only) ---------------------- */
+.sf-stage { position: fixed; left: 0; right: 0; bottom: 0; height: 96px; pointer-events: none; z-index: 40; }
+.sf-turf {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 42px;
+  image-rendering: pixelated; background-repeat: repeat-x; background-size: 96px 42px;
+  border-top: 3px solid #2f6b29;
+}
+.sf-decor {
+  position: absolute; width: 15px; height: 15px; image-rendering: pixelated;
+  background-repeat: no-repeat; background-size: 100% 100%; pointer-events: none;
+}
+.sf-actor {
+  position: absolute; bottom: 14px; left: 0; padding: 0; border: 0; background-color: transparent;
+  background-repeat: no-repeat; image-rendering: pixelated; cursor: pointer; pointer-events: auto;
+  transform-origin: 50% 100%; filter: drop-shadow(0 2px 0 rgba(0,0,0,.25));
+}
+.sf-actor:hover { filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)) brightness(1.1); }
+.sf-actor:focus-visible { outline: 2px solid #ffd34d; outline-offset: 3px; }
+
+/* the dialogue box, straight out of a 16-bit tactics game */
+.sf-box {
+  position: absolute; left: 12px; right: 12px; bottom: 100px; max-width: 560px; margin: 0 auto;
+  display: none; gap: 12px; align-items: flex-start; pointer-events: auto; cursor: pointer;
+  background: #10224a; border: 4px solid #e8ecf6; border-radius: 0;
+  box-shadow: inset 0 0 0 2px #10224a, 0 0 0 2px #0a1430, 6px 6px 0 rgba(0,0,0,.4);
+  padding: 12px 14px;
+}
+.sf-box.on { display: flex; }
+.sf-portrait {
+  flex: none; width: 64px; height: 64px; image-rendering: pixelated;
+  background-repeat: no-repeat; background-size: 100% 100%; background-position: center top;
+  background-color: #2a3f75; border: 3px solid #e8ecf6;
+}
+.sf-body { flex: 1; min-width: 0; }
+.sf-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.sf-name { color: #ffd34d; font-weight: 700; letter-spacing: .06em; font-size: 13px; }
+.sf-role { color: #9fb4e0; font-size: 11px; }
+.sf-text { color: #ffffff; font-size: 13px; line-height: 1.5; margin: 0; }
+.sf-more { align-self: flex-end; color: #ffd34d; font-size: 11px; animation: sf-blink 1s steps(1) infinite; }
+@keyframes sf-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+:root[data-retro="on"] .sf-name, :root[data-retro="on"] .sf-role, :root[data-retro="on"] .sf-text {
+  font-family: 'Press Start 2P', var(--font-sans); line-height: 1.8;
+}
+:root[data-retro="on"] .sf-name { font-size: 10px; }
+:root[data-retro="on"] .sf-role { font-size: 7px; }
+:root[data-retro="on"] .sf-text { font-size: 9px; }
+@media (max-width: 600px) {
+  .sf-box { bottom: 96px; padding: 10px; }
+  .sf-portrait { width: 48px; height: 48px; }
+}
+@media (prefers-reduced-motion: reduce) { .sf-stage { display: none; } }
+
+/* ---- Ice Run ----------------------------------------------------------- */
+.sf-parcel {
+  position: absolute; left: 0; bottom: 34px; width: 27px; height: 27px; padding: 0; border: 0;
+  background-color: transparent; background-repeat: no-repeat; background-size: 100% 100%;
+  image-rendering: pixelated; cursor: pointer; pointer-events: auto;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,.3));
+}
+.sf-parcel.caught { animation: sf-pop .18s steps(3) forwards; }
+@keyframes sf-pop { to { transform: scale(1.8); opacity: 0; } }
+.sf-hud {
+  position: absolute; right: 12px; bottom: 52px; pointer-events: none;
+  background: #10224a; color: #ffd34d; border: 3px solid #e8ecf6;
+  padding: 6px 10px; font-size: 12px; letter-spacing: .06em; font-variant-numeric: tabular-nums;
+}
+:root[data-retro="on"] .sf-hud { font-family: 'Press Start 2P', var(--font-sans); font-size: 9px; }
+.sf-choices { display: flex; gap: 8px; margin-top: 10px; }
+.sf-choice {
+  background: #2a3f75; color: #fff; border: 2px solid #e8ecf6; border-radius: 0;
+  padding: 7px 14px; font-size: 12px; font-weight: 700; letter-spacing: .05em; cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.35); transition: transform .06s steps(2), box-shadow .06s steps(2);
+}
+.sf-choice:hover { background: #38529a; }
+.sf-choice:active { transform: translate(3px, 3px); box-shadow: 0 0 0 rgba(0,0,0,.35); }
+:root[data-retro="on"] .sf-choice { font-family: 'Press Start 2P', var(--font-sans); font-size: 9px; padding: 9px 12px; }
+
+/* ---- leaving retro mode ------------------------------------------------ */
+.retro-exit { display: none; }
+:root[data-retro="on"] .retro-exit {
+  display: inline-flex; align-items: center; cursor: pointer;
+  background: var(--promo-gold, #ffc200); color: #16191c;
+  border: 2px solid #16191c; box-shadow: 3px 3px 0 rgba(0,0,0,.45);
+  padding: 7px 11px; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  font-family: 'Press Start 2P', var(--font-sans);
+  transition: transform .06s steps(2), box-shadow .06s steps(2);
+}
+:root[data-retro="on"] .retro-exit:active { transform: translate(3px, 3px); box-shadow: 0 0 0 rgba(0,0,0,.45); }
