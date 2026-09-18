@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How Late Is Too Late — Prescription Mart</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1B4F8A" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ship Weather" />
+  <title>How Late Is Too Late — Prescription Mart</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ---- design tokens -------------------------------------------------
+       Palette: Surfshark-derived. Teal = identity, coral = the one primary
+       action per view, gold = advisory/urgency. Neutrals carry the rest.
+       No drop shadows: elevation comes from surface contrast + hairlines. */
+    :root {
+      /* brand */
+      --teal: #1ebfbf;        /* mark, icons, accents on dark */
+      --coral: #fa3556;       /* primary action, highest severity */
+      --coral-deep: #d81f3f;
+      --gold: #ffc200;        /* advisory / urgency strips */
+      --ink: #16191c;
+      --abyss: #1e2327;
+
+      --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+      --bg: #f9f9f9;
+      --surface: #ffffff;
+      --surface-2: #f1f3f3;
+      --inset: #e8f7f8;
+      --border: #dadadd;
+      --border-2: #e9e9ec;
+      --text: #16191c;
+      --text-muted: #5b6065;
+      --text-faint: #767c81;
+      --brand: #0b6e6e;       /* teal dark enough for text/links */
+      --brand-strong: #095a5a;
+      --header-bg: #16191c;
+      --header-fg: #ffffff;
+      --header-sub: rgba(255,255,255,.72);
+      --on-accent: #ffffff;
+      --shadow: none;
+      --radius: 12px;         /* buttons, inputs */
+      --radius-lg: 32px;      /* cards */
+      --radius-panel: 48px;   /* the dark hero panel */
+      --radius-pill: 96px;
+      /* risk palette, retuned onto coral / gold / teal-green */
+      --high-bg: #ffe9ed; --high-fg: #b3122f; --high-bd: #f9aab7; --high-dot: #fa3556;
+      --med-bg: #fff4d6;  --med-fg: #8a5d00;  --med-bd: #ffd766;  --med-dot: #ffc200;
+      --bl-bg: #fffbe8;   --bl-fg: #7d6a1f;   --bl-bd: #e8d894;   --bl-dot: #e3c84d;
+      --low-bg: #e4f6ef;  --low-fg: #0d6b4f;  --low-bd: #9ad9c2;  --low-dot: #18a97b;
+      --info-bg: #e8f7f8; --info-fg: #0b6e6e; --info-bd: #a5e0e0;
+      /* winter map fills */
+      --map-standard: #d7f0e4; --map-pack: #ffd3dc; --map-severe: #fa3556; --map-exception: #ffeeb8;
+      --map-dot-pack: #d81f3f; --map-dot-severe: #7d0f22; --map-dot-pocket: #c88a00;
+    }
+    /* dark theme: follow system unless the user forces light; explicit toggle wins */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #121517; --surface: #1e2327; --surface-2: #262c31; --inset: #16282a;
+        --border: #333a40; --border-2: #2a3136;
+        --text: #eceef0; --text-muted: #a8aeb4; --text-faint: #8d949a;
+        --brand: #2fd4d4; --brand-strong: #5fe0e0;
+        --header-bg: #0c0e10; --header-fg: #ffffff; --header-sub: rgba(255,255,255,.66);
+        --high-bg: #3d1620; --high-fg: #ff9dac; --high-bd: #6e2734; --high-dot: #fa3556;
+        --med-bg: #382c12;  --med-fg: #ffd070;  --med-bd: #6b5420; --med-dot: #ffc200;
+        --bl-bg: #32301a;   --bl-fg: #e5d38a;   --bl-bd: #5d5527;  --bl-dot: #e3c84d;
+        --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349; --low-dot: #18a97b;
+        --info-bg: #10292b; --info-fg: #7fdcdc; --info-bd: #27545a;
+        --map-standard: #1b4438; --map-pack: #5a1f2b; --map-severe: #c9203f; --map-exception: #4a3c14;
+        --map-dot-pack: #fa3556; --map-dot-severe: #ff8fa1; --map-dot-pocket: #ffc200;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #121517; --surface: #1e2327; --surface-2: #262c31; --inset: #16282a;
+      --border: #333a40; --border-2: #2a3136;
+      --text: #eceef0; --text-muted: #a8aeb4; --text-faint: #8d949a;
+      --brand: #2fd4d4; --brand-strong: #5fe0e0;
+      --header-bg: #0c0e10; --header-fg: #ffffff; --header-sub: rgba(255,255,255,.66);
+      --high-bg: #3d1620; --high-fg: #ff9dac; --high-bd: #6e2734; --high-dot: #fa3556;
+      --med-bg: #382c12;  --med-fg: #ffd070;  --med-bd: #6b5420; --med-dot: #ffc200;
+      --bl-bg: #32301a;   --bl-fg: #e5d38a;   --bl-bd: #5d5527;  --bl-dot: #e3c84d;
+      --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349; --low-dot: #18a97b;
+      --info-bg: #10292b; --info-fg: #7fdcdc; --info-bd: #27545a;
+      --map-standard: #1b4438; --map-pack: #5a1f2b; --map-severe: #c9203f; --map-exception: #4a3c14;
+      --map-dot-pack: #fa3556; --map-dot-severe: #ff8fa1; --map-dot-pocket: #ffc200;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background .2s, color .2s; }
+    .header { background: var(--header-bg); color: var(--header-fg); padding: 1.1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .header .h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+    .header .sub { font-size: 13px; opacity: 0.78; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .header .updated { font-size: 12px; opacity: 0.72; }
+    .theme-toggle { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: var(--header-fg); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .theme-toggle:hover { background: rgba(255,255,255,.2); }
+    .today-banner { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.25rem 2rem; text-align: center; }
+    .today-day { font-size: 32px; font-weight: 650; color: var(--brand); line-height: 1.1; letter-spacing: -.02em; }
+    .today-date { font-size: 15px; color: var(--text-muted); margin-top: 3px; }
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; }
+    .tabs-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 4px; }
+    .tab { padding: 13px 18px; font-size: 14px; font-weight: 500; color: var(--text-muted); border-bottom: 3px solid transparent; text-decoration: none; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+    label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 10px 0 4px; }
+    select, input[type=text], input[type=date] { width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+    .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--surface-2); }
+    .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
+    .btn-primary:hover { background: var(--brand-strong); }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .drug-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 12px; font-size: 13px; }
+    .drug-facts .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+    .drug-facts .v { font-weight: 600; margin-top: 2px; }
+    .note { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .banner { border-radius: var(--radius); padding: 10px 14px; font-size: 13px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .banner.warn { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .banner.bad { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .banner.ok { background: #DCEDC8; border-color: #C5E1A5; color: #33691E; }
+    .banner.info { background: var(--surface-2); color: var(--text-muted); }
+    .verdict { font-size: 20px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 4px; }
+    table.days { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+    table.days th, table.days td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-2); }
+    table.days th { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    td.hot { color: #B71C1C; font-weight: 600; }
+    td.cold { color: #0D47A1; font-weight: 600; }
+    .status { font-size: 13px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+    .chip { display: inline-block; margin: 2px 2px 0 0; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--brand); font-size: 12px; cursor: pointer; }
+    .chip:hover { background: var(--surface-2); }
+    .copy-status { font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px; }
+    .pack-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+    .pack-btn { text-align: left; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 14px; line-height: 1.3; }
+    .pack-btn .sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .pack-btn:hover { background: var(--surface-2); }
+    .pack-btn.active { border-color: var(--brand); background: var(--info-bg, var(--surface-2)); }
+    .flag-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; }
+    .flag-row input { margin-top: 3px; width: auto; }
+    .verdict-card { border-radius: var(--radius-lg); padding: 20px 22px; border: 1px solid var(--border); }
+    .verdict-card.ok { background: #DCEDC8; border-color: #C5E1A5; color: #1B5E20; }
+    .verdict-card.call { background: #FFF3D6; border-color: #FFCC80; color: #7A4B00; }
+    .verdict-card.replace { background: #FFCDD2; border-color: #EF9A9A; color: #7F0000; }
+    .verdict-card.wait { background: var(--surface-2); color: var(--text-muted); }
+    .verdict-big { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+    .verdict-why { font-size: 15px; margin-top: 8px; line-height: 1.45; }
+    .verdict-tell { font-size: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.12); }
+    .verdict-tell b { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; opacity: .8; display: block; margin-bottom: 2px; }
+    .verdict-list { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+    .verdict-list li { margin: 5px 0; line-height: 1.4; }
+    .verdict-list li strong { font-weight: 700; }
+    .lean { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; margin-left: 4px; vertical-align: 1px; white-space: nowrap; }
+    .lean.keep { background: #C5E1A5; color: #1B5E20; }
+    .lean.replace { background: #EF9A9A; color: #7F0000; }
+    details.more { margin-top: 12px; }
+    details.more summary { cursor: pointer; font-size: 13px; color: var(--brand); }
+    .allow-line { font-size: 14px; margin-top: 10px; line-height: 1.4; }
+    .allow-line b { font-weight: 700; }
+
+    .basis h2 { font-size: 17px; margin: 26px 0 8px; letter-spacing: -.01em; }
+    .basis h2:first-child { margin-top: 0; }
+    .basis p, .basis li { font-size: 14px; line-height: 1.5; }
+    .basis ul { padding-left: 20px; margin: 6px 0; }
+    .basis li { margin: 5px 0; }
+    .basis .rule { font-size: 15px; line-height: 1.6; border-left: 5px solid var(--teal); padding: 16px 20px; background: var(--surface-2); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; margin: 12px 0; }
+    .basis .rule b.t { display: block; font-size: 14px; margin-bottom: 4px; }
+    .basis .ref { font-size: 13px; color: var(--text-muted); }
+    .basis a { color: var(--brand); }
+    .basis .ref a { color: var(--brand); }
+    .basis .caveat { background: var(--med-bg); border: 1px solid var(--med-bd); color: var(--med-fg); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; }
+    .basis ol.refs { padding-left: 22px; }
+    .basis ol.refs li { font-size: 13px; margin: 7px 0; }
+    .basis .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; background: var(--inset); color: var(--text-muted); margin-left: 4px; vertical-align: 1px; }
+    .basis table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .basis th, .basis td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-2); vertical-align: top; }
+    .basis th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+
+    /* ---- component layer ------------------------------------------------
+       Inter throughout, dark rounded hero panel, pill nav, 32px cards with
+       hairline borders and no shadow, 12px buttons with a single coral CTA. */
+    body { font-family: var(--font-sans); font-feature-settings: "cv11", "ss01"; }
+
+    /* header + day banner read as one full-bleed dark panel */
+    .header { padding: 22px 32px 14px; align-items: flex-start; }
+    .header .h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+    .header .h1::before { content: ''; width: 20px; height: 20px; border-radius: 7px; background: var(--teal); flex: none; }
+    .header .sub { font-size: 14px; line-height: 1.5; color: var(--header-sub); opacity: 1; margin-top: 6px; max-width: 64ch; }
+    .header .updated { font-size: 13px; color: var(--header-sub); opacity: 1; }
+    .header-right { gap: 12px; }
+    .header--solo { border-radius: 0 0 var(--radius-panel) var(--radius-panel); padding-bottom: 26px; }
+    .theme-toggle { width: 38px; height: 38px; border-radius: var(--radius-pill); background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.18); }
+
+    .today-banner { background: var(--header-bg); border-bottom: none; text-align: left;
+      padding: 2px 32px 26px; border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
+    .today-day { font-size: 44px; font-weight: 700; letter-spacing: -1.2px; line-height: 1.07; color: var(--teal); }
+    .today-date { font-size: 16px; color: var(--header-sub); margin-top: 2px; }
+
+    /* pill navigation on the canvas */
+    .tabs { background: transparent; border-bottom: 1px solid var(--border); padding: 0 32px; }
+    .tabs-inner { gap: 8px; padding: 12px 0; }
+    .tab { border-bottom: none; border-radius: var(--radius-pill); padding: 9px 18px; font-size: 15px; font-weight: 600; }
+    .tab:hover { background: var(--surface-2); color: var(--text); }
+    .tab.active { background: var(--text); color: var(--bg); }
+
+    /* one 1200px grid: the dark panel is full-bleed but its content lines up
+       with the tabs and the cards below it at every viewport width */
+    :root { --page-max: 1200px; --gutter: 32px; }
+    .header, .today-banner, .tabs { padding-left: max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter)));
+      padding-right: max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter))); }
+    .container { max-width: var(--page-max); padding: var(--gutter); }
+    .tabs-inner { max-width: none; }
+
+    /* surfaces: contrast + hairline, never shadow */
+    .card { border-radius: var(--radius-lg); padding: 28px; box-shadow: none; }
+    .card--muted { background: var(--surface-2); }
+    .hero { border-radius: var(--radius-lg); padding: 28px 32px; box-shadow: none; border-left-width: 6px; }
+    .hero-eyebrow { font-size: 12px; letter-spacing: .08em; }
+    .rec-action { font-size: 32px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+    .rec-text { font-size: 15px; line-height: 1.7; }
+    .card-title { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+    .card-sub, .section-label { font-size: 12px; }
+    .section-label { letter-spacing: .08em; }
+
+    /* buttons: dark fill by default, exactly one coral CTA per view */
+    .btn { border-radius: var(--radius); padding: 12px 22px; font-size: 15px; font-weight: 600; }
+    .btn:hover { background: var(--surface-2); }
+    .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .btn-primary:hover { background: var(--text); opacity: .88; }
+    .btn-cta { background: var(--coral); color: #fff; border-color: var(--coral); }
+    .btn-cta:hover { background: var(--coral-deep); border-color: var(--coral-deep); }
+
+    .badge { border-radius: var(--radius-pill); padding: 5px 14px; font-size: 13px; font-weight: 600; }
+    .alert-bar { border-radius: var(--radius-lg); padding: 14px 22px; font-size: 15px; }
+
+    input, select, textarea { border-radius: var(--radius); border: 1px solid var(--border); font-family: inherit; font-size: 16px; }
+    input:not([type=checkbox]), select { padding: 12px 14px; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: var(--brand); }
+
+    @media (max-width: 600px) {
+      .header { padding: 18px 20px 12px; }
+      .header--solo { padding-bottom: 22px; }
+      .today-banner { padding: 2px 20px 22px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+      .header--solo { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+      .today-day { font-size: 32px; letter-spacing: -.8px; }
+      :root { --gutter: 20px; }
+      .container { padding: 20px; }
+      .card { padding: 20px; }
+      .hero { padding: 22px 20px; }
+      .rec-action { font-size: 26px; }
+      .basis .rule { padding: 14px 16px; }
+      .basis h2 { font-size: 19px; }
+    }
+
+    .dg h2 { font-size: 18px; margin: 28px 0 10px; letter-spacing: -.01em; }
+    .dg h2:first-child { margin-top: 0; }
+    .dg p, .dg li { font-size: 15px; line-height: 1.55; }
+    .dg .lede { color: var(--text-muted); max-width: 70ch; }
+    .ask { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; }
+    .ask label { font-size: 15px; font-weight: 600; }
+    .ask input { width: 90px; font-size: 20px; font-weight: 700; text-align: center; }
+    .tally { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .tally > div { border-radius: var(--radius-lg); padding: 16px 18px; border: 1px solid var(--border); }
+    .tally .n { font-size: 34px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+    .tally .lbl { font-size: 13px; margin-top: 4px; line-height: 1.35; }
+    .tally .good { background: var(--low-bg); border-color: var(--low-bd); color: var(--low-fg); }
+    .tally .bad  { background: var(--high-bg); border-color: var(--high-bd); color: var(--high-fg); }
+    .dg table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .dg th, .dg td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border-2); }
+    .dg th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); font-weight: 700; }
+    .dg td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .dg tr.over td { background: var(--high-bg); color: var(--high-fg); }
+    .dg tr.edge td { background: var(--med-bg); color: var(--med-fg); }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      padding: 2px 9px; border-radius: var(--radius-pill); }
+    .pill.no { background: var(--coral); color: #fff; }
+    .pill.ok { background: var(--low-dot); color: #fff; }
+    .pill.na { background: var(--inset); color: var(--text-muted); }
+    .dg .caveat { background: var(--med-bg); border: 1px solid var(--med-bd); color: var(--med-fg);
+      border-radius: var(--radius-lg); padding: 14px 18px; font-size: 14px; line-height: 1.5; }
+    @media (max-width: 600px) { .tally { grid-template-columns: 1fr; } .dg th, .dg td { padding: 8px 6px; font-size: 13px; } }
+  </style>
+  <script>
+    (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
+  </script>
+</head>
+<body>
+
+<div class="header header--solo">
+  <div>
+    <div class="h1">How Late Is Too Late</div>
+    <div class="sub">Whether a delay alone puts a product past its allowance, before you check the weather</div>
+  </div>
+  <div class="header-right">
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark" aria-label="Toggle light/dark theme">&#127769;</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <a href="index.html" class="tab">Hub Forecasts</a>
+    <a href="winter-pack.html" class="tab">Winter Packing Map</a>
+    <a href="excursion.html" class="tab active">Excursion Check</a>
+  </div>
+</div>
+
+<div class="container dg">
+
+  <div class="card">
+    <p class="lede" style="margin-bottom:14px;">A delivery has two independent tests: <strong>was it out of the fridge
+    too long</strong>, and <strong>did it get too warm</strong>. This page answers the first one, for every product,
+    from the labelled allowance on our own stability sheet. It needs no ZIP and no weather.
+    For the second, use the <a href="excursion.html">Excursion Check</a>.</p>
+
+    <div class="ask">
+      <label for="late">Package is</label>
+      <input id="late" type="number" min="0" max="60" value="2" oninput="render()" />
+      <label for="late">day(s) late</label>
+    </div>
+
+    <div class="tally">
+      <div class="good"><div class="n" id="n-ok">—</div><div class="lbl" id="l-ok">still inside the allowance on duration</div></div>
+      <div class="bad"><div class="n" id="n-bad">—</div><div class="lbl" id="l-bad">past the allowance on duration alone</div></div>
+    </div>
+
+    <div class="caveat"><strong>Duration only.</strong> A product that clears this page can still fail on
+    temperature, and one that fails here is a manufacturer call regardless of how cool it stayed. Assumes a
+    normal next-day transit and our 48-hour pack-out, so the ship day and the day after are covered and the
+    delay is what gets scored.</div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>Every product, by how much delay it absorbs</h2>
+    <table id="tbl"><tbody></tbody></table>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>Products this page cannot answer</h2>
+    <p class="lede" id="unknown-note"></p>
+    <table id="tbl-unknown"><tbody></tbody></table>
+  </div>
+
+</div>
+
+<script>
+const PACKOUT_RATING_HOURS = 48;
+// Next-day air, so a package N days late spends N+1 days in transit. The
+// pack-out covers the ship day and the day after, leaving N-1 days scored
+// against the allowance. It is inside the allowance while N-1 <= allowance,
+// i.e. up to allowance + 1 days late.
+const NORMAL_TRANSIT_DAYS = 1;
+function allowanceDays(d) {
+  const h = d.allowanceHours;
+  return h == null ? null : Math.max(1, Math.ceil(h / 24));
+}
+function maxDaysLate(d) {
+  if (d.noExcursion) return 0;
+  const a = allowanceDays(d);
+  return a == null ? null : a + 1;
+}
+function allowanceLabel(d) {
+  if (d.noExcursion) return 'none';
+  const h = d.allowanceHours;
+  if (h == null) return '—';
+  return h < 24 ? h + ' h' : Math.round(h / 24) + ' d';
+}
+let DRUGS = [];
+
+function render() {
+  const late = Math.max(0, parseInt(document.getElementById('late').value, 10) || 0);
+  const known = DRUGS.filter(d => d.refrigerated !== false && maxDaysLate(d) !== null);
+  const unknown = DRUGS.filter(d => d.refrigerated !== false && maxDaysLate(d) === null);
+
+  const bad = known.filter(d => late > maxDaysLate(d));
+  const ok = known.filter(d => late <= maxDaysLate(d));
+  document.getElementById('n-ok').textContent = ok.length;
+  document.getElementById('n-bad').textContent = bad.length;
+  document.getElementById('l-ok').textContent = `of ${known.length} still inside the allowance at ${late} day${late === 1 ? '' : 's'} late`;
+  document.getElementById('l-bad').textContent = bad.length
+    ? `past the allowance on duration alone — manufacturer call: ${bad.map(d => d.name.replace(/\*\*.*$/, '')).join(', ')}`
+    : `past the allowance on duration alone`;
+
+  const rows = known.slice().sort((a, b) => maxDaysLate(a) - maxDaysLate(b) || a.name.localeCompare(b.name));
+  let html = '<tr><th>Product</th><th class="num">Allowance</th><th class="num">Absorbs up to</th><th class="num">At ' + late + 'd late</th></tr>';
+  rows.forEach(d => {
+    const m = maxDaysLate(d);
+    const over = late > m;
+    const cls = over ? 'over' : (m - late <= 1 ? 'edge' : '');
+    html += `<tr class="${cls}"><td>${d.name}${d.inUseAllowance ? ' <span class="pill na">in-use figure</span>' : ''}</td>`
+      + `<td class="num">${allowanceLabel(d)}</td>`
+      + `<td class="num">${m === 0 ? 'no delay' : m + ' d late'}</td>`
+      + `<td class="num"><span class="pill ${over ? 'no' : 'ok'}">${over ? 'past it' : 'inside'}</span></td></tr>`;
+  });
+  document.getElementById('tbl').innerHTML = html;
+
+  document.getElementById('unknown-note').textContent = unknown.length
+    ? `${unknown.length} products carry no usable allowance for unopened stock, so a delay cannot be judged here at all. Go to the manufacturer.`
+    : 'None.';
+  let uh = '<tr><th>Product</th><th>Why not</th></tr>';
+  unknown.forEach(d => {
+    uh += `<tr><td>${d.name}</td><td>${d.calculatorUrl
+      ? `allowance depends on presentation and whether it has been started — <a href="${d.calculatorUrl}" target="_blank" rel="noopener">manufacturer calculator</a>`
+      : 'no allowance duration on the sheet'}</td></tr>`;
+  });
+  document.getElementById('tbl-unknown').innerHTML = uh;
+}
+
+(async function boot() {
+  try { const r = await fetch('data/drugs.json?_=' + Date.now()); DRUGS = await r.json(); }
+  catch (e) { DRUGS = []; }
+  DRUGS.sort((a, b) => a.name.localeCompare(b.name));
+  render();
+})();
+
+function currentTheme() { const f = document.documentElement.getAttribute('data-theme'); if (f) return f; return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+function syncThemeIcon() { const b = document.getElementById('theme-toggle'); if (b) b.textContent = currentTheme() === 'dark' ? '\u2600\ufe0f' : '\ud83c\udf19'; }
+function toggleTheme() { const n = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); try { localStorage.setItem('theme', n); } catch(e) {} syncThemeIcon(); }
+syncThemeIcon();
+</script>
+</body>
+</html>
