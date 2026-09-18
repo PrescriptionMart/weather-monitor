@@ -146,6 +146,16 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   raise a freeze question for freeze-sensitive products rather than a clean OK.
   If the packs ever change to an engineered phase-change material (many melt
   at 41°F), change that constant and re-read the frozen/slushy wording.
+- **Banded allowances.** A few labels publish more than one window. Aimovig
+  allows 7 days up to 77°F **and, separately**, 2 days at 86–104°F; Opzelura has
+  three. The sheet's Max Temp cell for Aimovig reads `104**`, which is the top of
+  the *second* window, not a ceiling that holds for 7 days — using it as one
+  would invent an allowance nobody published. So `excursionMaxF` is the primary
+  ceiling and the windows live in `tiers`. A peak landing in a higher window is
+  judged against **that window's** own allowance, which stops the tool flagging
+  exposure the manufacturer has already covered. Aimovig publishes nothing
+  between 77°F and 86°F, and a peak in that gap is called out as having no
+  coverage either way rather than rounded into a window.
 - **Special product classes** the tool handles separately: products with **no
   room-temperature allowance** (Forteo, Genotropin, Omnitrope) go to the
   manufacturer, since no weather reading can clear them; **insulins whose
