@@ -134,10 +134,18 @@ parsed from the excursion text and the column is kept separately as
 rows needing human judgment sit in an `OVERRIDES` table with a stated reason
 that surfaces on the page.
 
+**After-first-use allowances.** Several sheet rows carry an allowance that
+applies to a pen already in use, not to unopened stock in transit — which is
+always what this tool is looking at. Those rows set `inUseAllowance`, show a
+warning on the allowance line, and can never produce a clean OK: the verdict
+becomes "JUDGMENT CALL — allowance may not apply" pointing at the label.
+Currently Norditropin FP and both Sogroya strengths. The values were flagged
+rather than changed, because the unopened allowance could not be verified.
+
 Row fields: `name`, `ndc` (reference only, not shown), `storageMinF`/`storageMaxF`,
 `excursionMinF`/`excursionMaxF` (the allowance ceiling), `allowanceHours`,
 `cumulative`, `returnToFridge`, `noExcursion`, `refrigerated`, `calculatorUrl`,
-`tiers`, `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`,
+`tiers`, `inUseAllowance`, `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`,
 optional `flag` and `derivation`.
 
 ### Design system

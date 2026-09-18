@@ -30,9 +30,25 @@ OVERRIDES = {
     'Skyrizi': dict(excursionMaxF=77, allowanceHours=24, returnToFridge=True,
         why='Max Temp cell still reads 46 (the fridge ceiling). The excursion text gives 77F for 24 hours.'),
     'Sogroya 10mg/1.5mL': dict(excursionMaxF=77, allowanceHours=72, cumulative=True, returnToFridge=True,
+        inUseAllowance=True,
+        flag='The 72 hours is tied to first use — the sheet reads "discarded 6 weeks after first use if '
+             'refrigerated while not in use, or in 72 hours if kept at room temperature." The allowance for '
+             'an unopened pen in transit may differ. Verify against the label.',
         why='Max Temp cell reads 86, which is the hard discard limit. The allowance ceiling is 77F.'),
     'Sogroya 15mg/1.5mL': dict(excursionMaxF=77, allowanceHours=72, cumulative=True, returnToFridge=True,
+        inUseAllowance=True,
+        flag='The 72 hours is tied to first use — the sheet reads "discarded 6 weeks after first use if '
+             'refrigerated while not in use, or in 72 hours if kept at room temperature." The allowance for '
+             'an unopened pen in transit may differ. Verify against the label.',
         why='Max Temp cell reads 86, which is the hard discard limit. The allowance ceiling is 77F.'),
+    # The sheet's allowance here is an AFTER-FIRST-USE figure, not an allowance for
+    # unopened stock in transit — which is what this tool always looks at. Flagged
+    # rather than changed: the unopened allowance could not be verified from here.
+    'Norditropin FP': dict(inUseAllowance=True,
+        flag='The 21 days at 77F is an AFTER-FIRST-USE figure. The sheet\'s own storage note reads '
+             '"After first use, pens may be stored in the refrigerator for 4 weeks or at room '
+             'temperature (up to 77F) for 3 weeks." An unopened pen in transit may have no '
+             'room-temperature allowance at all. Verify against the label before relying on 21 days.'),
     'Enbrel** all formulations': dict(
         flag='The sheet gives 30 days for all formulations. Amgen gives 30 days for the prefilled '
              'syringe and SureClick, but 14 days for the multi-dose vial and dose tray. Confirm which '
@@ -114,7 +130,7 @@ def main():
             excursionMinF=smin, excursionMaxF=None,
             excursionNote=exc_text, storage=storage,
             allowanceHours=None, cumulative=False, returnToFridge=None,
-            noExcursion=False, refrigerated=True, calculatorUrl=None,
+            noExcursion=False, refrigerated=True, calculatorUrl=None, inUseAllowance=False,
             protectFromLight=clean(r[5]).lower().startswith('y'),
             freezeSensitive='do not freeze' in blob.lower() or 'avoid freezing' in blob.lower(),
         )
@@ -173,6 +189,7 @@ def main():
                         ('cumulative allowance', lambda x: x['cumulative']),
                         ('must NOT go back in the fridge', lambda x: x['returnToFridge'] is False),
                         ('not refrigerated', lambda x: not x['refrigerated']),
+                        ('allowance is an AFTER-FIRST-USE figure', lambda x: x.get('inUseAllowance')),
                         ('banded/tiered allowance', lambda x: x.get('tiers')),
                         ('no allowance duration parsed', lambda x: x['allowanceHours'] is None and not x['noExcursion'] and not x['calculatorUrl'])]:
         hits = [x['name'] for x in out if pred(x)]

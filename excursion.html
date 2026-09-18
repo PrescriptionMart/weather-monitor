@@ -178,6 +178,8 @@
     .drug-results li mark { background: transparent; color: var(--brand); font-weight: 700; }
     .drug-results li:hover, .drug-results li.active { background: var(--surface-2); }
     .drug-results li.none { color: var(--text-muted); cursor: default; }
+    .warn-note { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius); font-size: 13px; line-height: 1.45;
+      background: var(--med-bg); border: 1px solid var(--med-bd); color: var(--med-fg); }
     .zip-place { font-size: 14px; font-weight: 600; margin-top: 4px; min-height: 18px; color: var(--brand); }
     .zip-place.err { color: var(--text-muted); font-weight: 400; }
     .tips-card { border-left: 5px solid var(--brand); background: color-mix(in srgb, var(--brand) 9%, var(--surface)); }
@@ -666,6 +668,7 @@ function onDrugChange() {
   else if (d.returnToFridge === true) rules.push('may go back in the fridge');
   el.innerHTML = headline
     + (rules.length ? `<div class="note" style="margin-top:4px;">${rules.join(' · ')}</div>` : '')
+    + (d.inUseAllowance ? `<div class="warn-note">⚠ <strong>This allowance is for a pen already in use.</strong> We ship unopened product, and the unopened allowance may be shorter or may not exist. Confirm against the label before clearing a delivery on this number.</div>` : '')
     + (d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : '')
     + (d.derivation ? `<div class="note" style="margin-top:4px;">ℹ ${d.derivation}</div>` : '')
     + `<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
@@ -820,6 +823,16 @@ function decide() {
 
   if (sAbove === 0) {
     const durOk = allow == null || nDays <= allow;
+    if (durOk && d.inUseAllowance) return judge('JUDGMENT CALL — allowance may not apply', [
+      `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling, across ${nDays} day${nDays === 1 ? '' : 's'}`,
+      `<strong>But ${d.name}'s ${allowanceText(d)} allowance is an after-first-use figure</strong>, and this was unopened product in transit`,
+      `The unopened allowance may be shorter, or may not exist — the sheet does not carry it`,
+    ], [
+      `<strong>Check the label or call the manufacturer</strong> for the unopened room-temperature allowance. That is the number this decision needs`,
+      `<strong>Temperature was never the problem here</strong> — peak ${fmtF(hi)} stayed under ${fmtF(ceil)} ${K}`,
+      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
+    ], '"The temperature held the whole way. Let me confirm one storage detail and call you right back."',
+       '"I\'d rather replace this than clear it on a number that may not apply to an unopened pen. Please set it aside; we\'ll send a new one."');
     if (durOk) return show('ok', 'OK TO USE', `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored${allow != null ? `, and ${nDays} day${nDays === 1 ? '' : 's'} is inside the ${allowanceText(d)} allowance` : ''}.`, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`);
     return judge('JUDGMENT CALL — duration', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
