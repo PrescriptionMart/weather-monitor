@@ -105,6 +105,20 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - **Timezones**: day boundaries resolve in the weather station's own zone, not
   the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
   resolves in Central regardless of destination.
+- **Mean kinetic temperature, used one way only.** The Haynes equation with the
+  ICH convention (83.144 kJ/mol, so dH/R is 10000 K), computed over the scored
+  days' hourly maxima. A low ambient MKT can **rule heat out**; it can never
+  rule heat in, because a shaded station is not an upper bound on a parcel in a
+  van. It is **never shown on the cold side**: a freeze is a phase change, not a
+  reaction rate, and MKT averages a freeze event into a comfortable number
+  (3 days at 40/22°F, 39 of them at or below freezing, returns 32°F). On a heat
+  judgment it appears as context only, separating a brief spike from a
+  sustained bake. It never overrides a verdict.
+- **Budget consumed.** The allowance is a budget, so the tool says what the trip
+  spent of it: "about 36% of the 14-day allowance (5 of 14 days, 9 left)". Flat
+  arithmetic on the label's own number, no assumed kinetics, because labels
+  publish a budget rather than a rate. Cumulative products say it counts against
+  the running total.
 - **Copy note for NewLeaf** produces a 2-3 line activity note, not a report.
 - **On the call** — a highlighted card right under the verdict with seven one-line tips (packs are
   the thermometer, ask when it went in the fridge, say what you checked then
