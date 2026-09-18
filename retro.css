@@ -1,0 +1,129 @@
+/* ---------------------------------------------------------------------------
+   Playful layer. Two ideas do most of the work:
+     1. steps() timing instead of easing, so motion lands in discrete frames
+        the way a 16-bit sprite does rather than gliding.
+     2. hard offset shadows instead of soft blurs, so surfaces feel stacked.
+
+   Everything here is decoration. Nothing gates or delays a verdict, and the
+   whole file is inert under prefers-reduced-motion.
+--------------------------------------------------------------------------- */
+
+/* ---- chunky buttons ---------------------------------------------------- */
+.btn {
+  position: relative;
+  box-shadow: 0 3px 0 var(--btn-edge, var(--border));
+  transition: transform .06s steps(2), box-shadow .06s steps(2), background .12s;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 0 0 var(--btn-edge, var(--border)); }
+.btn-primary { --btn-edge: var(--text-muted); }
+.btn-cta { --btn-edge: var(--coral-deep); }
+.btn:disabled { transform: none; box-shadow: 0 3px 0 var(--border); opacity: .55; }
+
+/* ---- tabs: snap, don't glide ------------------------------------------- */
+.tab { transition: transform .08s steps(2), background .08s steps(2), color .08s; }
+.tab:hover:not(.active) { transform: translateY(-2px); }
+.tab.active { box-shadow: 0 3px 0 var(--teal); }
+
+/* pack-state buttons get the same physicality */
+.pack-btn { transition: transform .06s steps(2), box-shadow .06s steps(2), border-color .1s; box-shadow: 0 3px 0 transparent; }
+.pack-btn:active { transform: translateY(3px); }
+.pack-btn.active { box-shadow: 0 3px 0 var(--brand); }
+.chip { transition: transform .06s steps(2); }
+.chip:active { transform: translateY(2px); }
+
+/* ---- verdict lands like a title card ----------------------------------- */
+@keyframes stamp-ok      { 0% { transform: scale(1.35); opacity: 0; } 45% { transform: scale(1.35); opacity: 1; } 70% { transform: scale(.97); } 100% { transform: scale(1); } }
+@keyframes stamp-call    { 0% { transform: translateX(-10px); opacity: 0; } 30% { transform: translateX(8px); opacity: 1; } 55% { transform: translateX(-5px); } 80% { transform: translateX(3px); } 100% { transform: translateX(0); } }
+@keyframes stamp-replace { 0% { transform: scale(1.5); opacity: 0; } 50% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); } }
+.verdict-card.ok      { animation: stamp-ok .26s steps(5) both; }
+.verdict-card.call    { animation: stamp-call .3s steps(6) both; }
+.verdict-card.replace { animation: stamp-replace .2s steps(3) both; }
+.verdict-card.wait    { animation: none; }
+
+/* ---- pixel loader: a parcel crossing a segmented bar -------------------- */
+.pixel-loader { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 8px 0 2px; }
+.pixel-loader .track { position: relative; width: 100%; max-width: 320px; height: 26px; }
+.pixel-loader .parcel {
+  position: absolute; top: 4px; left: 0; width: 18px; height: 18px;
+  image-rendering: pixelated; shape-rendering: crispEdges;
+  animation: parcel-run 3.2s steps(20) infinite, parcel-bob .4s steps(2) infinite alternate;
+}
+@keyframes parcel-run { from { left: 0; } to { left: calc(100% - 18px); } }
+@keyframes parcel-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+.pixel-loader .bar { display: flex; gap: 3px; width: 100%; max-width: 320px; }
+.pixel-loader .bar i { flex: 1; height: 8px; background: var(--border); border-radius: 1px; animation: bar-lit 1.6s steps(1) infinite; }
+.pixel-loader .bar i:nth-child(1) { animation-delay: 0s; }    .pixel-loader .bar i:nth-child(2) { animation-delay: .2s; }
+.pixel-loader .bar i:nth-child(3) { animation-delay: .4s; }   .pixel-loader .bar i:nth-child(4) { animation-delay: .6s; }
+.pixel-loader .bar i:nth-child(5) { animation-delay: .8s; }   .pixel-loader .bar i:nth-child(6) { animation-delay: 1s; }
+.pixel-loader .bar i:nth-child(7) { animation-delay: 1.2s; }  .pixel-loader .bar i:nth-child(8) { animation-delay: 1.4s; }
+@keyframes bar-lit { 0%, 45% { background: var(--teal); } 46%, 100% { background: var(--border); } }
+.pixel-loader .cap { font-size: 12px; color: var(--text-faint); letter-spacing: .04em; }
+
+/* the status line on the Excursion Check while it fetches */
+.scanning::after {
+  content: ''; display: inline-block; width: 42px; height: 8px; margin-left: 8px; vertical-align: 1px;
+  background: linear-gradient(90deg, var(--teal) 25%, transparent 25%); background-size: 14px 100%;
+  animation: scan .5s steps(3) infinite;
+}
+@keyframes scan { from { background-position: 0 0; } to { background-position: 42px 0; } }
+
+/* ---- retro mode: Konami, or five taps on the logo ---------------------- */
+:root[data-retro="on"] { --radius: 0px; --radius-lg: 0px; --radius-panel: 0px; --radius-pill: 0px; }
+/* The pixel font goes on headings and chrome only. Press Start 2P is very
+   wide, so running body copy in it wraps badly on a phone — and reserving it
+   for titles is closer to how a Genesis UI actually looked. Body text stays
+   Inter, which also means retro mode degrades gracefully if the font never
+   downloads: square corners, hard shadows and scanlines, just in Inter. */
+:root[data-retro="on"] .h1, :root[data-retro="on"] .today-day, :root[data-retro="on"] .verdict-big,
+:root[data-retro="on"] .rec-action, :root[data-retro="on"] .decision-big, :root[data-retro="on"] .section-label,
+:root[data-retro="on"] .tab, :root[data-retro="on"] .btn, :root[data-retro="on"] .card-title,
+:root[data-retro="on"] .badge, :root[data-retro="on"] .pixel-loader .cap {
+  font-family: 'Press Start 2P', var(--font-sans); text-transform: uppercase; line-height: 1.5;
+}
+:root[data-retro="on"] .today-day { font-size: 22px; letter-spacing: 0; }
+:root[data-retro="on"] .verdict-big { font-size: 17px; }
+:root[data-retro="on"] .rec-action, :root[data-retro="on"] .decision-big { font-size: 15px; }
+:root[data-retro="on"] .h1 { font-size: 13px; }
+:root[data-retro="on"] .card-title { font-size: 11px; }
+:root[data-retro="on"] .section-label, :root[data-retro="on"] .badge { font-size: 8px; letter-spacing: 0; }
+@media (max-width: 600px) {
+  :root[data-retro="on"] .today-day { font-size: 16px; }
+  :root[data-retro="on"] .verdict-big { font-size: 13px; }
+  :root[data-retro="on"] .h1 { font-size: 10px; }
+}
+:root[data-retro="on"] .card, :root[data-retro="on"] .verdict-card, :root[data-retro="on"] .hero {
+  border: 3px solid var(--text); box-shadow: 6px 6px 0 var(--text); }
+:root[data-retro="on"] .btn { border: 3px solid var(--text); box-shadow: 4px 4px 0 var(--text); font-size: 9px; padding: 14px 18px; }
+:root[data-retro="on"] .btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--text); }
+:root[data-retro="on"] .tab { border: 2px solid transparent; font-size: 9px; }
+:root[data-retro="on"] .tab.active { border-color: var(--text); box-shadow: 3px 3px 0 var(--text); }
+/* scanlines + a slow CRT roll */
+:root[data-retro="on"] body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9998; mix-blend-mode: multiply;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+}
+:root[data-retro="on"] body::before {
+  content: ''; position: fixed; left: 0; right: 0; height: 120px; pointer-events: none; z-index: 9999;
+  background: linear-gradient(to bottom, transparent, rgba(255,255,255,.05), transparent);
+  animation: crt-roll 7s linear infinite;
+}
+@keyframes crt-roll { from { top: -120px; } to { top: 100%; } }
+
+/* the card that announces it */
+.retro-toast {
+  position: fixed; inset: 0; display: grid; place-items: center; z-index: 10000; pointer-events: none;
+  animation: toast-life 1.8s steps(6) forwards;
+}
+.retro-toast span {
+  font-family: 'Press Start 2P', var(--font-sans); font-size: 18px; text-align: center; line-height: 1.8;
+  color: var(--promo-gold, #ffc200); background: #16191c; padding: 22px 26px;
+  border: 4px solid var(--promo-gold, #ffc200); box-shadow: 10px 10px 0 rgba(0,0,0,.45);
+}
+@keyframes toast-life { 0% { opacity: 0; transform: scale(1.4); } 20% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---- honour the setting ------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .tab, .pack-btn, .chip, .verdict-card, .pixel-loader .parcel, .pixel-loader .bar i,
+  .scanning::after, .retro-toast, :root[data-retro="on"] body::before { animation: none !important; transition: none !important; }
+  .btn:active, .pack-btn:active, .chip:active, .tab:hover { transform: none !important; }
+}

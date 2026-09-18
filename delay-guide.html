@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="retro.css" />
   <style>
     /* ---- design tokens -------------------------------------------------
        Palette: Surfshark-derived. Teal = identity, coral = the one primary
@@ -430,5 +431,6 @@ function syncThemeIcon() { const b = document.getElementById('theme-toggle'); if
 function toggleTheme() { const n = currentTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); try { localStorage.setItem('theme', n); } catch(e) {} syncThemeIcon(); }
 syncThemeIcon();
 </script>
+<script src="retro.js"></script>
 </body>
 </html>

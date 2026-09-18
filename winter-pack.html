@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="retro.css" />
   <style>
     /* ---- design tokens -------------------------------------------------
        Palette: Surfshark-derived. Teal = identity, coral = the one primary
@@ -312,7 +313,14 @@
     <div id="coverage-note" class="alert-bar warning" style="display:none; margin: 0 0 12px;"></div>
     <div class="hub-line"><span class="hub-line-label">Hub overnight lows on ship night (secondary — packages are only briefly outdoors in transit):</span> <span class="hub-strip" id="hub-strip"></span></div>
     <div class="map-wrap" id="map-wrap">
-      <div class="empty-state">Loading delivery-day forecasts for ~2,300 towns — the first load takes 2–3 minutes (the map fills in as states finish); results are cached for an hour. Requests are queued so the weather service doesn't throttle us.</div>
+      <div class="empty-state">
+        <div class="pixel-loader">
+          <div class="track"><div class="parcel"></div></div>
+          <div class="bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cap">IN TRANSIT</div>
+        </div>
+        Loading delivery-day forecasts for ~2,300 towns — the first load takes 2–3 minutes (the map fills in as states finish); results are cached for an hour. Requests are queued so the weather service doesn't throttle us.
+      </div>
     </div>
     <div class="legend">
       <span><span class="legend-swatch" style="background: var(--map-pack);"></span><strong>Winter pack</strong> — ≤35°F at any hour 11am–6pm</span>
@@ -3388,5 +3396,6 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 </script>
+<script src="retro.js"></script>
 </body>
 </html>
