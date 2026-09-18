@@ -191,6 +191,22 @@ runs in demo mode.
   in `index.html`.
 
 ## Troubleshooting
+The dashboard now names the failure instead of guessing. A yellow/red bar at the
+top of Hub Forecasts appears whenever the load was not complete and fresh:
+
+| What the bar says | What it means | What to do |
+|---|---|---|
+| key was rejected (401) | Key is new, mistyped, or deactivated | Check the key on openweathermap.org; a new key takes up to an hour |
+| rate-limited (429) | Over the free tier's 60 calls/min | Wait a minute; the key is public in the page, so consider rotating it |
+| outage (5xx) | OpenWeatherMap or NWS is down | Wait it out; the page retries 3x with backoff automatically |
+| no network response | Offline, DNS, or a blocked network | Check connectivity |
+| NWS alerts/forecast unavailable | Cards show OpenWeatherMap only | **Severe-weather warnings are not reflected** — check NWS directly before shipping |
+| Showing the last good load from HH:MM | The refresh failed entirely | Data is stale; the reason is stated alongside |
+
+Transient failures (408/429/5xx) are retried three times with exponential
+backoff before anything is reported. A load that partly succeeds renders the
+locations that worked and names the ones that didn't.
+
 - **Dashboard shows demo data** — the OpenWeatherMap key isn't set (or isn't
   active yet).
 - **FAA panel says data isn't available** — the `faa-refresh` Action hasn't run
