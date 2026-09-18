@@ -1,8 +1,8 @@
 /* A Shining Force style party that follows you around the Excursion Check.
-   Nine characters trail the cursor (or your last tap) in a conga line, settle
-   into formation when you stop, chatter among themselves, charge a Heat Wave
-   when a verdict says REPLACE, cheer when it says OK, and open a dialogue box
-   when clicked. ANRI runs a small game.
+   Nine characters wander the lower half of the page on their own, pair up to
+   chat, charge a Heat Wave when a verdict says REPLACE, cheer when it says OK,
+   and open a dialogue box when clicked. ANRI runs Ice Run; GORT runs the
+   tactics battle in battle.js.
 
    Every sprite, tree, portrait and particle is generated here from pixel
    maps, so nothing ships as an image. It only exists in retro mode, it never
@@ -132,8 +132,21 @@
   /* ---- state -------------------------------------------------------------- */
   var stage, box, boxPortrait, boxName, boxRole, boxText, boxChoices, roster, hud;
   var actors = [], raf = null, last = 0;
-  var cursor = { x: 0, y: 0, movedAt: 0, ever: false };
-  var enemy = null, game = null;
+  var home = { x: 0, y: 0 };   // where the party gathers when nothing is happening
+  var enemy = null, game = null, battleOpen = null;
+  function openBattle() {
+    if (!window.SFBattle || battleOpen || !stage) return;
+    closeBox();
+    battleOpen = window.SFBattle.open({
+      stage: stage, cast: CAST, sheetFor: sheetFor, portraitFor: portraitFor, svgUrl: svgUrl, rects: rects,
+      onClose: function (result) {
+        battleOpen = null;
+        var g = actorById('gort');
+        if (result === 'win') { cheer(); if (g) openBox(g.ch, 'The Heat Front breaks! Every parcel on this lane arrives cold.'); }
+        else if (result === 'loss') { if (g) openBox(g.ch, 'We fall back to the dock. The packs will be re-conditioned by morning.'); }
+      }
+    });
+  }
   var queue = [], showing = null, holdUntil = 0;
   var chatterAt = 0;
 
@@ -203,7 +216,7 @@
     stage.appendChild(turf);
     scenery();
 
-    cursor.x = window.innerWidth / 2; cursor.y = window.innerHeight - 140;
+    home.x = window.innerWidth / 2; home.y = window.innerHeight - 130;
 
     CAST.forEach(function (ch, i) {
       var sh = sheetFor(ch);
@@ -215,14 +228,19 @@
       el.style.backgroundSize = (sh.w * sh.n * SCALE) + 'px ' + (sh.h * SCALE) + 'px';
       var bub = document.createElement('div'); bub.className = 'sf-bubble';
       stage.appendChild(el); stage.appendChild(bub);
-      var a = { ch: ch, el: el, bub: bub, sh: sh, x: cursor.x - 60 - i * 40, y: cursor.y, dir: 1, f: 0, acc: 0,
-                moving: false, hop: 0, idleAt: 0, bob: Math.random() * 6, stepAcc: 0 };
+      var a = { ch: ch, el: el, bub: bub, sh: sh, x: 40 + (i / CAST.length) * (window.innerWidth - 100), y: home.y + (i % 2) * 30,
+                dir: 1, f: 0, acc: 0, moving: false, hop: 0, bob: Math.random() * 6, stepAcc: 0,
+                tx: 0, ty: 0, wait: 800 + Math.random() * 3000, ang: Math.random() * 6.28 };
+      a.tx = a.x; a.ty = a.y;
       el.addEventListener('click', function (ev) {
         ev.stopPropagation();
         a.hop = 480;
         if (ch.id === 'anri' && !game) {
           openBox(ch, 'Fancy a round of Ice Run? Catch the parcels before they land.',
             [{ label: 'YES', fn: startGame }, { label: 'NOT NOW', fn: closeBox }]);
+        } else if (ch.id === 'gort' && window.SFBattle && !battleOpen) {
+          openBox(ch, 'The Heat Front is massing past the porch. Shall we take the field?',
+            [{ label: 'TO BATTLE', fn: openBattle }, { label: 'NOT NOW', fn: closeBox }]);
         } else {
           openBox(ch, ch.lines[Math.floor(Math.random() * ch.lines.length)]);
         }
@@ -241,10 +259,11 @@
 
     roster = document.createElement('div');
     roster.className = 'sf-roster';
-    roster.innerHTML = '<div class="sf-roster-title">PARTY</div>' + CAST.map(function (ch) {
+    roster.innerHTML = '<div class="sf-roster-title">PARTY</div><button type="button" class="sf-roster-battle">&#9876; BATTLE</button>' + CAST.map(function (ch) {
       return '<button type="button" class="sf-roster-row" data-id="' + ch.id + '"><span class="sf-roster-dot"></span>' + ch.name + '<span class="sf-roster-role">' + ch.role + '</span></button>';
     }).join('');
     roster.addEventListener('click', function (ev) {
+      if (ev.target.closest('.sf-roster-battle')) { ev.stopPropagation(); openBattle(); return; }
       var row = ev.target.closest('.sf-roster-row');
       if (!row) return;
       ev.stopPropagation();
@@ -258,9 +277,6 @@
     });
 
     document.body.appendChild(stage);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('touchstart', onTouch, { passive: true });
-    window.addEventListener('touchmove', onTouch, { passive: true });
     last = 0; chatterAt = Date.now() + 5000;
     raf = requestAnimationFrame(tick);
   }
@@ -296,37 +312,51 @@
   }
 
   function actorById(id) { return actors.filter(function (a) { return a.ch.id === id; })[0]; }
-  function onMove(e) { cursor.x = e.clientX; cursor.y = e.clientY; cursor.movedAt = Date.now(); cursor.ever = true; }
-  function onTouch(e) { var t = e.touches && e.touches[0]; if (t) { cursor.x = t.clientX; cursor.y = t.clientY; cursor.movedAt = Date.now(); cursor.ever = true; } }
   function onDocClick() { if (box && !box.classList.contains('has-choices')) { queue = []; showing = null; closeBox(); } }
 
-  /* ---- movement ------------------------------------------------------------- */
+  /* ---- movement: they wander on their own ----------------------------------
+     Each character picks a spot in the lower half of the page, ambles there,
+     waits a while, picks another. Now and then two of them meet up and trade a
+     line. Nothing here reads the cursor. */
   function clampY(y) { return Math.max(70, Math.min(window.innerHeight - 70, y)); }
   function clampX(x) { return Math.max(4, Math.min(window.innerWidth - 52, x)); }
+  function pickSpot(a) {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (Math.random() < 0.25 && actors.length > 1) {          // go visit someone
+      var other = actors[Math.floor(Math.random() * actors.length)];
+      if (other !== a && other.ch.kind !== 'bird') { a.tx = clampX(other.x + (Math.random() < 0.5 ? -46 : 46)); a.ty = clampY(other.y); a.visiting = other; return; }
+    }
+    a.visiting = null;
+    a.tx = clampX(20 + Math.random() * (w - 70));
+    a.ty = clampY(h * 0.5 + Math.random() * (h * 0.5 - 90));
+  }
 
   function tick(ts) {
     raf = requestAnimationFrame(tick);
     if (!last) last = ts;
     var dt = Math.min(64, ts - last); last = ts;
     var now = Date.now();
-    var settled = now - cursor.movedAt > 2600;
+    var paused = !!battleOpen;
 
-    actors.forEach(function (a, i) {
+    actors.forEach(function (a) {
       var tx, ty, stop;
-      if (enemy && a.charge) { tx = enemy.x - (a.dir > 0 ? 40 : -40); ty = enemy.y; stop = 6; }
-      else if (a.ch.kind === 'bird') { tx = cursor.x + 30; ty = cursor.y - 110 + Math.sin(ts / 260 + a.bob) * 10; stop = 4; }
-      else if (settled) {
-        // formation: two loose ranks behind the leader's side of the cursor
-        var col = i % 4, row = Math.floor(i / 4);
-        tx = cursor.x - 110 + col * 56 + (row % 2) * 24; ty = cursor.y + 46 + row * 46; stop = 3;
-      } else if (i === 0) { tx = cursor.x - 30; ty = cursor.y + 24; stop = 34; }
-      else { var lead = actors[i - 1]; tx = lead.x; ty = lead.y; stop = 44; }
-
+      if (paused) { tx = a.x; ty = a.y; stop = 0; }
+      else if (enemy && a.charge) { tx = enemy.x - (a.dir > 0 ? 40 : -40); ty = enemy.y; stop = 6; }
+      else if (a.ch.kind === 'bird') {
+        a.ang += dt * 0.0006;
+        tx = home.x + Math.cos(a.ang) * (window.innerWidth * 0.32); ty = home.y - 150 + Math.sin(a.ang * 2) * 40; stop = 4;
+      } else {
+        if (a.wait > 0) { a.wait -= dt; }
+        else if (!a.moving && Math.hypot(a.tx - a.x, a.ty - a.y) < 6) { pickSpot(a); }
+        tx = a.tx; ty = a.ty; stop = 3;
+        if (a.wait > 0) { tx = a.x; ty = a.y; }
+      }
       ty = clampY(ty); tx = clampX(tx);
       var dx = tx - a.x, dy = ty - a.y, dist = Math.sqrt(dx * dx + dy * dy);
+      var wasMoving = a.moving;
       a.moving = dist > stop;
       if (a.moving) {
-        var step = Math.min(dist - stop, a.ch.speed * dt * (settled ? 0.8 : 1));
+        var step = Math.min(dist - stop, a.ch.speed * dt);
         a.x += dx / dist * step; a.y += dy / dist * step;
         if (Math.abs(dx) > 2) a.dir = dx > 0 ? 1 : -1;
         a.acc += step;
@@ -335,7 +365,11 @@
         if (a.ch.kind !== 'bird' && a.stepAcc > 26) { a.stepAcc = 0; puff(a.x + 16, a.y + 46); }
       } else {
         a.f = a.ch.kind === 'bird' ? a.f : 4;
-        if (a.ch.kind !== 'bird' && settled && Math.random() < 0.0018) a.dir = -a.dir;   // idle glance
+        if (wasMoving && a.ch.kind !== 'bird') {
+          a.wait = 1500 + Math.random() * 4000;
+          if (a.visiting) { a.dir = a.visiting.x > a.x ? 1 : -1; a.visiting.dir = -a.dir; bubble(a, a.ch.lines[Math.floor(Math.random() * a.ch.lines.length)]); }
+        }
+        if (a.ch.kind !== 'bird' && Math.random() < 0.0012) a.dir = -a.dir;   // idle glance
       }
       if (a.ch.kind === 'bird') { a.bob += dt; if (a.bob > 140) { a.bob = 0; a.f = (a.f + 1) % 2; } }
       if (a.hop > 0) { a.hop -= dt; }
@@ -466,10 +500,8 @@
   /* ---- lifecycle ------------------------------------------------------------- */
   function destroy() {
     if (raf) cancelAnimationFrame(raf);
-    raf = null; last = 0; actors = []; game = null; enemy = null; queue = []; showing = null; hud = null;
-    window.removeEventListener('mousemove', onMove);
-    window.removeEventListener('touchstart', onTouch);
-    window.removeEventListener('touchmove', onTouch);
+    if (battleOpen && battleOpen.close) battleOpen.close();
+    raf = null; last = 0; actors = []; game = null; enemy = null; queue = []; showing = null; hud = null; battleOpen = null;
     document.removeEventListener('click', onDocClick);
     if (stage && stage.parentNode) stage.parentNode.removeChild(stage);
     stage = null;
