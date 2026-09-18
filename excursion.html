@@ -676,6 +676,13 @@ function hoursPossible(dayKey, win) {
 // bound on the product. It also cannot represent freezing at all — a freeze
 // is a phase change, not a reaction rate — so it is never shown on the cold
 // side of the decision.
+// IMPORTANT: the 83.144 kJ/mol convention comes from small-molecule chemistry.
+// Roughly nine in ten products on our list are proteins, peptides or insulins,
+// whose dominant failure modes (aggregation, unfolding, fibrillation) are not
+// rate-limited chemistry, so the ABSOLUTE number is not a stability prediction
+// for them. What survives a wrong exponent is the ORDERING: any positive
+// activation energy still ranks a sustained-hot window above a brief spike.
+// Read it comparatively, never as a threshold — which is all the code does.
 const MKT_ACTIVATION_K = 10000;
 function mktF(tempsF) {
   if (!tempsF || !tempsF.length) return null;
@@ -1010,7 +1017,7 @@ function decide() {
          '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
 
       const why = `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`
-        + (heatRuledOut ? ` Mean kinetic temperature over those days was ${fmtF(mkt)}, well under the ceiling, so heat is excluded rather than just unobserved.` : '')
+        + (heatRuledOut ? ` Mean kinetic temperature across those days was ${fmtF(mkt)}, so the exposure was comfortably low throughout, not just at its worst moment.` : '')
         + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '');
       return show('ok', 'OK TO USE', why, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
     }

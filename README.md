@@ -105,6 +105,17 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - **Timezones**: day boundaries resolve in the weather station's own zone, not
   the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
   resolves in Central regardless of destination.
+- **Where MKT is and is not valid here.** As a *compliance test* against USP's
+  8°C limit for controlled cold temperature it is valid for every product we
+  carry, because it tests a storage condition against a written standard rather
+  than predicting a molecule's fate. As a *stability prediction* it is weak
+  across this inventory: the 83.144 kJ/mol convention comes from small-molecule
+  chemistry, and ~91% of the list (23 antibodies, 12 insulins, 15 peptides) fails
+  by aggregation, unfolding or fibrillation rather than rate-limited chemistry.
+  Only Afinitor and Opzelura are small molecules, and both are room-temperature
+  products. What survives a wrong exponent is the ORDERING — any positive
+  activation energy ranks a sustained-hot window above a brief spike — so the
+  page reads it comparatively and never as a threshold.
 - **Mean kinetic temperature, used one way only.** The Haynes equation with the
   ICH convention (83.144 kJ/mol, so dH/R is 10000 K), computed over the scored
   days' hourly maxima. A low ambient MKT can **rule heat out**; it can never
