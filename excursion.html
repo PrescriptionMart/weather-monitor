@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="retro.css" />
   <style>
     /* ---- design tokens -------------------------------------------------
        Palette: Surfshark-derived. Teal = identity, coral = the one primary
@@ -837,6 +838,7 @@ async function runCheck() {
   if (now - start > MAX_LOOKBACK_DAYS * 86400000) { start = new Date(now.getTime() - MAX_LOOKBACK_DAYS * 86400000); status.textContent = `Only ~${MAX_LOOKBACK_DAYS} days of observations exist — window trimmed.`; }
   document.getElementById('check-btn').disabled = true;
   status.textContent = 'Looking up…';
+  status.classList.add('scanning');
   try {
     const { loc, pt } = await lookupZip(zip);
     const stations = await nearestStations(pt.stationsUrl, loc, 4);
@@ -846,13 +848,21 @@ async function runCheck() {
     lastResult = { zip, loc, place: pt.place, tz: pt.tz, station: used, obs, start, end };
     status.textContent = '';
   } catch(e) { status.textContent = e.message || 'Could not load.'; lastResult = null; }
-  finally { document.getElementById('check-btn').disabled = false; decide(); }
+  finally {
+    document.getElementById('check-btn').disabled = false;
+    status.classList.remove('scanning');
+    decide();
+  }
 }
 
 // One decision from: product allowance, how the packs felt, product-frozen flag,
 // and (when available) observed outdoor temperature over the shipped→received
 // window. Days inside the 48-hour pack-out rating are covered; "warm" packs
 // mean the pack-out is spent, so every day is scored.
+// A verdict that lands with the same class as the last one would not replay
+// its entrance, so the animation is nudged back to the start each time.
+function replayStamp(el) { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; }
+
 function decide() {
   const d = currentDrug();
   const productFrozen = document.getElementById('product-frozen').checked;
@@ -1106,7 +1116,7 @@ function renderDetails() {
   document.getElementById('days-table').innerHTML = html;
 }
 const _decide = decide;
-decide = function() { _decide(); renderDetails(); };
+decide = function() { _decide(); renderDetails(); replayStamp(document.getElementById('verdict')); };
 
 // A NewLeaf activity note, not a report. Two or three lines: what was
 // checked, what the weather showed, what was decided. The long version lives
@@ -1179,5 +1189,6 @@ syncThemeIcon();
 })();
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 </script>
+<script src="retro.js"></script>
 </body>
 </html>

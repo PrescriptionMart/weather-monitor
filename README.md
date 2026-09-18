@@ -205,6 +205,28 @@ are 32px-radius hairline surfaces with **no drop shadows** (elevation comes from
 surface contrast). Header, tabs and content share one 1200px grid via a
 `max()` gutter. Dark mode maps the same tokens onto a charcoal scale.
 
+### Playful layer (`retro.css`, `retro.js`)
+Shared by all five pages. Two ideas carry it: `steps()` timing instead of
+easing, so motion lands in discrete frames like a sprite, and hard offset
+shadows instead of soft blurs.
+
+- **Buttons and tabs** depress on press and snap rather than glide.
+- **Verdict cards** land like a title card, with a different entrance per
+  outcome. OK bounces, JUDGMENT wobbles, REPLACE gets a single heavy thud and
+  no bounce — a binned dose should not feel like a win.
+- **The winter map's 2–3 minute load** gets a pixel parcel crossing a
+  segmented bar. The sprite is an inline SVG built in `retro.js`, so there is
+  no image file. The Excursion Check's lookup gets a scanning bar.
+- **Retro mode** is hidden: the Konami code, or five taps on the header mark
+  on a phone. It squares every corner, adds scanlines and a slow CRT roll, and
+  switches headings and chrome to Press Start 2P. Body copy stays Inter,
+  because the pixel font is too wide for running text on a phone — which also
+  means the mode degrades gracefully if the font never downloads. The font is
+  fetched only when the mode is first switched on, never on a normal load.
+  The setting is remembered and restores silently.
+- Everything here is decoration. Nothing gates or delays a verdict, and the
+  whole layer is inert under `prefers-reduced-motion`.
+
 ### Data sources
 | Source | Used for | Key required |
 |--------|----------|--------------|
