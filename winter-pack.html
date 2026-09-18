@@ -163,6 +163,7 @@
     .btn:hover { background: var(--surface-2); }
     .btn-primary { background: var(--brand); color: var(--on-accent); border-color: var(--brand); }
     .btn-primary:hover { background: var(--brand-strong); }
+    .alert-bar { border: 1px solid var(--med-bd); background: var(--med-bg); color: var(--med-fg); display: flex; align-items: center; gap: 10px; font-size: 14px; }
     .empty-state { padding: 2rem; text-align: center; color: var(--text-faint); font-size: 14px; }
     .copy-status { font-size: 12px; color: var(--low-fg); margin-top: 8px; height: 16px; }
     .tooltip { position: absolute; background: var(--text); color: var(--bg); padding: 8px 12px; border-radius: var(--radius); font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100; white-space: nowrap; }
@@ -302,15 +303,18 @@
       <div id="flagged-count" style="font-size: 13px; color: #C62828; font-weight: 500;"></div>
     </div>
     <div id="decision-banner" class="decision-banner loading">Loading forecasts…</div>
+
+    <!-- load coverage: which states are missing or only partly answered -->
+    <div id="coverage-note" class="alert-bar warning" style="display:none; margin: 0 0 12px;"></div>
     <div class="hub-line"><span class="hub-line-label">Hub overnight lows on ship night (secondary — packages are only briefly outdoors in transit):</span> <span class="hub-strip" id="hub-strip"></span></div>
     <div class="map-wrap" id="map-wrap">
-      <div class="empty-state">Loading delivery-day forecasts for ~2,300 towns — the first load takes 2–3 minutes (the map fills in as states finish); results are cached for an hour.</div>
+      <div class="empty-state">Loading delivery-day forecasts for ~2,300 towns — the first load takes 2–3 minutes (the map fills in as states finish); results are cached for an hour. Requests are queued so the weather service doesn't throttle us.</div>
     </div>
     <div class="legend">
-      <span><span class="legend-swatch" style="background: #FFCDD2;"></span><strong>Winter pack</strong> — ≤35°F at any hour 11am–6pm</span>
-      <span><span class="legend-swatch" style="background: #E57373;"></span><strong>Winter pack, severe</strong> — ≤15°F: also hold-at-location / signature</span>
-      <span><span class="legend-swatch" style="background: #FFF3D6;"></span><strong>Standard, with cold pockets</strong> — winter pack only if shipping to the listed towns</span>
-      <span><span class="legend-swatch" style="background: #DCEDC8;"></span><strong>Standard</strong> — &gt;35°F all window</span>
+      <span><span class="legend-swatch" style="background: var(--map-pack);"></span><strong>Winter pack</strong> — ≤35°F at any hour 11am–6pm</span>
+      <span><span class="legend-swatch" style="background: var(--map-severe);"></span><strong>Winter pack, severe</strong> — ≤15°F: also hold-at-location / signature</span>
+      <span><span class="legend-swatch" style="background: var(--map-exception);"></span><strong>Standard, with cold pockets</strong> — winter pack only if shipping to the listed towns</span>
+      <span><span class="legend-swatch" style="background: var(--map-standard);"></span><strong>Standard</strong> — &gt;35°F all window</span>
       <span><span class="legend-swatch" style="background: #f0f0ec;"></span>No data</span>
       <span><span class="legend-swatch" style="background: #C62828; border-radius: 50%; width: 10px; height: 10px; margin-left: 2px;"></span>Solid dot = the ship-to town driving a winter-pack state · hollow dot = a cold pocket (no regular shipments there)</span>
     </div>
@@ -2853,28 +2857,56 @@ function setCachedForecastUrl(lat, lon, url) {
   } catch(e) { /* localStorage may be full or disabled */ }
 }
 
+// ---- NWS request queue ---------------------------------------------------
+// A cold load needs a forecast for ~2,300 towns. Firing them all at once (one
+// Promise.all per state, nested inside a Promise.all over states) is what made
+// states drop out: NWS throttles hard, the burst turns into thousands of 429s,
+// and every retry waits out a backoff. A bounded queue finishes sooner AND
+// more completely than the flood did.
+const MAX_INFLIGHT = 10;
+let _inflight = 0;
+const _waiting = [];
+function _acquire() {
+  if (_inflight < MAX_INFLIGHT) { _inflight++; return Promise.resolve(); }
+  return new Promise(resolve => _waiting.push(resolve));
+}
+function _release() {
+  const next = _waiting.shift();
+  if (next) next(); else _inflight--;
+}
+// Retries throttling and outages on EVERY call — including /points/, which on a
+// cold load is the first request for every town and used to fail outright.
+async function nwsFetch(url, tries = 4) {
+  await _acquire();
+  try {
+    for (let attempt = 0; attempt < tries; attempt++) {
+      let resp = null;
+      try { resp = await fetch(url, { headers: { 'Accept': 'application/geo+json' } }); }
+      catch(e) { /* network blip — retryable */ }
+      if (resp && resp.ok) return resp;
+      if (resp && resp.status !== 429 && resp.status < 500) return null;  // 404 etc. won't improve
+      if (attempt < tries - 1) await new Promise(r => setTimeout(r, 1200 * Math.pow(2, attempt) + Math.random() * 600));
+    }
+    return null;
+  } finally { _release(); }
+}
+
 async function fetchCityForecast(city) {
   try {
     let forecastUrl = getCachedForecastUrl(city.lat, city.lon);
     if (!forecastUrl) {
-      const pointResp = await fetch(`https://api.weather.gov/points/${city.lat},${city.lon}`, { headers: { 'Accept': 'application/geo+json' } });
-      if (!pointResp.ok) return null;
+      const pointResp = await nwsFetch(`https://api.weather.gov/points/${city.lat},${city.lon}`);
+      if (!pointResp) return null;
       const pointData = await pointResp.json();
       forecastUrl = pointData.properties.forecast;
       if (!forecastUrl) return null;
       setCachedForecastUrl(city.lat, city.lon, forecastUrl);
     }
     // NWS exposes the hourly forecast at the gridpoint's forecast URL + /hourly.
-    // With ~2,300 towns per cold load, retry throttling (429/5xx) with backoff
-    // so a rate-limited town can't silently vanish from a state's call.
-    const url = forecastUrl.replace(/\/hourly$/, '') + '/hourly';
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const fcResp = await fetch(url, { headers: { 'Accept': 'application/geo+json' } });
-      if (fcResp.ok) { const fcData = await fcResp.json(); return fcData.properties.periods || []; }
-      if (fcResp.status !== 429 && fcResp.status < 500) return null;
-      await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
-    }
-    return null;
+    const fcResp = await nwsFetch(forecastUrl.replace(/\/hourly$/, '') + '/hourly');
+    if (!fcResp) return null;
+    const fcData = await fcResp.json();
+    return fcData.properties.periods || [];
   } catch(e) {
     console.error('Forecast failed for', city.name, e);
     return null;
@@ -2941,6 +2973,11 @@ function getCityShipNightLows(periods, numDays) {
 //   anyCold — coldest point overall (fail-safe if a state has no ship-to data)
 async function fetchStateForecast(state) {
   const results = await Promise.all(state.cities.map(city => fetchCityForecast(city)));
+  // How much of the state actually answered. A call made on 2 of 40 towns is
+  // not the same as a call made on all 40, and the page has to say so.
+  const shipTotal = state.cities.filter(c => c.ship).length;
+  const shipOk = state.cities.filter((c, i) => c.ship && results[i]).length;
+  const coverage = { ok: results.filter(Boolean).length, total: results.length, shipOk, shipTotal };
   const perCity = results.map((periods, i) => ({ city: state.cities[i], days: getCityDeliveryExposure(periods, NUM_DAYS) }));
   const aggregated = [];
   for (let i = 0; i < NUM_DAYS; i++) {
@@ -2956,7 +2993,7 @@ async function fetchStateForecast(state) {
     pockets.sort((a, b) => a.exposure - b.exposure);
     aggregated.push({ ship, pockets, anyCold });
   }
-  return aggregated;
+  return { days: aggregated, coverage };
 }
 
 // The state's decision. Footprint-driven: the ship-to towns make the call;
@@ -2982,16 +3019,19 @@ function getCachedData() {
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
     const parsed = JSON.parse(cached);
-    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null;
+    // a partial load is only worth reusing for a few minutes
+    const ttl = parsed.partial ? 5 * 60 * 1000 : CACHE_TTL_MS;
+    if (Date.now() - parsed.timestamp > ttl) return null;
     // A cache written before local midnight indexes days from a different
     // "today"; discard it so index 0 is always tonight's shipment.
     if (parsed.dayKey !== localDateKey(new Date())) return null;
     return parsed;
   } catch(e) { return null; }
 }
-function saveCachedData() {
+function saveCachedData(complete) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), dayKey: localDateKey(new Date()), stateData, hubData }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), dayKey: localDateKey(new Date()),
+      partial: !complete, stateData, hubData }));
   } catch(e) { /* localStorage may be full or disabled */ }
 }
 
@@ -3012,6 +3052,7 @@ async function loadAll() {
     await topoPromise;
     buildDayPicker();
     renderDay(selectedDayIdx);
+    renderCoverage();
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (cached)';
     setTimeout(() => { progressEl.textContent = ''; }, 2000);
     return;
@@ -3024,19 +3065,56 @@ async function loadAll() {
   hubData = await fetchHubForecasts(); // only 4 points
   renderDay(selectedDayIdx);
 
+  await loadStates(STATES);
+}
+
+// Fetch a set of states, render as they land, then report what is missing.
+async function loadStates(list) {
+  const progressEl = document.getElementById('loading-progress');
   let completed = 0, lastRender = 0;
-  await Promise.all(STATES.map(async (state) => {
-    const days = await fetchStateForecast(state);
-    stateData[state.code] = { days };
+  await Promise.all(list.map(async (state) => {
+    const res = await fetchStateForecast(state);
+    stateData[state.code] = { days: res.days, coverage: res.coverage };
     completed++;
-    progressEl.textContent = `Loading: ${completed}/${STATES.length} states`;
+    progressEl.textContent = `Loading: ${completed}/${list.length} states`;
     const now = Date.now();
-    if (completed === STATES.length || now - lastRender > 800) { lastRender = now; renderDay(selectedDayIdx); }
+    if (completed === list.length || now - lastRender > 800) { lastRender = now; renderDay(selectedDayIdx); }
   }));
-  saveCachedData();
   progressEl.textContent = '';
   renderDay(selectedDayIdx);
+  renderCoverage();
+  // Never let a throttled load poison the cache for an hour: a partial result
+  // is kept only briefly so the next visit tries again.
+  saveCachedData(incompleteStates().length === 0);
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// States that returned nothing, or answered on only part of their footprint.
+function incompleteStates() {
+  return STATES.filter(st => {
+    const c = (stateData[st.code] || {}).coverage;
+    return !c || c.ok === 0 || c.shipOk < c.shipTotal || c.ok < c.total;
+  });
+}
+function renderCoverage() {
+  const el = document.getElementById('coverage-note');
+  if (!el) return;
+  const missing = incompleteStates();
+  if (!missing.length) { el.style.display = 'none'; return; }
+  const empty = missing.filter(st => { const c = (stateData[st.code] || {}).coverage; return !c || c.ok === 0; });
+  const partial = missing.filter(st => !empty.includes(st));
+  const bits = [];
+  if (empty.length) bits.push(`<strong>${empty.length} state${empty.length === 1 ? '' : 's'} did not load at all</strong> (${empty.map(s => s.code).join(', ')}) — shown grey, not as "standard"`);
+  if (partial.length) bits.push(`<strong>${partial.length} state${partial.length === 1 ? '' : 's'} answered on only part of the footprint</strong> (${partial.map(s => s.code).join(', ')}) — a cold town may be missing`);
+  el.innerHTML = `<span>&#9888;</span><span>${bits.join('. ')}. The weather service throttles large loads. <button class="btn" style="padding:6px 14px; font-size:13px; margin-left:8px;" onclick="retryIncomplete()">Retry ${missing.length} state${missing.length === 1 ? '' : 's'}</button></span>`;
+  el.style.display = 'flex';
+}
+async function retryIncomplete() {
+  const missing = incompleteStates();
+  if (!missing.length) return;
+  document.getElementById('coverage-note').style.display = 'none';
+  document.getElementById('last-updated').textContent = 'Retrying...';
+  await loadStates(missing);
 }
 
 function dayLabel(i) {
