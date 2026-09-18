@@ -99,10 +99,46 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   (USP <659>/<1079>, CDC excursion procedure, ISTA 7D/7E, URAC P-MD, 22 TAC
   §291.12, JAPhA 2023 mail-transit study, manufacturer allowances), where
   the literature is thin, SOP wording, and a numbered reference list.
-- `data/drugs.json` rows: `name`, `ndc` (reference only, not shown),
-  `excursionMinF`/`excursionMaxF`, `excursionNote`, `storage`,
-  `protectFromLight`, `freezeSensitive`, optional `flag`. Update by editing
-  the spreadsheet and re-converting.
+- **Product search** — type-ahead over the product list (matches any word
+  start, so "kwik" finds Mounjaro KwikPen), each row showing its allowance.
+  The last product used is remembered.
+- **Pack physics.** `PACK_MELT_F = 32`. Our gel packs are polymer ice, which
+  is water held in a superabsorbent polymer, so they melt at essentially 32°F.
+  Any ice left means the coldest point in the box was about 32°F and the heat
+  that got in was less than the remaining latent heat. That is why "slushy" is
+  accepted without a temperature check, and why packs still **frozen solid**
+  raise a freeze question for freeze-sensitive products rather than a clean OK.
+  If the packs ever change to an engineered phase-change material (many melt
+  at 41°F), change that constant and re-read the frozen/slushy wording.
+- **Special product classes** the tool handles separately: products with **no
+  room-temperature allowance** (Forteo, Genotropin, Omnitrope) go to the
+  manufacturer, since no weather reading can clear them; **insulins whose
+  allowance depends on the presentation** link the manufacturer's stability
+  calculator; **room-temperature products** (Afinitor, Monovisc, Opzelura)
+  skip the ice-pack question entirely.
+- **Keeping the product** now carries the right aftercare: a **cumulative**
+  allowance says the clock does not reset, a **do-not-return-to-fridge** label
+  says so, and a one-time allowance is flagged as partly spent.
+
+### Drug data
+`data/drugs.json` is generated — do not hand-edit it:
+```
+python3 scripts/convert-drugs.py Temperature_Sensitive_Stabilities.xlsx -o data/drugs.json
+```
+The converter exists because the sheet's **Max Temp column is not consistently
+the excursion ceiling**: for Nivestym, Norditropin and Skyrizi it is the fridge
+ceiling (46°F), for Sogroya it is a hard discard limit (86°F), and for Dupixent
+it is the allowance (77°F). The page needs the allowance ceiling, so it is
+parsed from the excursion text and the column is kept separately as
+`storageMaxF`. Every row where the two disagree is printed on each run, and
+rows needing human judgment sit in an `OVERRIDES` table with a stated reason
+that surfaces on the page.
+
+Row fields: `name`, `ndc` (reference only, not shown), `storageMinF`/`storageMaxF`,
+`excursionMinF`/`excursionMaxF` (the allowance ceiling), `allowanceHours`,
+`cumulative`, `returnToFridge`, `noExcursion`, `refrigerated`, `calculatorUrl`,
+`tiers`, `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`,
+optional `flag` and `derivation`.
 
 ### Design system
 All four pages share one token block (copied into each page's `<style>`, since
