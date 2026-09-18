@@ -230,23 +230,23 @@ shadows instead of soft blurs.
 - Everything here is decoration. Nothing gates or delays a verdict, and the
   whole layer is inert under `prefers-reduced-motion`.
 
-### The party (`characters.js`, Excursion Check only, retro mode only)
-A nine-character Shining Force homage that follows you around the Excursion
-Check. Sprites, portraits, trees, turf, flowers and particles are all generated
+### The party (`characters.js` + `battle.js`, Excursion Check only, retro mode only)
+A nine-character Shining Force homage that lives on the Excursion Check.
+Sprites, portraits, trees, turf, flowers and particles are all generated
 from pixel maps in the file, so no image assets ship.
 
 | | Role | | | Role |
 |---|---|---|---|---|
-| **MAX** | Courier (leads) | | **LUKE** | Freezer Keeper |
-| **KHRIS** | Pharmacist | | **ZYLO** | Night Shift |
-| **GORT** | Pack Knight | | **ADAM** | Pack-out Engine |
+| **MAX** | Courier | | **LUKE** | Freezer Keeper |
+| **KHRIS** | Pharmacist, heals | | **ZYLO** | Night Shift |
+| **GORT** | Pack Knight, opens the battle | | **ADAM** | Pack-out Engine |
 | **ANRI** | Forecaster, runs Ice Run | | **AMON** | Sky Scout (flies) |
 | **HANS** | Route Scout | | | |
 
-- **They follow the cursor** (or the last tap on a phone) in a conga line:
-  MAX heads for the cursor, everyone else trails the one ahead. AMON hovers
-  above. When you stop for a few seconds they settle into two ranks behind
-  the cursor and glance about. Footsteps kick up dust.
+- **They wander on their own.** Nothing reads the cursor. Each character picks
+  a spot in the lower half of the page, ambles there, waits a few seconds,
+  picks another. A quarter of the time they go visit someone instead, face
+  each other and trade a line. AMON circles overhead. Footsteps kick up dust.
 - **They comment on choices**, not just the verdict, through the dialogue box:
   Tremfya gets "only 4 hours out of the fridge", Forteo gets the no-allowance
   warning from the pharmacist, Aimovig is flagged as banded, each pack state
@@ -257,9 +257,21 @@ from pixel maps in the file, so no image assets ship.
 - **Ambient chatter**: someone says something over their head every 7–16 s.
 - **Party roster** (top right, desktop only) lists everyone; click a name to
   hail them. **Ice Run**: ask ANRI for a 20-second round of catching parcels.
-- The stage never intercepts a click meant for the page (only sprites are
-  clickable), the whole party is torn down when retro mode is switched off,
-  and none of it exists under `prefers-reduced-motion`.
+- **THE HEAT FRONT** (`battle.js`): a turn-based tactics battle. Click GORT
+  and choose TO BATTLE, or press ⚔ BATTLE on the roster. MAX, KHRIS, GORT
+  and ANRI take a 12×8 field of grass, forest (costs 2 to enter, +1 DEF),
+  rock and road against three Heat Waves, a Frost Sprite (range 2) and the
+  Porch Sun boss. Each turn: pick a unit's move from the highlighted tiles
+  (or stay), then attack anything in range, use a special (KHRIS heals 8,
+  GORT insulates neighbours for +3 DEF), or stay. Damage is ATK − DEF plus a
+  little luck, with a 12% critical. Then the Heat Front advances on the
+  nearest party member and hits the weakest one in reach. Clear the field for
+  VICTORY and EXP, lose everyone for DEFEAT; GORT has a line for each. The
+  wanderers freeze while the battle is open; Esc or ✕ leaves at any time.
+- The stage never intercepts a click meant for the page (only sprites and the
+  battle are clickable), the whole party and any open battle are torn down
+  when retro mode is switched off, and none of it exists under
+  `prefers-reduced-motion`.
 
 ### Data sources
 | Source | Used for | Key required |

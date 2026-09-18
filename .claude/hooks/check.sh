@@ -25,7 +25,7 @@ PY
   fi
 done
 
-for j in retro.js characters.js; do
+for j in retro.js characters.js battle.js; do
   if node --check "$j"; then echo "ok: $j — parses"; else echo "FAIL: $j"; fail=1; fi
 done
 
