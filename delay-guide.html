@@ -336,7 +336,10 @@
     <div class="caveat"><strong>Duration only.</strong> A product that clears this page can still fail on
     temperature, and one that fails here is a manufacturer call regardless of how cool it stayed. Assumes a
     normal next-day transit and our 48-hour pack-out, so the ship day and the day after are covered and the
-    delay is what gets scored.</div>
+    delay is what gets scored. Products marked <span class="pill na">banded</span> publish more than one
+    window (Aimovig allows 7 days up to 77&deg;F and, separately, 2 days at 86-104&deg;F); the figure here is
+    the primary window, and the <a href="excursion.html">Excursion Check</a> picks the band the actual peak
+    falls in.</div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -397,7 +400,7 @@ function render() {
     const over = late > m;
     const cls = over ? 'over' : (m - late <= 1 ? 'edge' : '');
     html += `<tr class="${cls}"><td>${d.name}${d.inUseAllowance ? ' <span class="pill na">in-use figure</span>' : ''}</td>`
-      + `<td class="num">${allowanceLabel(d)}</td>`
+      + `<td class="num">${allowanceLabel(d)}${d.tiers ? ' <span class="pill na">banded</span>' : ''}</td>`
       + `<td class="num">${m === 0 ? 'no delay' : m + ' d late'}</td>`
       + `<td class="num"><span class="pill ${over ? 'no' : 'ok'}">${over ? 'past it' : 'inside'}</span></td></tr>`;
   });

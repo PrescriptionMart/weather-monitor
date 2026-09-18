@@ -686,6 +686,25 @@ function budgetText(d, nDays) {
   return body + (d.cumulative ? ', and this is cumulative so it counts against the running total' : '');
 }
 
+// ---- banded allowances ---------------------------------------------------
+// A few labels publish more than one window. Aimovig allows 7 days at up to
+// 77F AND, separately, 2 days at 86-104F. Opzelura has three. A peak landing
+// in a higher band is judged against THAT band's own allowance rather than
+// against the primary ceiling, which would otherwise flag exposure the
+// manufacturer has already covered. Note the bands need not be contiguous:
+// Aimovig publishes nothing between 77F and 86F, and a peak in that gap gets
+// no coverage from either.
+function bandFor(d, peakF) {
+  if (!d || !d.tiers || peakF == null) return null;
+  return d.tiers.find(t => peakF >= t.minF && peakF <= t.maxF) || null;
+}
+function bandDays(t) { return Math.max(1, Math.ceil(t.hours / 24)); }
+function bandText(t) {
+  const dur = t.hours < 24 ? `${t.hours} hours` : `${bandDays(t)} day${bandDays(t) === 1 ? '' : 's'}`;
+  return `${fmtF(t.minF)} to ${fmtF(t.maxF)} for ${dur}`;
+}
+function allBandsText(d) { return (d.tiers || []).map(bandText).join(', and '); }
+
 // Is the ceiling for this product one we could not verify? Flagged rows and
 // after-first-use rows get the wider margin.
 function ceilingUncertain(d) { return !!(d && (d.flag || d.inUseAllowance)); }
@@ -780,6 +799,7 @@ function onDrugChange() {
   if (d.noExcursion) headline = `<b>No room-temperature allowance.</b> Must stay ${rangeText(floor, ceil)} at all times`;
   else if (d.calculatorUrl) headline = `Allowance depends on the presentation and whether it has been started — <a href="${d.calculatorUrl}" target="_blank" rel="noopener">manufacturer calculator</a>`;
   else if (d.refrigerated === false) headline = `<b>Room-temperature product</b> — keep within ${rangeText(floor, ceil)}${at ? `, up to ${at} at the edges` : ''}`;
+  else if (d.tiers) headline = `Allowed out of the fridge: <b>${allBandsText(d)}</b>`;
   else headline = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${at ? ` for ${at}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}`;
   // the two rules that change what the patient is told if the product is kept
   // the duration half of a delay call, answerable the moment a product is picked
@@ -1004,6 +1024,51 @@ function decide() {
       `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
     ], '"It stayed cool the whole way and was refrigerated for most of that time, so it\'s fine to use."', '"It was out of refrigeration longer than this medication allows, so I\'m going to replace it. Please set it aside; we\'ll send a new one."');
+  }
+
+  // Banded products: judge the peak against the band it actually falls in.
+  if (d.tiers && hi != null && ceil != null && hi > ceil) {
+    const band = bandFor(d, hi);
+    if (band && nDays <= bandDays(band) && !evidenceWeak(lastResult, scored))
+      return show('ok', 'OK TO USE',
+        `Peak was ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling — but ${d.name}'s label carries a second window for exactly this range: <strong>${bandText(band)}</strong>. The ${nDays} day${nDays === 1 ? '' : 's'} scored ${nDays === 1 ? 'is' : 'are'} inside it, so this exposure is covered rather than an excursion.`,
+        `"That range is actually covered by ${d.name}'s own stability data for this long, so it's fine to use. Into the fridge and use as normal."`,
+        aftercare(d) + evid(scored));
+
+    // inside the band on duration, but the record behind it is not good enough
+    if (band && nDays <= bandDays(band)) return judge('JUDGMENT CALL — the weather record is thin', [
+      `Peak was <strong>${fmtF(hi)}</strong>, inside ${d.name}'s <strong>${bandText(band)}</strong> window, and ${nDays} day${nDays === 1 ? '' : 's'} is within it`,
+      `<strong>But the record has gaps.</strong> ${evidenceLine(lastResult, scored)}`,
+      'A hotter unobserved hour could put the peak outside that window entirely',
+    ], [
+      `<strong>Pack state, which does not rely on the record:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+      `<strong>Headroom in the window:</strong> peak well under ${fmtF(band.maxF)} ${K} · close to it ${R}`,
+    ], `"What we can see puts it inside what ${d.name}'s data covers, and the packs back that up. It's fine to use."`,
+       '"The weather record for your area has gaps, so I\'d rather replace it than assume. Please set it aside."');
+
+    if (band) return judge('JUDGMENT CALL — past the high-temperature window', [
+      `Peak was <strong>${fmtF(hi)}</strong>, which falls in ${d.name}'s <strong>${bandText(band)}</strong> window`,
+      `<strong>${nDays} day${nDays === 1 ? '' : 's'} scored</strong> against that window's ${bandDays(band)}-day limit`,
+      `Published windows: ${allBandsText(d)}`,
+    ], [
+      `<strong>How far past:</strong> a day over ${K} · several days over ${R}`,
+      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran colder than the air ${K}` : `warm, so the box tracked the air ${R}`}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+    ], `"It went above the usual range but within what ${d.name}'s data covers for a short period. It's fine to use."`,
+       '"It sat in that range longer than the data covers, so I\'m replacing it. Please set it aside; we\'ll send a new one."');
+
+    // peak sits between the published windows, or above all of them
+    return judge('JUDGMENT CALL — between the published windows', [
+      `Peak was <strong>${fmtF(hi)}</strong>, above the ${fmtF(ceil)} ceiling`,
+      `<strong>${d.name} publishes ${allBandsText(d)}</strong> — and nothing that covers ${fmtF(hi)}`,
+      `So this is not a case the label speaks to either way`,
+    ], [
+      `<strong>Call the manufacturer</strong> with the peak and the ${nDays} day${nDays === 1 ? '' : 's'} — they hold the data for the gap`,
+      `<strong>How close to a covered window:</strong> just over the lower one ${K} · well into the gap ${R}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+    ], '"Let me confirm one thing with the manufacturer and call you straight back today."',
+       '"This landed outside what the label covers, so I\'m replacing it rather than guessing. Please set it aside."');
   }
 
   return judge('JUDGMENT CALL — possible heat excursion', [
