@@ -5,8 +5,8 @@
 // page and the latest FAA data file; the cache is only a fallback for when the
 // device is offline. Cross-origin requests (OpenWeatherMap, NWS, the map CDN)
 // are left untouched and go straight to the network.
-const CACHE = 'pm-weather-v6';
-const SHELL = ['./', './index.html', './winter-pack.html', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './manifest.json', './icon.svg'];
+const CACHE = 'pm-weather-v7';
+const SHELL = ['./', './index.html', './winter-pack.html', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './characters.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

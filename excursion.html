@@ -455,7 +455,12 @@ async function showPlace() {
   const el = document.getElementById('zip-place');
   if (!/^\d{5}$/.test(zip)) { el.textContent = ''; el.className = 'zip-place'; return; }
   el.textContent = '…'; el.className = 'zip-place';
-  try { const x = await lookupZip(zip); if (document.getElementById('zip').value.trim() !== zip) return; el.textContent = placeName(x); }
+  try {
+    const x = await lookupZip(zip);
+    if (document.getElementById('zip').value.trim() !== zip) return;
+    el.textContent = placeName(x);
+    partyNote('anri', placeName(x) + '. I will read the hourly record there.');
+  }
   catch(e) {
     if (document.getElementById('zip').value.trim() !== zip) return;
     // only call it a bad ZIP when it really is one — a throttled or down
@@ -525,12 +530,27 @@ function closeDrugList() {
   const inp = document.getElementById('drug-search');
   if (inp) inp.setAttribute('aria-expanded', 'false');
 }
+// The party comments on choices as they are made. Entirely optional: the
+// characters only exist in retro mode, so this is a no-op the rest of the time.
+function partyNote(who, text) { if (window.partySay) window.partySay(who, text); }
+function drugQuip(d) {
+  if (d.noExcursion) return d.name + '? No room-temperature allowance at all. Any delay is a call to the maker.';
+  if (d.calculatorUrl) return d.name + ' needs the manufacturer calculator. The sheet will not settle it.';
+  if (d.tiers) return d.name + ' has two windows, not one. Mind which one the peak lands in.';
+  const h = d.allowanceHours;
+  if (h != null && h <= 24) return d.name + '? Only ' + (h < 24 ? h + ' hours' : 'a day') + ' out of the fridge. Do not dawdle.';
+  if (d.inUseAllowance) return 'Careful — that figure is for a pen already in use, not one in transit.';
+  if (h != null) return d.name + ', ' + Math.round(h / 24) + ' days out of the fridge. Room to work with.';
+  return d.name + '. Let us see what the air did.';
+}
+
 function pickDrug(i) {
   document.getElementById('drug-select').value = String(i);
   document.getElementById('drug-search').value = DRUGS[i].name;
   document.getElementById('drug-clear').style.display = 'block';
   closeDrugList();
   try { localStorage.setItem(LAST_DRUG_KEY, DRUGS[i].name); } catch(e) {}
+  partyNote(DRUGS[i].noExcursion || DRUGS[i].calculatorUrl ? 'khris' : 'anri', drugQuip(DRUGS[i]));
   onDrugChange();
 }
 function clearDrug() {
@@ -819,7 +839,14 @@ function onDrugChange() {
     + `<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
   decide();
 }
+const PACK_QUIP = {
+  frozen: 'Frozen solid. The box never rose above freezing — the only question left is the product itself.',
+  slushy: 'Slushy! That is the one you want. Still melting means it never warmed up.',
+  cool:   'Thawed but cool. They only just gave out. The pack-out likely held.',
+  warm:   'Warm. The pack-out is spent, so every day counts from here.'
+};
 function setPack(state) {
+  partyNote(state === 'warm' || state === 'frozen' ? 'khris' : 'max', PACK_QUIP[state]);
   packState = state;
   document.querySelectorAll('.pack-btn').forEach(b => b.classList.toggle('active', b.dataset.state === state));
   decide();
@@ -1116,7 +1143,18 @@ function renderDetails() {
   document.getElementById('days-table').innerHTML = html;
 }
 const _decide = decide;
-decide = function() { _decide(); renderDetails(); replayStamp(document.getElementById('verdict')); };
+decide = function() {
+  _decide();
+  renderDetails();
+  const v = document.getElementById('verdict');
+  replayStamp(v);
+  // let the courier respond to what was just decided
+  if (window.courierReact && !v.classList.contains('wait')) {
+    if (v.classList.contains('ok')) window.courierReact('good', 'Nice. That one\'s fine.');
+    else if (v.classList.contains('replace')) window.courierReact('bad', "Ah. I'll take it back.");
+    else window.courierReact('think', 'Your call on this one.');
+  }
+};
 
 // A NewLeaf activity note, not a report. Two or three lines: what was
 // checked, what the weather showed, what was decided. The long version lives
@@ -1190,5 +1228,6 @@ syncThemeIcon();
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 </script>
 <script src="retro.js"></script>
+<script src="characters.js"></script>
 </body>
 </html>
