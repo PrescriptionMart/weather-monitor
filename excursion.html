@@ -402,7 +402,13 @@ async function showPlace() {
   if (!/^\d{5}$/.test(zip)) { el.textContent = ''; el.className = 'zip-place'; return; }
   el.textContent = '…'; el.className = 'zip-place';
   try { const x = await lookupZip(zip); if (document.getElementById('zip').value.trim() !== zip) return; el.textContent = placeName(x); }
-  catch(e) { if (document.getElementById('zip').value.trim() !== zip) return; el.textContent = 'ZIP not found'; el.className = 'zip-place err'; }
+  catch(e) {
+    if (document.getElementById('zip').value.trim() !== zip) return;
+    // only call it a bad ZIP when it really is one — a throttled or down
+    // service is a different problem and gets its own message on Check
+    el.textContent = /not found/i.test(e.message || '') ? 'ZIP not found' : '';
+    el.className = 'zip-place err';
+  }
 }
 function currentDrug() { const v = document.getElementById('drug-select').value; return v === '' ? null : DRUGS[+v]; }
 function drugLimits(d) {
@@ -414,9 +420,31 @@ function drugLimits(d) {
 }
 
 // ---- location → nearest NWS station → observations ----
+// Weather APIs throttle and wobble; retry the transient failures and keep the
+// real status so the message on screen says what actually went wrong.
+const RETRY_STATUS = [408, 429, 500, 502, 503, 504];
+async function fetchRetry(url, opts, source, tries = 3, passThrough = []) {
+  let lastStatus = null;
+  for (let i = 0; i < tries; i++) {
+    let r = null;
+    try { r = await fetch(url, opts); } catch(e) { lastStatus = 0; }
+    if (r && r.ok) return r;
+    if (r) {
+      if (passThrough.includes(r.status)) return r;   // caller handles this one
+      lastStatus = r.status;
+      if (!RETRY_STATUS.includes(r.status)) break;
+    }
+    if (i < tries - 1) await new Promise(res => setTimeout(res, 600 * Math.pow(2, i)));
+  }
+  const how = lastStatus === 429 ? 'is rate-limiting us (429)'
+    : lastStatus >= 500 ? `is having an outage (${lastStatus})`
+    : lastStatus ? `returned HTTP ${lastStatus}` : 'did not respond (offline or blocked)';
+  throw new Error(`${source} ${how}. Try again in a minute.`);
+}
+
 async function geocodeZip(zip) {
-  const r = await fetch(`https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${WEATHER_API_KEY}`);
-  if (!r.ok) throw new Error('ZIP not found');
+  const r = await fetchRetry(`https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${WEATHER_API_KEY}`, undefined, 'The ZIP lookup', 3, [404]);
+  if (r.status === 404) throw new Error('ZIP not found');
   const d = await r.json();
   if (d.lat == null) throw new Error('ZIP not found');
   return { name: d.name || zip, lat: d.lat, lon: d.lon };
@@ -428,14 +456,12 @@ function distMiles(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 async function nwsPoint(loc) {
-  const r = await fetch(`https://api.weather.gov/points/${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`, { headers: NWS_HEADERS });
-  if (!r.ok) throw new Error('NWS point lookup failed');
+  const r = await fetchRetry(`https://api.weather.gov/points/${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`, { headers: NWS_HEADERS }, 'The weather service');
   const p = (await r.json()).properties;
   return { stationsUrl: p.observationStations, tz: p.timeZone, place: p.relativeLocation && p.relativeLocation.properties };
 }
 async function nearestStations(url, loc, n) {
-  const r = await fetch(url, { headers: NWS_HEADERS });
-  if (!r.ok) throw new Error('NWS station list failed');
+  const r = await fetchRetry(url, { headers: NWS_HEADERS }, 'The weather service');
   const feats = (await r.json()).features || [];
   return feats.slice(0, n).map(f => ({
     id: f.properties.stationIdentifier, name: f.properties.name,
@@ -444,8 +470,9 @@ async function nearestStations(url, loc, n) {
 }
 async function observations(stationId, start, end) {
   const u = `https://api.weather.gov/stations/${stationId}/observations?start=${start.toISOString()}&end=${end.toISOString()}&limit=500`;
-  const r = await fetch(u, { headers: NWS_HEADERS });
-  if (!r.ok) return [];
+  let r;
+  try { r = await fetchRetry(u, { headers: NWS_HEADERS }, 'The weather service'); }
+  catch(e) { return []; }   // one sparse station failing is not fatal; we try the next
   return ((await r.json()).features || [])
     .map(f => ({ t: new Date(f.properties.timestamp), c: f.properties.temperature && f.properties.temperature.value }))
     .filter(o => o.c !== null && o.c !== undefined && !isNaN(o.t));

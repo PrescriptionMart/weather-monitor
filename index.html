@@ -315,6 +315,9 @@
     <span id="alert-text"></span>
   </div>
 
+  <!-- feed health: shown whenever the load was not complete and fresh -->
+  <div id="feed-status" style="display:none;" class="alert-bar warning"></div>
+
   <div class="hero" id="hero">
     <div class="hero-eyebrow">Tonight's call</div>
     <div id="recommendation"><div class="rec-text">Loading forecast data…</div></div>
@@ -604,12 +607,47 @@ function nightLabel(dateKey, idx) {
   return { primary: labels[idx] || dayName, secondary: `${dayName} ${dateStr}` };
 }
 
+// ---- network layer -------------------------------------------------------
+// Weather APIs fail in three distinct ways and the dashboard used to treat them
+// all as "API key not active yet": a bad/inactive key (401), throttling (429),
+// an upstream outage (5xx), or the browser being offline / CORS. Retry the
+// transient ones, and keep the real reason so the page can say what happened.
+class ApiError extends Error {
+  constructor(status, source) {
+    super(source + ' ' + (status ? 'HTTP ' + status : 'unreachable'));
+    this.status = status; this.source = source;
+  }
+  get reason() {
+    if (this.status === 401 || this.status === 403) return 'the OpenWeatherMap key was rejected (401) — it may be new, mistyped, or deactivated';
+    if (this.status === 429) return 'we are being rate-limited (429) — too many requests for the free tier';
+    if (this.status >= 500) return this.source + ' is having an outage (' + this.status + ')';
+    if (!this.status) return 'no network response from ' + this.source + ' — offline, blocked, or DNS';
+    return this.source + ' returned HTTP ' + this.status;
+  }
+}
+const RETRY_STATUS = [408, 429, 500, 502, 503, 504];
+async function fetchRetry(url, opts, source, tries = 3) {
+  let last = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url, opts);
+      if (r.ok) return r;
+      last = new ApiError(r.status, source);
+      if (!RETRY_STATUS.includes(r.status)) throw last;   // 401/404 will not fix themselves
+    } catch (e) {
+      last = (e instanceof ApiError) ? e : new ApiError(0, source);
+      if (e instanceof ApiError && !RETRY_STATUS.includes(e.status)) throw e;
+    }
+    if (i < tries - 1) await new Promise(r => setTimeout(r, 600 * Math.pow(2, i)));
+  }
+  throw last;
+}
+
 async function fetchNWSAlerts(lat, lon) {
   // National Weather Service API — free, no key required, authoritative for US severe weather
   const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
   try {
-    const resp = await fetch(url, { headers: { 'Accept': 'application/geo+json' } });
-    if (!resp.ok) return [];
+    const resp = await fetchRetry(url, { headers: { 'Accept': 'application/geo+json' } }, 'NWS');
     const data = await resp.json();
     return (data.features || []).map(f => ({
       event: f.properties.event,
@@ -621,7 +659,7 @@ async function fetchNWSAlerts(lat, lon) {
     }));
   } catch(e) {
     console.error('NWS alerts fetch failed:', e);
-    return [];
+    return null;   // null = "we do not know", which is NOT the same as "no alerts"
   }
 }
 
@@ -649,16 +687,14 @@ async function fetchNWSForecast(lat, lon) {
   try {
     let forecastUrl = getCachedForecastUrl(lat, lon);
     if (!forecastUrl) {
-      const pointResp = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } });
-      if (!pointResp.ok) return null;
+      const pointResp = await fetchRetry(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } }, 'NWS');
       const pointData = await pointResp.json();
       forecastUrl = pointData.properties.forecast;
       if (!forecastUrl) return null;
       setCachedForecastUrl(lat, lon, forecastUrl);
     }
 
-    const fcResp = await fetch(forecastUrl, { headers: { 'Accept': 'application/geo+json' } });
-    if (!fcResp.ok) return null;
+    const fcResp = await fetchRetry(forecastUrl, { headers: { 'Accept': 'application/geo+json' } }, 'NWS');
     const fcData = await fcResp.json();
     return fcData.properties.periods || [];
   } catch(e) {
@@ -729,6 +765,7 @@ const MEDIUM_RISK_NWS_EVENTS = [
 ];
 
 function nwsAlertRiskOverride(alerts) {
+  if (!alerts) return null;   // unknown, not 'none'
   // Returns the highest risk override level from active NWS alerts
   if (!alerts || alerts.length === 0) return null;
   for (const a of alerts) {
@@ -747,12 +784,13 @@ async function fetchLocation(loc) {
   try {
     // Fetch all three sources in parallel
     const [resp, nwsAlerts, nwsForecast] = await Promise.all([
-      fetch(url),
+      fetchRetry(url, undefined, 'OpenWeatherMap'),
       fetchNWSAlerts(loc.lat, loc.lon),
       fetchNWSForecast(loc.lat, loc.lon)
     ]);
-    if (!resp.ok) throw new Error('bad response');
     const data = await resp.json();
+    // null from either NWS call means the call failed, not that the sky is clear
+    const degraded = (nwsAlerts === null) || (nwsForecast === null);
 
     const sortNights = getNext3SortNights(loc.tz);
     const nwsAlertOverride = nwsAlertRiskOverride(nwsAlerts);
@@ -858,10 +896,11 @@ async function fetchLocation(loc) {
       };
     });
 
-    return { id: loc.id, name: loc.name, label: loc.label, tz: loc.tz, hub: !!loc.hub, nights, nwsAlerts };
+    return { id: loc.id, name: loc.name, label: loc.label, tz: loc.tz, hub: !!loc.hub, nights, nwsAlerts: nwsAlerts || [], degraded };
   } catch(e) {
     console.error('Fetch error for', loc.id, e);
-    return null;
+    return { id: loc.id, name: loc.name, hub: !!loc.hub, failed: true,
+             reason: (e instanceof ApiError) ? e.reason : (e.message || 'unknown error') };
   }
 }
 
@@ -900,6 +939,15 @@ function useDemoData() {
 function renderHub(hub) {
   const container = document.getElementById('nights-' + hub.id);
   container.innerHTML = '';
+
+  // Say so on the card itself when the NWS half of the assessment is missing,
+  // so a green row is never mistaken for "checked against warnings".
+  if (hub.degraded) {
+    const warn = document.createElement('div');
+    warn.style.cssText = 'background:var(--med-bg); border-left:3px solid var(--med-dot); padding:8px 10px; margin-bottom:10px; font-size:12px; border-radius:6px; color:var(--med-fg);';
+    warn.innerHTML = '<strong>OpenWeatherMap only.</strong> NWS alerts/forecast did not load, so warnings are not reflected here.';
+    container.appendChild(warn);
+  }
 
   // Show active NWS alerts at the top of the card if present
   if (hub.nwsAlerts && hub.nwsAlerts.length > 0) {
@@ -1595,15 +1643,75 @@ async function _loadWeather() {
     return;
   }
   const results = await Promise.all(LOCATIONS.map(loc => fetchLocation(loc)));
-  const valid = results.filter(Boolean);
-  if (valid.length === 0) { document.getElementById('last-updated').textContent = 'Error loading — API key may not be active yet (takes up to 1 hour)'; return; }
+  const valid = results.filter(r => r && !r.failed);
+  const failed = results.filter(r => r && r.failed);
+
+  // Total failure: keep showing the last good load rather than a blank page,
+  // and say exactly why the refresh failed.
+  if (valid.length === 0) {
+    const why = failed.length ? failed[0].reason : 'no response';
+    const cached = loadLastGood();
+    if (cached) {
+      cached.results.forEach(r => { weatherState[r.id] = r; });
+      cached.results.filter(r => r.hub).forEach(renderHub);
+      renderRegions(cached.results); renderRecommendation(cached.results); renderAlertBar(cached.results);
+      renderFeedStatus({ stale: cached.at, why });
+    } else {
+      renderFeedStatus({ dead: true, why });
+    }
+    document.getElementById('last-updated').textContent = 'Refresh failed';
+    return;
+  }
+
   valid.forEach(r => { weatherState[r.id] = r; });
   valid.filter(r => r.hub).forEach(renderHub);
   renderRegions(valid);
   renderRecommendation(valid);
   renderAlertBar(valid);
+  saveLastGood(valid);
+  renderFeedStatus({ failed, degraded: valid.filter(r => r.degraded) });
   const now = new Date();
   document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+
+// ---- feed health ---------------------------------------------------------
+// A decision dashboard must never look confident about data it does not have.
+// Anything less than a full, fresh load says so at the top of the page.
+const LAST_GOOD_KEY = 'hub-forecast-last-good-v1';
+function saveLastGood(results) {
+  try { localStorage.setItem(LAST_GOOD_KEY, JSON.stringify({ at: Date.now(), results })); } catch(e) {}
+}
+function loadLastGood() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAST_GOOD_KEY) || 'null');
+    if (!raw || !raw.results || !raw.results.length) return null;
+    if (Date.now() - raw.at > 12 * 3600 * 1000) return null;   // too old to steer a decision
+    return raw;
+  } catch(e) { return null; }
+}
+function renderFeedStatus(st) {
+  const el = document.getElementById('feed-status');
+  if (!el) return;
+  const hhmm = t => new Date(t).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  if (st.dead) {
+    el.className = 'alert-bar';
+    el.innerHTML = `<span>⚠</span><span><strong>No live weather data.</strong> ${st.why}. Nothing on this page is current — check conditions directly before you ship.</span>`;
+    el.style.display = 'flex'; return;
+  }
+  if (st.stale) {
+    el.className = 'alert-bar';
+    el.innerHTML = `<span>⚠</span><span><strong>Showing the last good load from ${hhmm(st.stale)}.</strong> The refresh failed: ${st.why}. Treat these as stale.</span>`;
+    el.style.display = 'flex'; return;
+  }
+  // name the places when it is a couple of them, count them when it is many
+  const names = list => list.length > 3 ? `${list.length} of ${LOCATIONS.length} locations` : list.map(x => x.name).join(', ');
+  const bits = [];
+  if (st.failed && st.failed.length) bits.push(`<strong>${names(st.failed)} failed to load</strong> — ${st.failed[0].reason}`);
+  if (st.degraded && st.degraded.length) bits.push(`<strong>NWS alerts/forecast unavailable</strong> for ${names(st.degraded)} — those cards show OpenWeatherMap only, so a severe-weather warning could be missing`);
+  if (!bits.length) { el.style.display = 'none'; return; }
+  el.className = 'alert-bar warning';
+  el.innerHTML = `<span>⚠</span><span>${bits.join('. ')}.</span>`;
+  el.style.display = 'flex';
 }
 
 // ---- light/dark theme toggle ----
