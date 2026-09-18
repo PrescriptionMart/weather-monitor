@@ -398,7 +398,11 @@ const MAX_STATION_MILES = 25;   // beyond this the station is indicative, not de
 // on a number that might be a few degrees off.
 const CEILING_MARGIN_F = 5;
 const CEILING_MARGIN_UNCERTAIN_F = 10;  // for rows carrying a flag
-const PICKUP_HOUR = 12;
+// Our carrier pick-up is 16:00 every day, so the pack-out's rated hours are
+// anchored to it rather than to the calendar. If pick-up ever moves, change it
+// here: setting it EARLIER than reality is conservative (less time credited to
+// the packs), setting it LATER silently excuses real exposure.
+const PICKUP_HOUR = 16;
 // Pick-up happens in Houston, so the pack-out clock is anchored to Central
 // time no matter where the package lands. Anchoring it to the destination
 // would credit extra hours on westbound shipments.
