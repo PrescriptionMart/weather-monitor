@@ -1008,9 +1008,32 @@ function decide() {
     return show('ok', 'OK TO USE', `Packs still frozen solid means the box never rose above ${fmtF(PACK_MELT_F)} — the cold chain held the whole way, and ${d.name} is not freeze-sensitive.`,
       '"The packs were still frozen, so it stayed cold the whole trip. It\'s fine. Put it in the fridge and use as normal."', aftercare(d));
   }
-  if (packState === 'slushy') return show('ok', 'OK TO USE',
-    `The ideal arrival. Ice and liquid together means the packs were still melting, so the coldest point in the box was about ${fmtF(PACK_MELT_F)} and the total heat that got in was less than the ice could absorb — and unlike solid packs there is no freeze risk left.`,
-    '"Slushy packs are exactly how it should arrive. It stayed cold the whole way. Into the fridge and use as normal."', aftercare(d));
+  if (packState === 'slushy') {
+    // For a refrigerated product this is the ideal arrival. For a
+    // room-temperature one it is the opposite: a melting pack holds the box at
+    // its melting point for the whole trip, which is below these products'
+    // floors, and the weather record cannot see it because the box was colder
+    // than the air around it. The packs are the evidence of cold here, not the
+    // reassurance, so this cannot be cleared on them.
+    if (d.refrigerated === false) {
+      const coldBand = bandFor(d, PACK_MELT_F);
+      return judge('JUDGMENT CALL — held colder than its range', [
+        `Ice and liquid together means the box sat at about <strong>${fmtF(PACK_MELT_F)}</strong> for most of the trip`,
+        `<strong>${d.name} is a room-temperature product</strong>, not a refrigerated one. Its range is ${rangeText(floor, ceil)}, so the box ran ${floor != null && PACK_MELT_F < floor ? `below the bottom of that` : 'at the very edge of that'}`,
+        coldBand
+          ? `Its label does cover this range: <strong>${bandText(coldBand)}</strong>. The question is how long the box sat there`
+          : 'Cold is the exposure to weigh here, not heat, and the outdoor record cannot show it because the box was colder than the air',
+      ], [
+        `<strong>How long it was cold:</strong> a short trip, well inside ${coldBand ? bandText(coldBand) : 'any cold allowance on the label'} ${K} · days in the cold ${R}`,
+        `<strong>Appearance:</strong> looks like the last one, nothing separated, grainy or crystallised ${K} · anything off ${R}`,
+        `<strong>Was it even meant to ship cold?</strong> packed with ice by routine ${K} · packed cold by mistake, so nobody planned for the exposure ${R}`,
+      ], `"It was kept colder than it needs to be, but well within what the product tolerates for that long, so it's fine to use."`,
+         `"This one is a room-temperature product and it travelled on ice longer than its data covers, so I'd rather replace it. Please set it aside; we'll send a new one."`);
+    }
+    return show('ok', 'OK TO USE',
+      `The ideal arrival. Ice and liquid together means the packs were still melting, so the coldest point in the box was about ${fmtF(PACK_MELT_F)} and the total heat that got in was less than the ice could absorb — and unlike solid packs there is no freeze risk left.`,
+      '"Slushy packs are exactly how it should arrive. It stayed cold the whole way. Into the fridge and use as normal."', aftercare(d));
+  }
 
   // cool / warm: what did the outdoor temperature do?
   if (!days) return show('call', packState === 'cool' ? 'LIKELY OK — run the temperature check' : 'RUN THE TEMPERATURE CHECK', packState === 'cool'
