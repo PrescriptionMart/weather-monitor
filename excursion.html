@@ -688,22 +688,71 @@ function hoursPossible(dayKey, win) {
   return Math.max(0, Math.min(24, Math.ceil((to - from) / 3600000)));
 }
 
+// Hours from pick-up to delivery, for the rules that cannot be expressed in
+// whole days: a 4-hour allowance, and whether solid packs outlasted the
+// pack-out's rating. Pick-up is PICKUP_HOUR on the ship date; the received
+// date carries no clock time, so midday is assumed, which puts a next-morning
+// delivery inside the rating and anything arriving a third day outside it.
+// Falls back to the checked window when the form has been cleared.
+function transitHours() {
+  const s = (document.getElementById('since') || {}).value;
+  const u = (document.getElementById('until') || {}).value;
+  if (s && u) {
+    const [sy, sm, sd] = s.split('-').map(Number), [uy, um, ud] = u.split('-').map(Number);
+    if ([sy, sm, sd, uy, um, ud].every(n => !isNaN(n)))
+      return Math.max(0, (zonedInstant(uy, um, ud, 12, ORIGIN_TZ).getTime()
+                        - zonedInstant(sy, sm, sd, PICKUP_HOUR, ORIGIN_TZ).getTime()) / 3600000);
+  }
+  if (lastResult && lastResult.start && lastResult.end) {
+    const st = lastResult.start;
+    return Math.max(0, (lastResult.end.getTime()
+      - zonedInstant(st.getFullYear(), st.getMonth() + 1, st.getDate(), PICKUP_HOUR, ORIGIN_TZ).getTime()) / 3600000);
+  }
+  return null;
+}
+// Did the box arrive after the pack-out stopped being rated? null when the
+// dates are not known yet.
+function pastRating() { const h = transitHours(); return h == null ? null : h > PACKOUT_RATING_HOURS; }
+function transitDaysText() {
+  const h = transitHours();
+  if (h == null) return null;
+  const d = Math.round(h / 24);
+  return d < 1 ? `${Math.round(h)} hours` : `${d} day${d === 1 ? '' : 's'}`;
+}
+
+// Whether the time out of refrigeration is inside what the label allows.
+// Allowances shorter than a day cannot be judged in whole days: Tremfya's is
+// 4 hours, and one scored day would spend it six times over while still
+// reading as "1 of 1 day". Those are measured against elapsed hours instead.
+function durationOk(d, nDays) {
+  const h = allowanceHours(d);
+  if (h == null) return true;
+  if (h < 24) { const t = transitHours(); return t == null ? false : t <= h; }
+  return nDays <= allowanceDays(d);
+}
+
 // How much of the product's room-temperature allowance this trip used up.
 // Flat arithmetic on the label's own number — no assumed kinetics, because
 // labels publish a budget ("14 days at up to 77F"), not a rate.
 function budgetUsed(d, nDays) {
+  const h = allowanceHours(d);
+  if (h != null && h < 24) {          // reported in hours, or it reads as 1 of 1 day
+    const t = transitHours();
+    if (t == null) return null;
+    return { unit: 'hour', used: Math.round(t), total: h, pct: Math.min(100, Math.round(t / h * 100)) };
+  }
   const total = allowanceDays(d);
   if (total == null || !nDays) return null;
-  return { used: nDays, total, pct: Math.min(100, Math.round(nDays / total * 100)) };
+  return { unit: 'day', used: nDays, total, pct: Math.min(100, Math.round(nDays / total * 100)) };
 }
 function budgetText(d, nDays) {
   const b = budgetUsed(d, nDays);
   if (!b) return null;
   const allowance = (allowanceText(d) || '').replace(/^(\d+) (day|hour)s?$/, '$1-$2');
-  const over = b.used - b.total;
+  const over = b.used - b.total, u = b.unit;
   const body = over > 0
-    ? `<strong>all</strong> of the ${allowance} allowance and ${over} day${over === 1 ? '' : 's'} more`
-    : `about <strong>${b.pct}%</strong> of the ${allowance} allowance (${b.used} of ${b.total} day${b.total === 1 ? '' : 's'}${b.total - b.used ? `, ${b.total - b.used} left` : ''})`;
+    ? `<strong>all</strong> of the ${allowance} allowance and ${over} ${u}${over === 1 ? '' : 's'} more`
+    : `about <strong>${b.pct}%</strong> of the ${allowance} allowance (${b.used} of ${b.total} ${u}${b.total === 1 ? '' : 's'}${b.total - b.used ? `, ${b.total - b.used} left` : ''})`;
   return body + (d.cumulative ? ', and this is cumulative so it counts against the running total' : '');
 }
 
@@ -909,7 +958,7 @@ function decide() {
     if (d.returnToFridge === false) bits.push(`<strong>Do not put it back in the refrigerator</strong> — ${d.name}'s label says once it reaches room temperature it stays there`);
     else if (d.cumulative) bits.push(`The allowance is <strong>cumulative</strong> (${allowanceText(d) || 'see the label'} total out of the fridge) and this trip has already used part of it — it can go back in the fridge, but the clock does not reset`);
     else if (allowanceHours(d) != null) bits.push(`The ${allowanceText(d).replace(/^(\d+) (day|hour)s?$/, '$1-$2')} allowance is <strong>one-time</strong> and partly spent — have them use it promptly rather than banking it`);
-    if (d.protectFromLight) bits.push('keep it in the original carton, away from light');
+    if (d.protectFromLight) bits.push('Keep it in the original carton, away from light');
     return bits.length ? `<div class="verdict-tell"><b>Then tell them</b>${bits.join('. ')}.</div>` : '';
   };
 
@@ -918,7 +967,6 @@ function decide() {
   if (!packState && d.refrigerated !== false) return show('wait', 'Pick a product and how the packs felt.', '', '');
 
   const { ceil, floor } = drugLimits(d);
-  const allow = allowanceDays(d);
   const days = lastResult ? summarize(lastResult.obs, lastResult.tz, ceil, floor, lastResult) : null;
 
   // Room-temperature products (Afinitor, Monovisc, Opzelura) have no cold chain
@@ -931,6 +979,22 @@ function decide() {
   // is proof the box never warmed up. The catch is that it proves it about the
   // PACK, not the product, and solid packs are colder than slushy ones.
   if (packState === 'frozen') {
+    // Solid packs past the pack-out's rating are not the clean signal they look
+    // like. Ice that should have melted and did not is usually ice that melted
+    // and re-froze, and re-freezing a pack takes air well below freezing — the
+    // same air the vial was sitting in. Never clear one of these on the packs.
+    if (pastRating()) return judge('CHECK FOR FREEZING — the packs outlasted the pack-out', [
+      `Packs were still frozen solid after <strong>${transitDaysText()}</strong>, but the pack-out is only rated for ${PACKOUT_RATING_HOURS} hours`,
+      `<strong>Ice that outlasts its rating has usually melted and re-frozen</strong>, and re-freezing takes air well below ${fmtF(PACK_MELT_F)} — the same air the product was sitting in`,
+      `The alternative is that the pack-out simply ran long, which happens in a cool hold. Nothing inside the box separates the two`,
+      'Freeze damage is not always visible, so appearance can confirm freezing but cannot rule it out',
+    ], [
+      `<strong>Where it was held:</strong> tracking shows a clean run ${K} · a hub hold, a cold-storage scan, or a night on a freight ramp ${R}`,
+      `<strong>Pack shape:</strong> still in its moulded form ${K} · slumped, settled to one side, or with a void where liquid moved before re-freezing ${R}`,
+      `<strong>Appearance:</strong> clear, no crystals, no cloudiness or particles, looks like the last dose ${K} · anything off ${R}`,
+    ], `"It arrived cold and it all looks normal, so it's fine to use. Into the fridge as usual."`,
+       `"The packs were still solid well past what our packaging is rated for, which can mean it was held somewhere below freezing. I'd rather replace it than risk it. Please set it aside; we'll send a new one."`);
+
     if (d.freezeSensitive) return judge('CHECK FOR FREEZING FIRST', [
       `Packs still frozen solid means the box never rose above ${fmtF(PACK_MELT_F)} — heat is not the question here`,
       `<strong>${d.name} must not be used if it froze</strong>, and a solid pack is at or below freezing where the product touches it`,
@@ -994,19 +1058,30 @@ function decide() {
   if (packState === 'cool' && exposed.length === 0)
     return show('ok', 'OK TO USE', `Received inside the pack-out's ${PACKOUT_RATING_HOURS}-hour rating, and the packs were still cool — the product stayed in range.`, '"It arrived within the time our packaging is rated for and was still cool — it\'s fine. Into the fridge and use as normal."');
 
-  if (sBelow > 0 && floor != null)
-    return judge('JUDGMENT CALL — cold exposure', [
+  if (sBelow > 0 && floor != null) {
+    // A trip can break both ends of the range. Returning here on the cold hours
+    // alone hid the heat completely, so when both happened both are reported.
+    const alsoHot = sAbove > 0 && ceil != null;
+    const atLeast = scored.some(x => x.thin) ? 'At least' : 'Up to';
+    return judge(alsoHot ? 'JUDGMENT CALL — cold and heat exposure' : 'JUDGMENT CALL — cold exposure', [
       `Outdoor air dropped to <strong>${fmtF(lo)}</strong> — the floor is ${fmtF(floor)}`,
-      `${scored.some(x => x.thin) ? 'At least' : 'Up to'} <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+      `${atLeast} <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+    ].concat(alsoHot ? [
+      `<strong>The same trip also ran hot:</strong> air reached <strong>${fmtF(hi)}</strong> against the ${fmtF(ceil)} ceiling, ${atLeast.toLowerCase()} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above it`,
+    ] : []).concat([
       'Station air, assumed for the whole window — inside a box with packs it stays warmer than that',
-    ], [
+    ]).concat(alsoHot && budget ? [`This trip would use ${budget}`] : []), [
       `<strong>Appearance:</strong> no ice crystals, not cloudy, looks normal ${K} · any sign of freezing ${R} (freeze damage isn't always visible — weigh with the next two)`,
       `<strong>How cold, how long:</strong> a few hours a little under the floor ${K} · well below freezing for a long stretch ${R}`,
+    ].concat(alsoHot ? [
+      `<strong>The heat half:</strong> ${sAbove}h above ${fmtF(ceil)}${allowanceText(d) ? ` against ${allowanceText(d)}` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
+    ] : []).concat([
       `<strong>Timing:</strong> freeze risk is on the porch, not in the box — brought in within a few hours ${K} · sat out overnight ${R}`,
-    ], '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
+    ]), '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
+  }
 
   if (sAbove === 0) {
-    const durOk = allow == null || nDays <= allow;
+    const durOk = durationOk(d, nDays);
     if (durOk && d.inUseAllowance) return judge('JUDGMENT CALL — allowance may not apply', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling, across ${nDays} day${nDays === 1 ? '' : 's'}`,
       `<strong>But ${d.name}'s ${allowanceText(d)} allowance is an after-first-use figure</strong>, and this was unopened product in transit`,
@@ -1054,7 +1129,7 @@ function decide() {
     }
     return judge('JUDGMENT CALL — duration', [
       `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
-      `<strong>${nDays} days</strong> in transit — the allowance is ${allowanceText(d)}${budget ? `, so this trip would use ${budget}` : ''}`,
+      `<strong>${transitDaysText() || nDays + ' days'}</strong> out of the fridge — the allowance is ${allowanceText(d)}${budget ? `, so this trip would use ${budget}` : ''}`,
       `Allowance: ${d.excursionNote || rangeText(floor, ceil)}`,
     ], [
       `<strong>Time, not heat:</strong> refrigerated for part of the window (climate-controlled carrier hold, patient fridged it on day one) ${K} · out of refrigeration the whole time ${R}`,

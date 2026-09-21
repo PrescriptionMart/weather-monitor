@@ -2,6 +2,7 @@
 # Project checks for this static site (acts as the repo's lint + test):
 #   1. the JS embedded in each HTML page parses cleanly (node --check)
 #   2. the committed FAA data feed is valid JSON
+#   3. the Excursion Check's decision rules still hold (tests/decisions.js)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -36,6 +37,14 @@ for j in data/faa-events.json data/drugs.json; do
     echo "FAIL: $j — invalid JSON"; fail=1
   fi
 done
+
+# The decision rules behind the Excursion Check verdicts. These guard the
+# rules a pharmacist acts on, so a failure here is not a style nit.
+if python3 scripts/extract-core.py > /dev/null && node tests/decisions.js; then
+  echo "ok: tests/decisions.js — decision rules hold"
+else
+  echo "FAIL: tests/decisions.js — a decision rule changed"; fail=1
+fi
 
 [ "$fail" -eq 0 ] && echo "All checks passed." || echo "Checks failed."
 exit $fail

@@ -16,7 +16,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Adalimumab-fkjp 20mg/0.4mL",
@@ -74,7 +74,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "tiers": [
    {
     "minF": 36,
@@ -125,7 +125,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Basaglar",
@@ -258,7 +258,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Emgality",
@@ -296,7 +296,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "flag": "The sheet gives 30 days for all formulations. Amgen gives 30 days for the prefilled syringe and SureClick, but 14 days for the multi-dose vial and dose tray. Confirm which formulation shipped before relying on 30 days."
  },
  {
@@ -316,7 +316,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Fiasp Flex Touch Penfill cartridges",
@@ -335,7 +335,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Forteo",
@@ -430,7 +430,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Insulin Aspart Flexpen and Penfill",
@@ -468,7 +468,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Insulin Aspart vials",
@@ -487,7 +487,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Lyumjev Tempo Pen",
@@ -545,7 +545,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": false,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "derivation": "Both temperature cells are blank in the sheet. 86F/21 days taken from the excursion text (single-use autoinjector); vials and KwikPens get 30 days, split into their own row."
  },
  {
@@ -623,7 +623,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Novolog Mix 70/30 Pen",
@@ -661,7 +661,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Omnitrope",
@@ -680,7 +680,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Opzelura",
@@ -755,7 +755,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Praluent 75mg/mL",
@@ -812,7 +812,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Skyrizi",
@@ -933,7 +933,9 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true,
+  "flag": "The sheet publishes no room-temperature ceiling for Tremfya: the excursion column reads only \"< 4hrs\". The 86°F used here is the sheet's own Max Temp cell, not a label excursion limit, so the ceiling gets the wider margin. Confirm against the label before relying on it.",
+  "derivation": "Excursion text carries a duration but no temperature. The ceiling is inherited from the Max Temp cell and is not label-verified."
  },
  {
   "name": "Tresiba",
@@ -952,7 +954,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Trulicity",
@@ -971,7 +973,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "derivation": "Label allows going in and out of the fridge so long as total time out stays under 14 days."
  },
  {
@@ -991,7 +993,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Wegovy",
@@ -1010,7 +1012,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Xultophy",
@@ -1029,7 +1031,7 @@
   "calculatorUrl": "https://virtual.mi-owi.com/mi/calculator",
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false
+  "freezeSensitive": true
  },
  {
   "name": "Yusimy 40mg/0.8mL",
