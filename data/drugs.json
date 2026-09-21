@@ -54,7 +54,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "derivation": "Tablets, controlled room temperature 68-77F. Not a cold-chain product."
  },
  {
@@ -699,7 +699,7 @@
   "calculatorUrl": null,
   "inUseAllowance": false,
   "protectFromLight": true,
-  "freezeSensitive": false,
+  "freezeSensitive": true,
   "tiers": [
    {
     "minF": 59,

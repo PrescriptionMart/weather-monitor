@@ -50,6 +50,30 @@ ok('the two Mounjaro rows agree', drug('Mounjaro').freezeSensitive === drug('Mou
   ok(`${n}: frozen packs raise the freeze question`, v.cls !== 'ok', `got ${v.cls} "${v.big}"`);
 });
 
+ok('every product on the list is freeze-sensitive',
+   ROWS.filter(r => !r.freezeSensitive).length === 0,
+   ROWS.filter(r => !r.freezeSensitive).map(r => r.name).join(', '));
+
+console.log('\n--- room-temperature products are not cleared by cold packs ---');
+// These reach the pack branches only once weather is loaded; before that the
+// page sends them straight to the temperature check.
+['Afinitor 10mg', 'Opzelura', 'Monovisc'].forEach(n => {
+  const d = drug(n);
+  const froz = call(d, 'frozen', weather(1, 70, 80), 1);
+  ok(`${n}: frozen packs do not clear it`, froz.cls !== 'ok', `got ${froz.cls} "${froz.big}"`);
+  const slush = call(d, 'slushy', weather(1, 70, 80), 1);
+  ok(`${n}: slushy packs do not clear it`, slush.cls !== 'ok', `got ${slush.cls} "${slush.big}"`);
+  ok(`  ${n}: the card says it ran colder than its range`, /colder than its range/.test(slush.big), slush.big);
+});
+const afi = call(drug('Afinitor 10mg'), 'slushy', weather(1, 70, 80), 1);
+ok('  Afinitor: names the 32F box temperature', /32/.test(afi.text));
+ok('  Afinitor: names its own 59F floor', /59/.test(afi.text), afi.text.slice(0, 180));
+const opz = call(drug('Opzelura'), 'slushy', weather(1, 70, 80), 1);
+ok('  Opzelura: credits its cold window rather than just flagging it',
+   /label does cover this range/.test(opz.text), opz.text.slice(0, 200));
+ok('a refrigerated product with slushy packs still clears',
+   call(drug('Dupixent'), 'slushy', weather(3, 80, 98), 3).cls === 'ok');
+
 console.log('\n--- solid packs past the pack-out rating ---');
 ok('rating is 48 hours', C.PACKOUT_RATING_HOURS === 48);
 const within = call(drug('Dupixent'), 'frozen', null, 1);

@@ -92,13 +92,21 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   a keep-it and a replace-it script. Details (station, distance, daily
   highs/lows, copy-for-the-record) are expanded below the verdict and can be
   collapsed. Constants: `PACKOUT_RATING_HOURS = 48`, `PICKUP_HOUR`.
-- **Freezing.** Every refrigerated product on this list is treated as
-  freeze-sensitive, so frozen-solid packs always raise the freeze question
-  rather than clearing the shipment. That flag used to be derived from whether
-  the source spreadsheet happened to say "do not freeze", which made it an
-  accident of transcription: the Mounjaro autoinjector row came out
-  freeze-tolerant and the vial/KwikPen row did not, for the same molecule.
-  It is now set from the product type in `scripts/convert-drugs.py`.
+- **Freezing.** Every product on this list is treated as freeze-sensitive, so
+  frozen-solid packs always raise the freeze question rather than clearing the
+  shipment. That flag used to be derived from whether the source spreadsheet
+  happened to say "do not freeze", which made it an accident of transcription:
+  the Mounjaro autoinjector row came out freeze-tolerant and the vial/KwikPen
+  row did not, for the same molecule. `scripts/convert-drugs.py` now sets it
+  unconditionally.
+- **Cold packs never clear a room-temperature product.** Afinitor, Opzelura and
+  Monovisc are stored well above freezing, and a melting pack holds the box at
+  `PACK_MELT_F` for the whole trip, which is under their floors. The outdoor
+  record cannot see that, because the box was colder than the air around it.
+  So for these three the packs are the evidence of cold exposure rather than
+  the reassurance, and slushy or solid packs give a judgment call naming the
+  product's own range. Where the label has a cold window, Opzelura's -4 to 59°F
+  for 4 days, the card credits it and asks how long the box sat there instead.
 - **Solid packs that outlasted the pack-out** get their own card and can never
   produce a clean OK. Ice that should have melted and did not has usually
   melted and re-frozen, and re-freezing a pack takes air well below freezing —

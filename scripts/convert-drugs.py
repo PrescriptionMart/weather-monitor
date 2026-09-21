@@ -172,12 +172,12 @@ def main():
         # Freeze sensitivity is a property of the product, not of how the sheet
         # happens to be worded. Deriving it from the phrase "do not freeze" made
         # it an accident of transcription: the Mounjaro autoinjector row came out
-        # false and the vial/KwikPen row true, for the same molecule. Every
-        # refrigerated product in this catalogue is a protein or peptide
-        # injectable that freezing damages irreversibly, and the damage is not
-        # reliably visible, so the flag is set from the product type instead.
-        if d.get('refrigerated') is not False:
-            d['freezeSensitive'] = True
+        # false and the vial/KwikPen row true, for the same molecule. Nothing in
+        # this catalogue is improved by freezing — the refrigerated rows are
+        # proteins and peptides that aggregate, and the room-temperature rows
+        # (tablets, a cream, a gel) are all stored well above freezing anyway —
+        # so the flag is set for every product anyone here dispenses.
+        d['freezeSensitive'] = True
         if max_footnote and 'derivation' not in d:
             d['flag'] = 'The Max Temp cell carries a footnote marker in the sheet — read the excursion text.'
 
