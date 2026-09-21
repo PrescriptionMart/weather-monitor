@@ -61,6 +61,12 @@ OVERRIDES = {
         tiers=[dict(minF=59, maxF=86, hours=28*24), dict(minF=86, maxF=104, hours=20*24),
                dict(minF=-4, maxF=59, hours=4*24)],
         why='Room-temperature cream with three banded allowances. The 59-86°F band is the everyday one.'),
+    'Tremfya': dict(
+        flag='The sheet publishes no room-temperature ceiling for Tremfya: the excursion column reads '
+             'only "< 4hrs". The 86°F used here is the sheet\'s own Max Temp cell, not a label excursion '
+             'limit, so the ceiling gets the wider margin. Confirm against the label before relying on it.',
+        why='Excursion text carries a duration but no temperature. The ceiling is inherited from the '
+            'Max Temp cell and is not label-verified.'),
     'Trulicity': dict(cumulative=True, returnToFridge=True,
         why='Label allows going in and out of the fridge so long as total time out stays under 14 days.'),
     'Zepbound': dict(cumulative=True, returnToFridge=True,
@@ -132,6 +138,7 @@ def main():
             allowanceHours=None, cumulative=False, returnToFridge=None,
             noExcursion=False, refrigerated=True, calculatorUrl=None, inUseAllowance=False,
             protectFromLight=clean(r[5]).lower().startswith('y'),
+            # provisional: replaced below for every refrigerated product
             freezeSensitive='do not freeze' in blob.lower() or 'avoid freezing' in blob.lower(),
         )
 
@@ -161,6 +168,16 @@ def main():
         why = ov.pop('why', None) if ov else None
         if ov: d.update(ov)
         if why: d['derivation'] = why
+
+        # Freeze sensitivity is a property of the product, not of how the sheet
+        # happens to be worded. Deriving it from the phrase "do not freeze" made
+        # it an accident of transcription: the Mounjaro autoinjector row came out
+        # false and the vial/KwikPen row true, for the same molecule. Every
+        # refrigerated product in this catalogue is a protein or peptide
+        # injectable that freezing damages irreversibly, and the damage is not
+        # reliably visible, so the flag is set from the product type instead.
+        if d.get('refrigerated') is not False:
+            d['freezeSensitive'] = True
         if max_footnote and 'derivation' not in d:
             d['flag'] = 'The Max Temp cell carries a footnote marker in the sheet — read the excursion text.'
 

@@ -73,12 +73,13 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   1. Pick the product (allowance shown in one line: *up to 77°F for 14 days ·
      not below 36°F · do not freeze* — from `data/drugs.json`, converted from
      the pharmacy's Temperature Sensitive Stabilities spreadsheet).
-  2. Ask how the ice packs felt: **frozen solid** or **slushy** → the cold
-     chain held → OK. **Thawed but cool** → OK if received inside the
-     pack-out's 48-hour rating; otherwise only the delayed days are scored.
-     **Thawed and warm** → the pack-out is spent; every day is scored. A
-     product that itself looks frozen / has ice crystals / looks different →
-     REPLACE regardless.
+  2. Ask how the ice packs felt: **slushy** → the cold chain held → OK.
+     **Frozen solid** → the box never warmed, but solid ice raises the freeze
+     question instead (see *Freezing* below). **Thawed but cool** → OK if
+     received inside the pack-out's 48-hour rating; otherwise only the delayed
+     days are scored. **Thawed and warm** → the pack-out is spent; every day is
+     scored. A product that itself looks frozen / has ice crystals / looks
+     different → REPLACE regardless.
   3. ZIP (city and state appear as soon as five digits are typed; sort-hub
      ZIPs via chips) + shipped/received dates → observed
      outdoor temperature from the nearest NWS station, scored worst-case
@@ -91,6 +92,34 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   a keep-it and a replace-it script. Details (station, distance, daily
   highs/lows, copy-for-the-record) are expanded below the verdict and can be
   collapsed. Constants: `PACKOUT_RATING_HOURS = 48`, `PICKUP_HOUR`.
+- **Freezing.** Every refrigerated product on this list is treated as
+  freeze-sensitive, so frozen-solid packs always raise the freeze question
+  rather than clearing the shipment. That flag used to be derived from whether
+  the source spreadsheet happened to say "do not freeze", which made it an
+  accident of transcription: the Mounjaro autoinjector row came out
+  freeze-tolerant and the vial/KwikPen row did not, for the same molecule.
+  It is now set from the product type in `scripts/convert-drugs.py`.
+- **Solid packs that outlasted the pack-out** get their own card and can never
+  produce a clean OK. Ice that should have melted and did not has usually
+  melted and re-frozen, and re-freezing a pack takes air well below freezing —
+  the same air the vial was sitting in, which is the one exposure that damages
+  a protein irreversibly and often invisibly. The innocent reading, a pack-out
+  that simply ran long in a cool hold, fits the same observation and nothing
+  inside the box separates the two. The card asks where the parcel was held
+  (a hub hold or cold-storage scan) and whether the pack still holds its
+  moulded shape. Transit time comes from the shipped and received dates via
+  `transitHours()`; pick-up is `PICKUP_HOUR` and the received date is assumed
+  to be midday, which puts a next-morning delivery inside the rating and
+  anything arriving on a third day outside it.
+- **Allowances shorter than a day are counted in hours.** Tremfya allows 4
+  hours out of the fridge and Orencia 6. Scoring in whole days rounded those
+  up to one day, so a full day out read as "1 of 1 day" and cleared. Those
+  products are now measured against elapsed transit hours (`durationOk()`),
+  and the budget line reports hours too.
+- **Both ends of the range are reported.** A trip that dipped below the floor
+  *and* exceeded the ceiling used to return on the cold hours alone and never
+  show the heat. It now reads *cold and heat exposure* and carries both sets
+  of numbers.
 - **What has to be true before a clean OK.** The weather record has to be good
   enough (at least ~18 of 24 hours reported on every scored day, judged against
   the hours that day could have had, and a station within 25 miles), and the
@@ -165,6 +194,20 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 - **Keeping the product** now carries the right aftercare: a **cumulative**
   allowance says the clock does not reset, a **do-not-return-to-fridge** label
   says so, and a one-time allowance is flagged as partly spent.
+
+### Tests
+`.claude/hooks/check.sh` is the repo's lint and test run: it parses the inline
+JS on every page, validates the JSON feeds, and runs `tests/decisions.js`.
+
+`tests/decisions.js` locks down the rules a pharmacist acts on, so a failure
+there is not a style nit. It covers freeze handling, solid packs past the
+pack-out rating, sub-day allowances, the unverified-ceiling margin, cold and
+heat on one trip, and a regression set over the summer heat path: excursions
+never clear, the 5°F margin holds, the allowance boundary is exact, distant or
+gappy records cannot clear a shipment, and banded products are judged against
+the right window. It runs against the page's real `decide()`, extracted by
+`scripts/extract-core.py` into `tests/_core.generated.js`, which is generated
+and not committed.
 
 ### Drug data
 `data/drugs.json` is generated — do not hand-edit it:
