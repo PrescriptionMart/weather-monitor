@@ -1,1 +1,1 @@
-[]
+[{"airportId":"ATL","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-09-22T12:45:00Z","impactingCondition":"thunderstorms","startTime":"2026-09-22T11:38:00Z"}},{"airportId":"BOS","departureDelay":null,"groundDelay":{"avgDelay":25.0,"endTime":"2026-09-23T00:59:00Z","impactingCondition":"runway construction","maxDelay":86,"startTime":"2026-09-22T16:00:00Z"},"groundStop":null}]
