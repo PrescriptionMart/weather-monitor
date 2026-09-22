@@ -368,7 +368,7 @@
       <div class="note" id="station-line"></div>
       <table class="days" id="days-table"></table>
       <div style="margin-top:10px; display:flex; gap:8px; align-items:center;"><button class="btn" onclick="copySummary()">Copy note for NewLeaf</button><span class="copy-status" id="copy-status"></span></div>
-      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored against station air for the whole day. <a href="delay-guide.html">How late is too late</a> · <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
+      <div class="note" style="margin-top:10px;">Outdoor air at the nearest weather station, not the product. Hours it missed are filled from other stations within 100 miles at a similar elevation. Days inside the pack-out's 48-hour rating are covered by the gel packs. Delayed days are scored against station air for the whole day. <a href="delay-guide.html">How late is too late</a> · <a href="excursion-basis.html">Why these rules — basis &amp; references</a></div>
     </div>
   </details>
 
@@ -392,7 +392,15 @@ const MAX_LOOKBACK_DAYS = 7; // NWS keeps roughly a week of observations
 // clean OK. Below these, the numbers are a FLOOR (we only know the hours we
 // actually observed) and the tool says so instead of clearing the shipment.
 const OBS_HOURS_GOOD = 18;      // distinct clock-hours observed, out of 24
-const MAX_STATION_MILES = 25;   // beyond this the station is indicative, not decisive
+// Weather within this radius is treated as the same weather. A station this
+// close counts as the ZIP's record, and hours it is missing are filled from
+// other stations inside the radius. Beyond it the record is indicative only.
+const MAX_STATION_MILES = 100;
+// Except across a real change in height: air cools about 3.5°F per 1,000 ft,
+// so a station well above the nearest one would under-read the heat and could
+// clear a shipment that got hot. Gaps are only filled from stations within
+// this much elevation of the station they fill in for.
+const FILL_ELEVATION_FT = 1000;
 // How far under the ceiling a peak has to sit before we call it clean. The
 // ceilings come from the stability sheet and several could not be verified
 // against a label, so a reading that lands near the line should not be cleared
@@ -648,6 +656,7 @@ async function nearestStations(url, loc, n) {
   return feats.slice(0, n).map(f => ({
     id: f.properties.stationIdentifier, name: f.properties.name,
     miles: distMiles(loc, { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] }),
+    elevFt: f.properties.elevation && f.properties.elevation.value != null ? f.properties.elevation.value * 3.281 : null,
   }));
 }
 async function observations(stationId, start, end) {
@@ -658,6 +667,37 @@ async function observations(stationId, start, end) {
   return ((await r.json()).features || [])
     .map(f => ({ t: new Date(f.properties.timestamp), c: f.properties.temperature && f.properties.temperature.value }))
     .filter(o => o.c !== null && o.c !== undefined && !isNaN(o.t));
+}
+
+// Fill the hours one station missed from others nearby. The primary station
+// stays the record: another station only supplies an hour the primary has no
+// reading for, never replaces or averages one it has. Stations are taken in
+// distance order and must sit inside MAX_STATION_MILES and within
+// FILL_ELEVATION_FT of the primary. Returns the merged readings and, per
+// station used, how many hours it supplied.
+const hourIndex = (t) => Math.floor(t.getTime() / 3600000);
+function sameAir(a, b) { return a.elevFt == null || b.elevFt == null || Math.abs(a.elevFt - b.elevFt) <= FILL_ELEVATION_FT; }
+function fillGaps(primary, primaryObs, others) {
+  const have = new Set(primaryObs.map(o => hourIndex(o.t)));
+  const obs = primaryObs.slice(), fill = [];
+  for (const { station, obs: theirs } of others) {
+    if (station.id === primary.id || station.miles > MAX_STATION_MILES || !sameAir(station, primary)) continue;
+    const add = theirs.filter(o => !have.has(hourIndex(o.t)));
+    if (!add.length) continue;
+    const hours = new Set(add.map(o => hourIndex(o.t)));
+    hours.forEach(h => have.add(h));
+    add.forEach(o => obs.push(o));
+    fill.push({ station, hours: hours.size });
+  }
+  obs.sort((a, b) => a.t - b.t);
+  return { obs, fill };
+}
+// Every clock hour of the window has a reading?
+function gapHours(obs, start, end) {
+  const have = new Set(obs.map(o => hourIndex(o.t)));
+  let missing = 0;
+  for (let h = hourIndex(start); h <= hourIndex(end); h++) if (!have.has(h)) missing++;
+  return missing;
 }
 
 // Bucket observations into local hours (max/min per hour), then local days.
@@ -821,10 +861,15 @@ function evidenceLine(r, scored) {
   if (!r || !r.station) return '';
   const far = r.station.miles > MAX_STATION_MILES;
   const thin = (scored || []).filter(x => x.thin);
-  const bits = [`${r.obs.length} readings from ${r.station.name}, ${r.station.miles.toFixed(1)} mi away`];
+  const bits = [`${r.obs.length} readings from ${r.station.name}, ${r.station.miles.toFixed(1)} mi away${fillText(r)}`];
   if (far) bits.push(`<strong>that is over ${MAX_STATION_MILES} mi</strong>, so treat it as indicative of the area, not of the porch`);
   if (thin.length) bits.push(`<strong>${thin.length} scored day${thin.length === 1 ? '' : 's'} reported fewer than ${OBS_HOURS_GOOD} of 24 hours</strong>, so the hours below are a floor, not a count`);
   return bits.join('. ') + '.';
+}
+function fillText(r) {
+  const f = (r && r.fill) || [];
+  if (!f.length) return '';
+  return `, with ${f.map(x => `${x.hours} hour${x.hours === 1 ? '' : 's'} filled from ${x.station.name} (${x.station.miles.toFixed(0)} mi)`).join(' and ')}`;
 }
 function evidenceWeak(r, scored) {
   if (!r) return true;
@@ -954,11 +999,24 @@ async function runCheck() {
   status.classList.add('scanning');
   try {
     const { loc, pt } = await lookupZip(zip);
-    const stations = await nearestStations(pt.stationsUrl, loc, 4);
+    const stations = await nearestStations(pt.stationsUrl, loc, 10);
     let used = null, obs = [];
-    for (const s of stations) { obs = await observations(s.id, start, end); if (obs.length >= 12) { used = s; break; } }
+    const fetched = {};
+    const readings = async (s) => fetched[s.id] || (fetched[s.id] = await observations(s.id, start, end));
+    for (const s of stations.slice(0, 4)) { obs = await readings(s); if (obs.length >= 12) { used = s; break; } }
     if (!used) throw new Error('No weather station near that ZIP has readings for those dates.');
-    lastResult = { zip, loc, place: pt.place, tz: pt.tz, station: used, obs, start, end };
+    // only reach for more stations when the record actually has holes
+    let fill = [];
+    if (gapHours(obs, start, end) > 0) {
+      const others = [];
+      for (const s of stations) {
+        if (s.id === used.id || s.miles > MAX_STATION_MILES || !sameAir(s, used)) continue;
+        others.push({ station: s, obs: await readings(s) });
+        if (gapHours(fillGaps(used, obs, others).obs, start, end) === 0) break;
+      }
+      ({ obs, fill } = fillGaps(used, obs, others));
+    }
+    lastResult = { zip, loc, place: pt.place, tz: pt.tz, station: used, obs, fill, start, end };
     status.textContent = '';
   } catch(e) { status.textContent = e.message || 'Could not load.'; lastResult = null; }
   finally {
@@ -1292,7 +1350,7 @@ function renderDetails() {
   splitCovered(days, r.start, r.tz);
   det.style.display = 'block';
   const placeName = r.place ? `${r.place.city}, ${r.place.state}` : r.loc.name;
-  document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings · ${r.tz.replace('_', ' ')}`;
+  document.getElementById('station-line').innerHTML = `ZIP ${r.zip} (${placeName}) · station <strong>${r.station.name}</strong> (${r.station.id}), ${r.station.miles.toFixed(1)} mi away · ${r.obs.length} readings${fillText(r)} · ${r.tz.replace('_', ' ')}`;
   let html = `<tr><th>Day</th><th>High</th><th>Low</th>${ceil != null ? `<th>Hrs &gt; ${ceil}°F</th>` : ''}${floor != null ? `<th>Hrs &lt; ${floor}°F</th>` : ''}</tr>`;
   days.forEach(x => {
     const c = x.covered && packState !== 'warm';
@@ -1355,7 +1413,7 @@ function noteText() {
       if (nBelow && floor != null) l2 += `, ${thin ? '>=' : ''}${nBelow}h under ${fmtF(floor)} (low ${fmtF(lo)})`;
       l2 += ` across ${scored.length}d scored.`;
     }
-    out.push(l2 + ` ${r.station.id} ${r.station.miles.toFixed(0)}mi${thin ? ', partial record' : ''}.`);
+    out.push(l2 + ` ${r.station.id} ${r.station.miles.toFixed(0)}mi${(r.fill || []).length ? ` +${r.fill.map(x => x.station.id).join('/')}` : ''}${thin ? ', partial record' : ''}.`);
   }
   if (call) out.push(call.replace(/\s+/g, ' ') + '.');
   return out.join('\n');
