@@ -33,6 +33,7 @@ module.exports = {
   maxDaysLate, hoursText, warmBands, coldBands, exposureHours, SHORT_ALLOWANCE_HOURS,
   fillGaps, gapHours, sameAir, evidenceLine, FILL_ELEVATION_FT,
   bandMargin, useBy, noteText, BAND_MARGIN_SHARE,
+  exposureStart, exposureEnd, exposureHours, leftFridge, creditApplies, scoredDays,
   zonedInstant, dayStart, dayEnd, coveredUntil, splitCovered, allowanceText, allowanceDays,
   drugLimits, ceilingUncertain, ceilingMargin, onDrugChange, els,
   PICKUP_HOUR, PACKOUT_RATING_HOURS, OBS_HOURS_GOOD, MAX_STATION_MILES,
