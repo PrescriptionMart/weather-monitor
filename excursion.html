@@ -401,6 +401,15 @@ const MAX_STATION_MILES = 100;
 // clear a shipment that got hot. Gaps are only filled from stations within
 // this much elevation of the station they fill in for.
 const FILL_ELEVATION_FT = 1000;
+// The last tenth of a manufacturer's high-heat window, at least an hour, is
+// treated as too close to clear outright, the way CEILING_MARGIN_F does for
+// temperature. The hour count comes from a station up to 100 miles away,
+// bucketed by clock hour, so it carries a little slack. Kept small on
+// purpose: a close case becomes a judgment call with the keep script ready,
+// never a REPLACE, and everything short of the last tenth still clears.
+const BAND_MARGIN_SHARE = 0.10;
+const BAND_MARGIN_MIN_HOURS = 1;
+function bandMargin(t) { return Math.max(BAND_MARGIN_MIN_HOURS, t.hours * BAND_MARGIN_SHARE); }
 // How far under the ceiling a peak has to sit before we call it clean. The
 // ceilings come from the stability sheet and several could not be verified
 // against a label, so a reading that lands near the line should not be cleared
@@ -767,6 +776,37 @@ function transitHours() {
   }
   return null;
 }
+// The instant the package left the pharmacy: pick-up on the ship date.
+function pickupInstant() {
+  const s = (document.getElementById('since') || {}).value;
+  if (s) { const [y, m, d] = s.split('-').map(Number); if (![y, m, d].some(isNaN)) return zonedInstant(y, m, d, PICKUP_HOUR, ORIGIN_TZ); }
+  if (lastResult && lastResult.start) { const st = lastResult.start; return zonedInstant(st.getFullYear(), st.getMonth() + 1, st.getDate(), PICKUP_HOUR, ORIGIN_TZ); }
+  return null;
+}
+// When a product that cannot go back in the fridge has to be used by. Its
+// time out of the fridge started when it left the pharmacy, so the deadline is
+// pick-up plus the allowance, or a window's own "use within" (Enbrel: 4 days
+// after a spell up to 107.6°F). The date given is the day BEFORE the
+// deadline's date, so "use it by Sunday" always means by the end of Sunday
+// with the deadline still ahead. null when the product may go back in the
+// fridge, where it keeps to its expiration.
+function useBy(d, band) {
+  if (!d) return null;
+  const hours = band && band.useWithinHours != null ? band.useWithinHours
+              : d.returnToFridge === false ? allowanceHours(d) : null;
+  const p = pickupInstant();
+  if (hours == null || !p) return null;
+  const tz = (lastResult && lastResult.tz) || ORIGIN_TZ;
+  const last = new Date(p.getTime() + hours * 3600000 - 86400000);
+  const key = (x) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x);
+  const nice = (x) => x.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' });
+  const recv = (document.getElementById('until') || {}).value || (lastResult && lastResult.end ? key(lastResult.end) : null);
+  const lastKey = key(last);
+  return { hours, date: nice(last), md: `${+lastKey.slice(5, 7)}/${+lastKey.slice(8, 10)}`, left: nice(p),
+           today: recv === lastKey, spent: recv != null && lastKey < recv };
+}
+let _useBy = null;    // the use-by behind the verdict on screen, for the note
+
 // Did the box arrive after the pack-out stopped being rated? null when the
 // dates are not known yet.
 function pastRating() { const h = transitHours(); return h == null ? null : h > PACKOUT_RATING_HOURS; }
@@ -1035,6 +1075,7 @@ async function runCheck() {
 function replayStamp(el) { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; }
 
 function decide() {
+  _useBy = null;
   const d = currentDrug();
   const productFrozen = document.getElementById('product-frozen').checked;
   const v = document.getElementById('verdict');
@@ -1050,6 +1091,11 @@ function decide() {
   const aftercare = (d, band) => {
     if (!d) return '';
     const bits = [];
+    const u = useBy(d, band);
+    _useBy = u;
+    if (u && u.spent) bits.push(`<strong>Its ${hoursText(u.hours)} out of the fridge has already run out</strong>: it left the pharmacy on ${u.left} and cannot go back in`);
+    else if (u && u.today) bits.push(`<strong>Use it today, ${u.date}</strong>: its ${hoursText(u.hours)} out of the fridge started when it left the pharmacy on ${u.left}`);
+    else if (u) bits.push(`<strong>Use it by ${u.date}</strong>: its ${hoursText(u.hours)} out of the fridge started when it left the pharmacy on ${u.left}`);
     // a high-temperature window can carry its own instruction (Enbrel: back in
     // the fridge, use within 4 days) that replaces the everyday one
     if (band && band.note) bits.push(`After a spell in that range ${d.name}'s data says: <strong>${band.note}</strong>`);
@@ -1279,17 +1325,32 @@ function decide() {
     const band = warmBands(d).find(t => hi >= t.minF && hi <= t.maxF) || null;
     const joined = !!band && band.minF <= ceil;            // no uncovered gap beneath it
     const inBand = joined && sAbove <= band.hours;
+    const spare = inBand ? band.hours - sAbove : null;
+    const close = inBand && spare < bandMargin(band);
     const mainOk = durationOk(d, nDays);
     const thinAbove = scored.some(x => x.thin);
     const hrs = (n) => `${n} hour${n === 1 ? '' : 's'}`;
     const win = band ? `up to ${fmtF(band.maxF)} for ${hoursText(band.hours)}` : '';
 
-    if (inBand && mainOk && !evidenceWeak(lastResult, scored))
+    if (inBand && mainOk && !close && !evidenceWeak(lastResult, scored))
       return show('ok', 'OK TO USE',
-        `Peak was ${fmtF(hi)}, above the everyday ${fmtF(ceil)} ceiling, but ${d.name}'s data carries a window for this range: <strong>${win}</strong>. The air was above ${fmtF(ceil)} for ${hrs(sAbove)}, inside that window, and the trip fits the main allowance, so this is covered rather than an excursion.`
+        `Peak was ${fmtF(hi)}, above the everyday ${fmtF(ceil)} ceiling, but ${d.name}'s data carries a window for this range: <strong>${win}</strong>. The air was above ${fmtF(ceil)} for ${hrs(sAbove)}, inside that window with ${hrs(Math.floor(spare))} to spare, and the trip fits the main allowance, so this is covered rather than an excursion.`
           + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : ''),
         `"That range is covered by ${d.name}'s own stability data for this long, so it's fine to use."`,
         aftercare(d, band) + evid(scored));
+
+    // inside the window, but in its last tenth: covered on the numbers, with
+    // too little slack to clear outright. The keep side leads.
+    if (inBand && mainOk && close && !evidenceWeak(lastResult, scored)) return judge('JUDGMENT CALL — near the end of the high-heat window', [
+      `Peak was <strong>${fmtF(hi)}</strong>, inside ${d.name}'s window of <strong>${win}</strong>`,
+      `The air was above ${fmtF(ceil)} for <strong>${sAbove} of the ${band.hours} hours</strong> that window allows, leaving ${hrs(Math.floor(spare))}`,
+      `<strong>On the numbers it is covered.</strong> It is flagged only because the hour count comes from station air and carries a little slack, and it used the last tenth of the window`,
+    ], [
+      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran well below the air ${K}` : `warm, so the box tracked the air ${R}`}`,
+      `<strong>Where it waited:</strong> indoors, a shaded porch, or delivered in the morning ${K} · a sunny porch or a hot truck through the afternoon ${R}`,
+      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
+    ], `"It got warm on the way, but it stayed within what ${d.name}'s own stability data covers, so it's fine to use."`,
+       '"It spent nearly all of the time in the heat that this medication\'s data covers, so I\'d rather replace it. Please set it aside; we\'ll send a new one."');
 
     // inside the window, but the record behind it is not good enough
     if (inBand && mainOk) return judge('JUDGMENT CALL — the weather record is thin', [
@@ -1415,7 +1476,8 @@ function noteText() {
     }
     out.push(l2 + ` ${r.station.id} ${r.station.miles.toFixed(0)}mi${(r.fill || []).length ? ` +${r.fill.map(x => x.station.id).join('/')}` : ''}${thin ? ', partial record' : ''}.`);
   }
-  if (call) out.push(call.replace(/\s+/g, ' ') + '.');
+  if (call) out.push(call.replace(/\s+/g, ' ') + '.' + (_useBy && !_useBy.spent && !/REPLACE/.test(call)
+    ? ` ${/JUDGMENT/.test(call) ? 'If kept, use' : 'Use'} by ${_useBy.md}, not back in fridge.` : ''));
   return out.join('\n');
 }
 

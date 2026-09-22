@@ -17,7 +17,11 @@ const els = {};
 const el = (id) => els[id] || (els[id] = {
   checked: false, value: '', className: '', innerHTML: '', textContent: '', style: {},
   classList: { contains: () => false, add() {}, remove() {}, toggle() {} },
-  querySelector() { return null; }, querySelectorAll() { return []; },
+  querySelector(sel) {
+    const m = sel[0] === '.' && new RegExp('class="' + sel.slice(1) + '"[^>]*>([^]*?)</div>').exec(this.innerHTML || '');
+    return m ? { textContent: m[1].replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim() } : null;
+  },
+  querySelectorAll() { return []; },
   setAttribute() {}, getAttribute() { return null; },
 });
 const document = { getElementById: el, querySelector: () => null, querySelectorAll: () => [], addEventListener() {} };
@@ -28,6 +32,7 @@ module.exports = {
   decide, summarize, evidenceWeak, budgetUsed, budgetText, durationOk, transitHours, pastRating,
   maxDaysLate, hoursText, warmBands, coldBands, exposureHours, SHORT_ALLOWANCE_HOURS,
   fillGaps, gapHours, sameAir, evidenceLine, FILL_ELEVATION_FT,
+  bandMargin, useBy, noteText, BAND_MARGIN_SHARE,
   zonedInstant, dayStart, dayEnd, coveredUntil, splitCovered, allowanceText, allowanceDays,
   drugLimits, ceilingUncertain, ceilingMargin, onDrugChange, els,
   PICKUP_HOUR, PACKOUT_RATING_HOURS, OBS_HOURS_GOOD, MAX_STATION_MILES,

@@ -138,6 +138,24 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   instruction (Enbrel: back in the fridge, use within 4 days) the card gives
   that instead of the everyday one. Peaks above every window get *outside the
   published windows* with a link to the manufacturer's calculator.
+- **The last tenth of a high-heat window is a judgment call, never a
+  replace.** A window is cleared outright only with more than
+  `BAND_MARGIN_SHARE` (10%) of its hours to spare, at least an hour: Aimovig's
+  48-hour window clears up to 43 hours, Humalog's 12 up to 10, Basaglar's 4 up
+  to 3. It mirrors the 5°F margin on temperature, because the hour count comes
+  from station air up to 100 miles away, bucketed by clock hour. Kept small on
+  purpose so it does not cost reships: the card says the exposure is covered
+  on the numbers, leads with the keep script, and a clear with room to spare
+  says how many hours were left.
+- **Use-by date.** For a product that cannot go back in the fridge, the card's
+  *Then tell them* line gives the date to use it by, and so does the NewLeaf
+  note. Its time out of the fridge started at the 4pm pick-up, so the deadline
+  is pick-up plus the allowance, or a window's own use-within figure (Enbrel,
+  4 days after a spell up to 107.6°F; `useWithinHours` on the tier). The date
+  shown is the day before the deadline's date, so "use it by Monday" always
+  leaves the deadline still ahead. Delivered on that day, the card says to use
+  it today; delivered after it, the card says the time has run out. Products
+  that may go back in the fridge keep to their expiration and get no date.
 - **Cold data below the floor** (Avonex down to 23°F for 36 hours, Darzalex
   down to -4°F in limited episodes) is shown on the allowance line and on the
   cold and freeze cards, with where the dip sat against it. It never widens

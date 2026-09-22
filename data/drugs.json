@@ -493,7 +493,8 @@
     "minF": 77,
     "maxF": 107.6,
     "hours": 96,
-    "note": "return it to the fridge, and use it within 4 days"
+    "note": "return it to the fridge, and use it within 4 days",
+    "useWithinHours": 96
    }
   ],
   "flag": "The sheet gives 30 days for all formulations. Amgen gives 30 days for the prefilled syringe and SureClick, but 14 days for the multi-dose vial and dose tray. Confirm which formulation shipped before relying on 30 days.",

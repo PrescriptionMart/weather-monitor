@@ -239,5 +239,55 @@ console.log('\n--- gaps filled from stations within 100 miles ---');
   ok('a filled record with nothing hot clears', call(drug('Humira'), 'warm', Object.assign(result(3, cool.obs), { fill: cool.fill }), 3).cls === 'ok');
 }
 
+console.log('\n--- the last tenth of a high-heat window is a judgment call, never a replace ---');
+ok('margin is 10% of the window, at least an hour',
+   Math.abs(C.bandMargin({ hours: 48 }) - 4.8) < 1e-9 && C.bandMargin({ hours: 4 }) === 1 && Math.abs(C.bandMargin({ hours: 12 }) - 1.2) < 1e-9);
+[['Aimovig', 43, 'ok'], ['Aimovig', 44, 'near'], ['Aimovig', 45, 'near'], ['Aimovig', 49, 'past'],
+ ['Humalog/Humulin', 10, 'ok'], ['Humalog/Humulin', 11, 'near'], ['Humalog/Humulin', 13, 'past'],
+ ['Basaglar', 3, 'ok'], ['Basaglar', 4, 'near'], ['Basaglar', 5, 'past']].forEach(([n, h, want]) => {
+  const d = drug(n), days = h > 20 ? 3 : 1;
+  const v = call(d, 'warm', hotHours(days, 60, h, 95), days);
+  const got = v.cls === 'ok' ? 'ok' : /near the end/.test(v.big) ? 'near' : /past the high-temperature/.test(v.big) ? 'past' : v.big;
+  ok(`${n}: ${h} hours above ${d.excursionMaxF}°F -> ${want}`, got === want, `got ${got}`);
+});
+{
+  const v = call(drug('Aimovig'), 'warm', hotHours(3, 60, 45, 97), 3);
+  ok('the screenshot case, Aimovig at 45 of 48 hours, is now a judgment call', /near the end of the high-heat window/.test(v.big), v.big);
+  ok('  that says it is covered on the numbers', /On the numbers it is covered/.test(v.text));
+  ok('  and still gives the keep script', /stayed within what Aimovig's own stability data covers/.test(v.text));
+  ok('  a clear with room to spare says how much', /with 5 hours to spare/.test(call(drug('Aimovig'), 'warm', hotHours(3, 60, 43, 97), 3).text));
+}
+{
+  const bad = ROWS.filter(r => C.warmBands(r).length && r.refrigerated !== false).filter(r => {
+    const b = C.warmBands(r)[0], h = Math.max(1, Math.floor(b.hours - C.bandMargin(b) / 2)), days = Math.max(1, Math.ceil(h / 12));
+    return /replace/.test(call(r, 'warm', hotHours(days, 60, h, Math.min(b.maxF - 1, r.excursionMaxF + 8)), days).cls);
+  });
+  ok('no product ever gets REPLACE from the margin', bad.length === 0, bad.map(r => r.name).join(', '));
+}
+
+console.log('\n--- use-by date for product that cannot go back in the fridge ---');
+{
+  const a = call(drug('Aimovig'), 'warm', hotHours(3, 60, 40, 97), 3);
+  ok('Aimovig shipped Mon Jul 6, 7 days: use by Sun, Jul 12', /Use it by Sun, Jul 12/.test(a.text), a.text.slice(-320));
+  ok('  and says the clock started at the pharmacy', /left the pharmacy on Mon, Jul 6/.test(a.text));
+  const e = call(drug('Enbrel (all formulations)'), 'warm', hotHours(2, 70, 20, 100), 2);
+  ok('Enbrel after its 107.6°F window: its own 4 days, use by Thu, Jul 9', /Use it by Thu, Jul 9/.test(e.text), e.text.slice(-300));
+  const r = call(drug('Repatha'), 'warm', hotHours(2, 60, 10, 90), 2);
+  ok('Repatha: its window says do not refrigerate, so the 30 days sets the date', /Use it by Tue, Aug 4/.test(r.text) && /do not return it to the fridge/.test(r.text), r.text.slice(-300));
+  ok('Humira, which may go back in the fridge, gets no use-by date', !/Use it by/.test(call(drug('Humira'), 'warm', weather(2, 60, 70), 2).text));
+  const t = call(drug('Aimovig'), 'warm', weather(7, 55, 65), 6);
+  ok('delivered on its last day: "use it today"', /Use it today, Sun, Jul 12/.test(t.text), t.text.slice(-260));
+  const c = call(drug('Cimzia'), 'warm', weather(10, 60, 70), 9);
+  ok('Cimzia 9 days out on a 7-day allowance: says the time has run out', /already run out/.test(c.text) && !/Use it by/.test(c.text));
+}
+{
+  call(drug('Aimovig'), 'warm', hotHours(3, 60, 40, 97), 3);
+  ok('NewLeaf note on an OK: "Use by 7/12"', /OK TO USE\. Use by 7\/12, not back in fridge\./.test(C.noteText()), C.noteText());
+  call(drug('Aimovig'), 'warm', hotHours(3, 60, 45, 97), 3);
+  ok('NewLeaf note on a judgment call: "If kept, use by 7/12"', /If kept, use by 7\/12/.test(C.noteText()), C.noteText());
+  call(drug('Humira'), 'warm', weather(2, 60, 70), 2);
+  ok('no use-by in the note when it may go back in the fridge', !/use by/i.test(C.noteText()));
+}
+
 console.log(failed ? `\n${failed} DECISION TEST(S) FAILED, ${passed} passed` : `\nAll ${passed} decision tests passed.`);
 process.exit(failed ? 1 : 0);
