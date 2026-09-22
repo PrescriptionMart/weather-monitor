@@ -911,6 +911,10 @@ function fillText(r) {
   if (!f.length) return '';
   return `, with ${f.map(x => `${x.hours} hour${x.hours === 1 ? '' : 's'} filled from ${x.station.name} (${x.station.miles.toFixed(0)} mi)`).join(' and ')}`;
 }
+// What station air means for the box, said the same way on every card.
+function stationAirNote() {
+  return 'Station air is a proxy for the box: live ice packs keep it cooler, a van or a sunny porch hotter.';
+}
 function evidenceWeak(r, scored) {
   if (!r) return true;
   const far = r.station ? r.station.miles > MAX_STATION_MILES : false;
@@ -1244,14 +1248,14 @@ function decide() {
       `Outdoor air dropped to <strong>${fmtF(lo)}</strong> — the floor is ${fmtF(floor)}`,
       `${atLeast} <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
     ].concat(coldNote ? [coldNote] : []).concat(alsoHot ? [
-      `<strong>The same trip also ran hot:</strong> air reached <strong>${fmtF(hi)}</strong> against the ${fmtF(ceil)} ceiling, ${atLeast.toLowerCase()} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above it`,
+      `<strong>The same trip also ran hot:</strong> air reached <strong>${fmtF(hi)}</strong> against the ${fmtF(ceil)} limit, ${atLeast.toLowerCase()} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above it. No allowance covers time above ${fmtF(ceil)}`,
     ] : []).concat([
       'Station air, assumed for the whole window — inside a box with packs it stays warmer than that',
     ]).concat(alsoHot && budget ? [`This trip would use ${budget}`] : []), [
       `<strong>Appearance:</strong> no ice crystals, not cloudy, looks normal ${K} · any sign of freezing ${R} (freeze damage isn't always visible — weigh with the next two)`,
       `<strong>How cold, how long:</strong> a few hours a little under the floor ${K} · well below freezing for a long stretch ${R}`,
     ].concat(alsoHot ? [
-      `<strong>The heat half:</strong> ${sAbove}h above ${fmtF(ceil)}${allowanceText(d) ? ` against ${allowanceText(d)}` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
+      `<strong>The heat half:</strong> did it reach the product? a few hours, a degree or two over ${K} · many hours, or well over ${R}`,
     ] : []).concat([
       `<strong>Timing:</strong> freeze risk is on the porch, not in the box — brought in within a few hours ${K} · sat out overnight ${R}`,
     ]), '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
@@ -1370,7 +1374,7 @@ function decide() {
      .concat(!joined ? [`Nothing ${d.name} publishes covers ${fmtF(ceil)} to ${fmtF(band.minF)}, and the trip was above ${fmtF(ceil)}`] : [])
      .concat(!mainOk ? [`<strong>The trip also ran past the main allowance</strong> of ${allowanceText(d)}${budget ? `: it used ${budget}` : ''}`] : [])
      .concat([`Published windows: ${allBandsText(d)}`]), [
-      `<strong>How far past:</strong> a few hours over ${K} · far over, or several hot afternoons ${R}`,
+      `<strong>Did the extra heat reach the product:</strong> a few hours past, packs still cool ${K} · far past, or several hot afternoons ${R}`,
       `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran colder than the air ${K}` : `warm, so the box tracked the air ${R}`}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
     ], `"It went above the usual range, but the box ran cooler than the air and it's within what ${d.name}'s data covers. It's fine to use."`,
@@ -1389,17 +1393,25 @@ function decide() {
        '"This landed outside what the label covers, so I\'m replacing it rather than guessing. Please set it aside."');
   }
 
+  // No allowance covers time above the ceiling. The label's 14 days (say) is
+  // time at or below 77°F; hours above it are not "spent" from that budget,
+  // they are outside the label entirely. So this card never weighs hours
+  // above against the allowance. What it cannot know is whether the heat in
+  // the station air reached the product inside the box, so that is the only
+  // question it asks.
+  const atLeastH = scored.some(x => x.thin) ? 'At least' : 'Up to';
   return judge('JUDGMENT CALL — possible heat excursion', [
-    `Outdoor air reached <strong>${fmtF(hi)}</strong> — the ceiling is ${fmtF(ceil)}`,
-    `${scored.some(x => x.thin) ? 'At least' : 'Up to'} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above the ceiling across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
-    `Allowance: ${d.excursionNote || rangeText(floor, ceil)}${allowanceText(d) && !/day|week|hour/i.test(d.excursionNote || '') ? ` (${allowanceText(d)})` : ''}`,
-    'Station air, assumed for the whole window — a van or a sunny porch runs hotter, a box with live packs runs cooler',
-  ].concat(budget ? [`This trip would use ${budget}`] : []), [
-    `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool ${K}` : `barely warm ${K} · warm to the touch ${R}`}`,
-    `<strong>Appearance:</strong> looks normal (color, clarity, no particles) ${K} · anything off ${R}`,
-    `<strong>Exposure vs allowance:</strong> ${sAbove}h${allowanceText(d) ? ` against ${allowanceText(d)}` : ''} — well inside ${K} · close to it, or repeated excursions ${R}`,
-    `<strong>Patient:</strong> refrigerated it as soon as it arrived ${K} · left it out for hours ${R}`,
-  ], '"It looks normal and the exposure was well within what this medication tolerates, so it\'s fine to use — into the fridge."', '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
+    `Outdoor air reached <strong>${fmtF(hi)}</strong>, above ${d.name}'s ${fmtF(ceil)} limit`,
+    `${atLeastH} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above ${fmtF(ceil)} across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
+    `<strong>No allowance covers time above ${fmtF(ceil)}.</strong> ${d.name}'s ${allowanceText(d) ? `${allowanceText(d)} is` : 'allowance is'} for storage at or below ${fmtF(ceil)}. If the product itself went above ${fmtF(ceil)}, it cannot be used, however short the spell`,
+    `So the only question is whether that heat reached the product. ${stationAirNote()}`,
+  ], [
+    `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival, so the box ran well below the air ${K}` : `warm on arrival, so the box tracked the air ${R}`}`,
+    `<strong>How far and how long over:</strong> a few hours, a degree or two over ${K} · many hours, or well over ${R}`,
+    `<strong>Where it waited:</strong> indoors or shaded, delivered in the morning ${K} · a sunny porch or a hot truck through the afternoon ${R}`,
+    `<strong>Appearance:</strong> anything off ${R}. Looking normal does not show it stayed under ${fmtF(ceil)}`,
+  ], `"The ice packs kept it colder inside the box than it was outside, so it didn't get too warm. It's fine to use. Into the fridge."`,
+     '"It may have gotten warmer than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
 }
 
 function renderDetails() {
