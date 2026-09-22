@@ -21,42 +21,51 @@ const drug = (n) => { const d = ROWS.find(r => r.name === n); if (!d) throw new 
 
 const TZ = 'America/Chicago', F2C = (f) => (f - 32) * 5 / 9;
 const S0 = () => C.zonedInstant(2026, 7, 6, 0, TZ).getTime();
+// THE CLOCK, in hours from midnight on the ship date, Mon Jul 6: the carrier
+// picks up at hour 16, the 48-hour mark is hour 64, and a trip of n days is
+// delivered about midday on day n, hour 24n + 12. Heat and dips are placed at
+// explicit hours so each test says which part of the timeline it exercises.
+const PICK = 16, MARK = 64, arrive = (n) => 24 * n + 12;
+const late = (n) => arrive(n) - PICK > 48;
+// where counting starts for a trip of n days: warm packs on time count from
+// pick-up, everything else from the 48-hour mark
+const countFrom = (n, pack) => (pack === 'warm' && !late(n)) ? PICK : MARK;
 function result(nDays, obs, miles = 3) {
-  return { obs, tz: TZ, start: new Date(2026, 6, 6), end: new Date(S0() + nDays * 24 * 3600000),
+  return { obs, tz: TZ, start: new Date(2026, 6, 6), end: new Date(S0() + arrive(nDays) * 3600000),
            station: { name: 'KHOU', id: 'KHOU', miles }, loc: { name: 'Houston' },
            place: { city: 'Houston', state: 'TX' }, zip: '77002' };
 }
-// whole local days with a diurnal swing that peaks at 3pm
+// ship day midnight to delivery, with a diurnal swing that peaks at 3pm
 function weather(nDays, lowF, highF, opts = {}) {
   const obs = [];
-  for (let h = 0; h < nDays * 24; h++) {
+  for (let h = 0; h <= arrive(nDays); h++) {
     const hr = h % 24, frac = (Math.cos((hr - 15) / 24 * 2 * Math.PI) + 1) / 2;
     let f = lowF + (highF - lowF) * frac;
     if (opts.dipAt === h) f = opts.dip;
     if (opts.dipFrom != null && h >= opts.dipFrom && h < opts.dipFrom + opts.dipHours) f = opts.dip;
     if (opts.skip && opts.skip(hr)) continue;
+    if (opts.skipAbs && opts.skipAbs(h)) continue;
     obs.push({ t: new Date(S0() + h * 3600000), c: F2C(f) });
   }
   return result(nDays, obs, opts.miles == null ? 3 : opts.miles);
 }
-// flat base temperature with exactly `hot` hours at `hotF`, each afternoon
-function hotHours(nDays, baseF, hot, hotF) {
-  const obs = []; let left = hot;
-  for (let h = 0; h < nDays * 24; h++) {
-    const hr = h % 24;
-    const f = (left > 0 && hr >= 24 - Math.ceil(hot / nDays)) ? (left--, hotF) : baseF;
-    obs.push({ t: new Date(S0() + h * 3600000), c: F2C(f) });
-  }
+// flat base temperature with exactly `hot` consecutive hours at `hotF`,
+// starting at hour `from` (default: where warm packs start counting)
+function hotHours(nDays, baseF, hot, hotF, from) {
+  if (from == null) from = countFrom(nDays, 'warm');
+  const obs = [];
+  for (let h = 0; h <= arrive(nDays); h++)
+    obs.push({ t: new Date(S0() + h * 3600000), c: F2C(h >= from && h < from + hot ? hotF : baseF) });
   return result(nDays, obs);
 }
 {
   const w = hotHours(1, 70, 16, 95), n = C.summarize(w.obs, TZ, 86, 36, w).reduce((a, x) => a + x.above, 0);
   if (n !== 16) { console.log(`FAIL fixture: hotHours(1, 70, 16, 95) gave ${n} hot hours`); process.exit(1); }
 }
-// shipped Jul 6, received n days later
-const dates = (n) => C.setDates('2026-07-06', '2026-07-' + String(6 + n).padStart(2, '0'));
+// shipped Mon Jul 6, received n days later
+const dates = (n) => { const d = new Date(Date.UTC(2026, 6, 6 + n)); C.setDates('2026-07-06', d.toISOString().slice(0, 10)); };
 function call(d, pack, w, days) {
-  if (days == null) days = w ? Math.round((w.end - w.start) / 86400000) : 1;
+  if (days == null) days = w ? Math.round((w.end - S0()) / 86400000 - 0.5) : 1;
   dates(days);
   C.setDrug(d); C.onDrugChange(); C.setPack(pack); C.setFrozen(false); C.setResult(w); C.decide();
   return C.verdict();
@@ -149,7 +158,7 @@ ok('Basaglar: a full day with 10 hot hours does NOT clear a 4-hour window',
 ok('Humalog: 106°F is outside every published window',
    /outside the published windows/.test(call(drug('Humalog/Humulin'), 'warm', hotHours(1, 70, 3, 106), 1).big));
 ok('Humalog: the main 28-day allowance still applies inside the window',
-   call(drug('Humalog/Humulin'), 'warm', hotHours(30, 70, 4, 95), 30).cls !== 'ok');
+   call(drug('Humalog/Humulin'), 'warm', hotHours(31, 70, 4, 95), 31).cls !== 'ok');
 {
   const v = call(drug('Enbrel (all formulations)'), 'warm', hotHours(2, 70, 20, 100), 2);
   ok('Enbrel: 20 hours at 100°F sits in its 4-day window', v.cls === 'ok', v.big);
@@ -166,12 +175,12 @@ ok('Avonex (cold data only) gets the ordinary heat card', /possible heat excursi
 
 console.log('\n--- cold data below the floor ---');
 {
-  const inside = call(drug('Avonex'), 'warm', weather(2, 45, 60, { dipFrom: 3, dipHours: 5, dip: 25 }), 2);
+  const inside = call(drug('Avonex'), 'warm', weather(2, 45, 60, { dipFrom: 20, dipHours: 5, dip: 25 }), 2);
   ok('Avonex, 5 hours at 25°F: a judgment call that says it sits inside the cold data',
      inside.cls !== 'ok' && /sits inside/.test(inside.text), inside.text.slice(0, 240));
-  const long = call(drug('Avonex'), 'warm', weather(3, 45, 60, { dipFrom: 0, dipHours: 40, dip: 25 }), 3);
+  const long = call(drug('Avonex'), 'warm', weather(4, 45, 60, { dipFrom: MARK, dipHours: 40, dip: 25 }), 4);
   ok('Avonex, 40 hours at 25°F: longer than the cold data covers', /longer than that covers/.test(long.text));
-  const below = call(drug('Avonex'), 'warm', weather(2, 45, 60, { dipAt: 5, dip: 15 }), 2);
+  const below = call(drug('Avonex'), 'warm', weather(2, 45, 60, { dipAt: 20, dip: 15 }), 2);
   ok('Avonex, 15°F: below its cold data as well', /below .*cold data as well/.test(below.text));
 }
 
@@ -181,10 +190,10 @@ ok('an ordinary row keeps the normal margin', C.ceilingMargin(drug('Humira')) ==
 
 console.log('\n--- a trip that broke both ends reports both ---');
 {
-  const both = call(drug('Humira'), 'warm', weather(3, 75, 95, { dipAt: 5, dip: 20 }), 3);
+  const both = call(drug('Humira'), 'warm', weather(3, 75, 95, { dipAt: 70, dip: 20 }), 3);
   ok('headline names both', /cold and heat/i.test(both.big), both.big);
   ok('  both numbers shown', /95/.test(both.text) && /20/.test(both.text));
-  ok('cold alone reads as cold exposure', /cold exposure/i.test(call(drug('Humira'), 'warm', weather(3, 45, 60, { dipAt: 5, dip: 20 }), 3).big));
+  ok('cold alone reads as cold exposure', /cold exposure/i.test(call(drug('Humira'), 'warm', weather(3, 45, 60, { dipAt: 70, dip: 20 }), 3).big));
 }
 
 console.log('\n--- the summer heat path (Humira: 77°F, 14 days) ---');
@@ -198,8 +207,11 @@ console.log('\n--- the summer heat path (Humira: 77°F, 14 days) ---');
 }
 ok('7°F of headroom clears', call(drug('Humira'), 'warm', weather(2, 60, 70), 2).cls === 'ok');
 ok('3°F of headroom does not', call(drug('Humira'), 'warm', weather(2, 60, 74), 2).cls !== 'ok');
-ok('14 days at 62-72°F clears', call(drug('Humira'), 'warm', weather(14, 62, 72), 14).cls === 'ok');
-ok('15 days does not', call(drug('Humira'), 'warm', weather(15, 62, 72), 15).cls !== 'ok');
+ok('15 days late with cool packs, 62-72°F: clears on its 14 days, as the delay reference says',
+   call(drug('Humira'), 'cool', weather(16, 62, 72), 16).cls === 'ok');
+ok('16 days late does not', /duration/.test(call(drug('Humira'), 'cool', weather(17, 62, 72), 17).big));
+ok('15 days late with WARM packs clears only on the 48-hour rule: a judgment call',
+   /clears only on the 48-hour rule/.test(call(drug('Humira'), 'warm', weather(16, 62, 72), 16).big));
 ok('a station 41 mi away is inside the 100-mile radius and clears', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 41 }), 3).cls === 'ok');
 ok('a station 99 mi away clears', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 99 }), 3).cls === 'ok');
 ok('a station 130 mi away cannot clear', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 130 }), 3).cls !== 'ok');
@@ -245,21 +257,21 @@ ok('margin is 10% of the window, at least an hour',
 [['Aimovig', 43, 'ok'], ['Aimovig', 44, 'near'], ['Aimovig', 45, 'near'], ['Aimovig', 49, 'past'],
  ['Humalog/Humulin', 10, 'ok'], ['Humalog/Humulin', 11, 'near'], ['Humalog/Humulin', 13, 'past'],
  ['Basaglar', 3, 'ok'], ['Basaglar', 4, 'near'], ['Basaglar', 5, 'past']].forEach(([n, h, want]) => {
-  const d = drug(n), days = h > 20 ? 3 : 1;
+  const d = drug(n), days = h > 20 ? 5 : 1;
   const v = call(d, 'warm', hotHours(days, 60, h, 95), days);
   const got = v.cls === 'ok' ? 'ok' : /near the end/.test(v.big) ? 'near' : /past the high-temperature/.test(v.big) ? 'past' : v.big;
   ok(`${n}: ${h} hours above ${d.excursionMaxF}°F -> ${want}`, got === want, `got ${got}`);
 });
 {
-  const v = call(drug('Aimovig'), 'warm', hotHours(3, 60, 45, 97), 3);
+  const v = call(drug('Aimovig'), 'warm', hotHours(5, 60, 45, 97), 5);
   ok('the screenshot case, Aimovig at 45 of 48 hours, is now a judgment call', /near the end of the high-heat window/.test(v.big), v.big);
   ok('  that says it is covered on the numbers', /On the numbers it is covered/.test(v.text));
   ok('  and still gives the keep script', /stayed within what Aimovig's own stability data covers/.test(v.text));
-  ok('  a clear with room to spare says how much', /with 5 hours to spare/.test(call(drug('Aimovig'), 'warm', hotHours(3, 60, 43, 97), 3).text));
+  ok('  a clear with room to spare says how much', /with 5 hours to spare/.test(call(drug('Aimovig'), 'warm', hotHours(5, 60, 43, 97), 5).text));
 }
 {
   const bad = ROWS.filter(r => C.warmBands(r).length && r.refrigerated !== false).filter(r => {
-    const b = C.warmBands(r)[0], h = Math.max(1, Math.floor(b.hours - C.bandMargin(b) / 2)), days = Math.max(1, Math.ceil(h / 12));
+    const b = C.warmBands(r)[0], h = Math.max(1, Math.floor(b.hours - C.bandMargin(b) / 2)), days = Math.max(3, Math.ceil((h + MARK) / 24));
     return /replace/.test(call(r, 'warm', hotHours(days, 60, h, Math.min(b.maxF - 1, r.excursionMaxF + 8)), days).cls);
   });
   ok('no product ever gets REPLACE from the margin', bad.length === 0, bad.map(r => r.name).join(', '));
@@ -267,26 +279,81 @@ ok('margin is 10% of the window, at least an hour',
 
 console.log('\n--- use-by date for product that cannot go back in the fridge ---');
 {
-  const a = call(drug('Aimovig'), 'warm', hotHours(3, 60, 40, 97), 3);
-  ok('Aimovig shipped Mon Jul 6, 7 days: use by Sun, Jul 12', /Use it by Sun, Jul 12/.test(a.text), a.text.slice(-320));
-  ok('  and says the clock started at the pharmacy', /left the pharmacy on Mon, Jul 6/.test(a.text));
+  const a = call(drug('Aimovig'), 'warm', hotHours(1, 60, 10, 97), 1);
+  ok('Aimovig, warm packs on time: counts from the pick-up, use by Sun, Jul 12', /Use it by Sun, Jul 12/.test(a.text), a.text.slice(-320));
+  ok('  and says the clock started when it left the pharmacy', /when it left the pharmacy on Mon, Jul 6/.test(a.text));
+  const c = call(drug('Aimovig'), 'cool', weather(3, 55, 65), 3);
+  ok('Aimovig, cool packs 2 days late: counts from the 48-hour mark, use by Tue, Jul 14', /Use it by Tue, Jul 14/.test(c.text), c.text.slice(-320));
+  ok('  and says the clock started 48 hours after pick-up', /48 hours after it left the pharmacy/.test(c.text));
   const e = call(drug('Enbrel (all formulations)'), 'warm', hotHours(2, 70, 20, 100), 2);
   ok('Enbrel after its 107.6°F window: its own 4 days, use by Thu, Jul 9', /Use it by Thu, Jul 9/.test(e.text), e.text.slice(-300));
   const r = call(drug('Repatha'), 'warm', hotHours(2, 60, 10, 90), 2);
   ok('Repatha: its window says do not refrigerate, so the 30 days sets the date', /Use it by Tue, Aug 4/.test(r.text) && /do not return it to the fridge/.test(r.text), r.text.slice(-300));
   ok('Humira, which may go back in the fridge, gets no use-by date', !/Use it by/.test(call(drug('Humira'), 'warm', weather(2, 60, 70), 2).text));
-  const t = call(drug('Aimovig'), 'warm', weather(7, 55, 65), 6);
-  ok('delivered on its last day: "use it today"', /Use it today, Sun, Jul 12/.test(t.text), t.text.slice(-260));
-  const c = call(drug('Cimzia'), 'warm', weather(10, 60, 70), 9);
-  ok('Cimzia 9 days out on a 7-day allowance: says the time has run out', /already run out/.test(c.text) && !/Use it by/.test(c.text));
+  const t = call(drug('Aimovig'), 'cool', weather(8, 55, 65), 8);
+  ok('delivered on its last day: "use it today"', /Use it today, Tue, Jul 14/.test(t.text), t.text.slice(-260));
+  const y = call(drug('Cimzia'), 'cool', weather(9, 55, 65), 9);
+  ok('Cimzia delivered the morning its 7 days end: OK and "use it today", not "run out"',
+     y.cls === 'ok' && /Use it today/.test(y.text) && !/run out/.test(y.text), y.big + ' | ' + y.text.slice(-240));
+  const x = call(drug('Cimzia'), 'cool', weather(10, 55, 65), 10);
+  ok('Cimzia delivered after its 7 days ran out: says so', /already run out/.test(x.text) && !/Use it by/.test(x.text));
 }
 {
-  call(drug('Aimovig'), 'warm', hotHours(3, 60, 40, 97), 3);
+  call(drug('Aimovig'), 'warm', hotHours(1, 60, 10, 97), 1);
   ok('NewLeaf note on an OK: "Use by 7/12"', /OK TO USE\. Use by 7\/12, not back in fridge\./.test(C.noteText()), C.noteText());
-  call(drug('Aimovig'), 'warm', hotHours(3, 60, 45, 97), 3);
-  ok('NewLeaf note on a judgment call: "If kept, use by 7/12"', /If kept, use by 7\/12/.test(C.noteText()), C.noteText());
+  call(drug('Aimovig'), 'cool', hotHours(5, 60, 45, 97, MARK), 5);
+  ok('NewLeaf note on a judgment call: "If kept, use by 7/14"', /If kept, use by 7\/14/.test(C.noteText()), C.noteText());
   call(drug('Humira'), 'warm', weather(2, 60, 70), 2);
   ok('no use-by in the note when it may go back in the fridge', !/use by/i.test(C.noteText()));
+}
+
+console.log('\n--- the clock: out of the fridge 48 hours after pick-up (Aimovig, shipped Mon Jul 6) ---');
+{
+  const t1 = call(drug('Aimovig'), 'slushy', weather(1, 60, 70), 1);
+  ok('delivered on time, slushy: OK, into the fridge as normal', t1.cls === 'ok' && /Into the fridge as normal/.test(t1.text));
+  ok('  no use-by date and no "do not put it back"', !/Use it by/.test(t1.text) && !/Do not put it back/.test(t1.text), t1.text.slice(-260));
+  const f1 = call(drug('Aimovig'), 'frozen', null, 1);
+  ok('delivered on time, frozen solid: the keep path says fridge as normal too', /Into the fridge as normal/.test(f1.text) && !/Use it by/.test(f1.text));
+  const t2 = call(drug('Aimovig'), 'cool', weather(2, 60, 70), 2);
+  ok('1 day late, cool: still inside the 48 hours, nothing counted', t2.cls === 'ok' && /pack-out's 48-hour rating/.test(t2.text) && !/Use it by/.test(t2.text));
+  C.setDrug(drug('Aimovig')); C.setPack('cool'); dates(3);
+  ok('2 days late, cool: counted from the 48-hour mark to midday, 20 hours', C.exposureHours() === 20);
+  C.setPack('warm'); dates(3);
+  ok('2 days late, warm: the same 20 hours', C.exposureHours() === 20 && C.creditApplies());
+  dates(1);
+  ok('on time, warm: counted from the pick-up, 20 hours, no credit', C.exposureHours() === 20 && !C.creditApplies()
+     && C.exposureStart().getTime() === C.zonedInstant(2026, 7, 6, 16, TZ).getTime());
+  const w1 = call(drug('Aimovig'), 'warm', weather(1, 60, 70), 1);
+  ok('  and the evidence says why', /packs were already warm on an on-time delivery/.test(w1.text), w1.text.slice(-300));
+}
+{
+  // heat only on Tue afternoon, before the 48-hour mark: the rule alone clears it
+  const w = hotHours(3, 65, 7, 85, 38);
+  const v = call(drug('Humira'), 'warm', w, 3);
+  ok('warm, 2 days late, heat only before the 48-hour mark: the safeguard makes it a judgment call',
+     /clears only on the 48-hour rule/.test(v.big), v.big);
+  ok('  and it says what counting from pick-up would show', /7 hours above 77°F/.test(v.text), v.text.slice(0, 400));
+  ok('  the same trip with cool packs just clears', call(drug('Humira'), 'cool', w, 3).cls === 'ok');
+  ok('  warm with no heat anywhere just clears', call(drug('Humira'), 'warm', weather(3, 60, 70), 3).cls === 'ok');
+}
+{
+  ok('hours before the 4pm pick-up are never counted', call(drug('Humira'), 'warm', hotHours(1, 65, 8, 90, 8), 1).cls === 'ok');
+  const after = hotHours(1, 65, 0, 90); for (let h = 38; h < 45; h++) after.obs.push({ t: new Date(S0() + h * 3600000), c: F2C(95) });
+  ok('hours after the midday delivery are never counted', call(drug('Humira'), 'warm', after, 1).cls === 'ok');
+  const gap = weather(3, 60, 70, { skipAbs: (h) => h >= 60 });
+  ok('no readings at all in the counted stretch is not a pass', call(drug('Humira'), 'warm', gap, 3).cls !== 'ok');
+  C.setDrug(drug('Afinitor')); C.setPack('cool'); dates(3);
+  ok('room-temperature products count from the pick-up', C.exposureStart().getTime() === C.zonedInstant(2026, 7, 6, 16, TZ).getTime());
+}
+{
+  // the card and the delay reference agree for every product
+  const off = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion && r.allowanceHours != null).filter(r => {
+    C.setDrug(r); C.setPack('cool'); const m = C.maxDaysLate(r);
+    dates(m + 1); const inside = C.durationOk(r, 0);
+    dates(m + 2); const outside = !C.durationOk(r, 0);
+    return !(inside && outside);
+  });
+  ok('for every product, "N days late" on the delay reference matches the card', off.length === 0, off.map(r => r.name).join(', '));
 }
 
 console.log(failed ? `\n${failed} DECISION TEST(S) FAILED, ${passed} passed` : `\nAll ${passed} decision tests passed.`);

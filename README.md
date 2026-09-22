@@ -75,11 +75,11 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
      the pharmacy's Temperature Sensitive Stabilities spreadsheet).
   2. Ask how the ice packs felt: **slushy** → the cold chain held → OK.
      **Frozen solid** → the box never warmed, but solid ice raises the freeze
-     question instead (see *Freezing* below). **Thawed but cool** → OK if
-     received inside the pack-out's 48-hour rating; otherwise only the delayed
-     days are scored. **Thawed and warm** → the pack-out is spent; every day is
-     scored. A product that itself looks frozen / has ice crystals / looks
-     different → REPLACE regardless.
+     question instead (see *Freezing* below). **Thawed but cool** or
+     **thawed and warm** → the air is scored over the stretch the product
+     counted as out of the fridge (see *The clock* below). A product that
+     itself looks frozen / has ice crystals / looks different → REPLACE
+     regardless.
   3. ZIP (city and state appear as soon as five digits are typed; sort-hub
      ZIPs via chips) + shipped/received dates → observed
      outdoor temperature from the nearest NWS station, scored worst-case
@@ -125,9 +125,9 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   hours, Skyrizi's 48. Calendar days were wrong in both directions. A day
   rounded a 4-hour allowance up to "1 of 1 day" and cleared it, and a
   next-day delivery touches two calendar days, so a 24-hour allowance could
-  never clear one. With cool packs only the hours after the 48-hour pack-out
-  count, matching the day scoring. The received date carries no clock time,
-  so delivery is assumed around midday and the budget line says so.
+  never clear one. Time is counted on the clock below. The received date
+  carries no clock time, so delivery is assumed around midday and the budget
+  line says so.
 - **Manufacturer windows are judged in hours.** Many rows carry a short
   high-temperature window beside the everyday allowance, most of them from
   Lilly's TempEx tool: Humalog allows 86°F for 28 days *and* up to 104°F for
@@ -149,13 +149,16 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   says how many hours were left.
 - **Use-by date.** For a product that cannot go back in the fridge, the card's
   *Then tell them* line gives the date to use it by, and so does the NewLeaf
-  note. Its time out of the fridge started at the 4pm pick-up, so the deadline
-  is pick-up plus the allowance, or a window's own use-within figure (Enbrel,
-  4 days after a spell up to 107.6°F; `useWithinHours` on the tier). The date
-  shown is the day before the deadline's date, so "use it by Monday" always
-  leaves the deadline still ahead. Delivered on that day, the card says to use
-  it today; delivered after it, the card says the time has run out. Products
-  that may go back in the fridge keep to their expiration and get no date.
+  note. The deadline is when the clock below started plus the allowance, or a
+  window's own use-within figure (Enbrel, 4 days after a spell up to 107.6°F;
+  `useWithinHours` on the tier). The date shown is the day before the
+  deadline's date, so "use it by Monday" always leaves the deadline still
+  ahead. Delivered on that day or later with time left, the card says to use
+  it today; delivered after the deadline itself, that the time has run out.
+  Products that may go back in the fridge keep to their expiration and get no
+  date. A product that never counted as out of the fridge (slushy or solid
+  packs, or cool packs inside the 48 hours) gets "into the fridge as normal"
+  and none of the out-of-fridge instructions.
 - **Cold data below the floor** (Avonex down to 23°F for 36 hours, Darzalex
   down to -4°F in limited episodes) is shown on the allowance line and on the
   cold and freeze cards, with where the dip sat against it. It never widens
@@ -182,10 +185,43 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   under-read heat. The evidence line names every station used and how many
   hours each supplied, and so does the NewLeaf note. Extra stations are only
   fetched when the record actually has holes.
-- **Pack-out coverage** is anchored to the daily carrier pick-up
-  (`PICKUP_HOUR`, Central, since we ship from Houston) plus the rated 48 hours,
-  not to calendar days. A day straddling the boundary is scored in full.
-  Setting `PICKUP_HOUR` earlier than reality is conservative; later is not.
+- **The clock** (`exposureStart()`, `exposureEnd()`). The pharmacy's rule: a
+  product counts as out of the fridge 48 hours after the 4pm carrier pick-up
+  (`PICKUP_HOUR`, Central, plus `PACKOUT_RATING_HOURS`). Only the air from
+  then until delivery, taken as midday on the received date, is scored, hour
+  by hour, and the use-by date and the duration check run from the same
+  start. Worked example, Aimovig (77°F for 7 days, can't go back in the
+  fridge) picked up Tue 4pm:
+
+  | Delivered | Packs | Counted | Card |
+  |---|---|---|---|
+  | Wed, on time | slushy or cool | nothing | OK, fridge as normal, no use-by |
+  | Thu, 1 day late | cool | nothing, inside the 48 hours | same |
+  | Fri, 2 days late | cool | Thu 4pm to Fri noon, 20 h | use by Wed, don't refrigerate |
+  | Fri, 2 days late | warm | the same 20 h | same, with the safeguard below |
+  | Wed, on time | warm | from the Tue 4pm pick-up | no credit; if kept, use by Mon |
+
+  Two exceptions count from the pick-up itself: **warm packs on an on-time
+  delivery**, which prove the pack-out gave out early, and **room-temperature
+  products**, which have no pack-out. Hours before the pick-up, when the
+  product was still in the pharmacy fridge, and after delivery are never
+  counted. No readings inside the counted stretch is treated as no evidence,
+  never a pass. Every card's evidence line states the stretch counted. The
+  delay reference already worked this way, and a test checks the card and the
+  reference agree for every product. Setting `PICKUP_HOUR` earlier than reality
+  is conservative; later is not.
+- **The safeguard on warm packs.** For warm packs on a late delivery the verdict
+  is first decided counting from the pick-up. If that would not clear and the
+  48-hour rule would, the rule is the only thing clearing it, and warm packs
+  mean nothing shows how long the pack-out actually lasted. The card reads
+  *JUDGMENT CALL — clears only on the 48-hour rule* with both counts, instead
+  of OK TO USE. It never makes a verdict worse than counting from pick-up.
+- **No allowance covers time above the ceiling.** A label's "77°F for 14 days"
+  is time at or below 77°F; hours above it are outside the label, not spent
+  from that budget. The heat cards say so, never weigh hours above against the
+  allowance, and ask only whether the heat reached the product: pack state,
+  how far and how long over, where it waited, and appearance, which can show
+  damage but cannot clear heat.
 - **Timezones**: day boundaries resolve in the weather station's own zone, not
   the browser's, and are DST-correct (a fall-back day is 25 hours). Pick-up
   resolves in Central regardless of destination.
