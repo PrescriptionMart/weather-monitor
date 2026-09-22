@@ -35,9 +35,12 @@ import argparse, json, re, sys
 import openpyxl
 
 H = lambda h: 24 * h            # days -> hours, for readability below
-def T(minF, maxF, hours, note=None):
+def T(minF, maxF, hours, note=None, useWithin=None):
+    """A window. `note` is what to tell the patient after a spell in it;
+    `useWithin` is the hours the label gives to use it by afterwards."""
     t = dict(minF=minF, maxF=maxF, hours=hours)
     if note: t['note'] = note
+    if useWithin: t['useWithinHours'] = useWithin
     return t
 
 LILLY = 'Lilly TempEx stability tool'
@@ -52,7 +55,7 @@ OVERRIDES = {
         why='Up to 86°F for a single period of 6 months, or up to 104°F for a single period of 30 days. '
             'Cannot go back into refrigeration once removed.'),
     'Enbrel (all formulations)': dict(excursionMaxF=77, allowanceHours=H(30), returnToFridge=False,
-        tiers=[T(36, 77, H(30)), T(77, 107.6, H(4), 'return it to the fridge, and use it within 4 days')],
+        tiers=[T(36, 77, H(30)), T(77, 107.6, H(4), 'return it to the fridge, and use it within 4 days', useWithin=H(4))],
         flag='The sheet gives 30 days for all formulations. Amgen gives 30 days for the prefilled syringe and '
              'SureClick, but 14 days for the multi-dose vial and dose tray. Confirm which formulation shipped '
              'before relying on 30 days.',
