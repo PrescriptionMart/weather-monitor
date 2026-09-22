@@ -337,6 +337,17 @@ console.log('\n--- the clock: out of the fridge 48 hours after pick-up (Aimovig,
   ok('  warm with no heat anywhere just clears', call(drug('Humira'), 'warm', weather(3, 60, 70), 3).cls === 'ok');
 }
 {
+  // Aimovig has a 48-hour window up to 104°F, so the safeguard card says how
+  // the hours counted from pick-up sit against it
+  const sg = (hot) => call(drug('Aimovig'), 'warm', hotHours(3, 65, hot, 88, PICK), 3);
+  const all = sg(48);
+  ok('Aimovig safeguard, 48 hot hours before the mark: "all of its 48-hour high-heat window"',
+     /clears only on the 48-hour rule/.test(all.big) && /48 hours above 77°F, all of its 48-hour high-heat window/.test(all.text), all.text.slice(0, 400));
+  ok('  50 hours: "more than its 48-hour high-heat window"', /50 hours above 77°F, more than its 48-hour high-heat window/.test(sg(50).text));
+  ok('  45 hours: "too close to the end to clear"', /45 of the 48 hours in its high-heat window, too close to the end to clear/.test(sg(45).text));
+  ok('  40 hours clears either way, so no safeguard card', sg(40).cls === 'ok');
+}
+{
   ok('hours before the 4pm pick-up are never counted', call(drug('Humira'), 'warm', hotHours(1, 65, 8, 90, 8), 1).cls === 'ok');
   const after = hotHours(1, 65, 0, 90); for (let h = 38; h < 45; h++) after.obs.push({ t: new Date(S0() + h * 3600000), c: F2C(95) });
   ok('hours after the midday delivery are never counted', call(drug('Humira'), 'warm', after, 1).cls === 'ok');

@@ -1307,7 +1307,19 @@ function decide() {
   const creditCard = () => {
     const nc = _noCreditSummary || {};
     const ncBits = [];
-    if (nc.sAbove) ncBits.push(`${nc.sAbove} hour${nc.sAbove === 1 ? '' : 's'} above ${fmtF(ceil)}`);
+    // Hours above the ceiling mean little on their own for a product with a
+    // high-heat window (Aimovig allows up to 104°F for 48 hours), so say how
+    // they sit against that window.
+    if (nc.sAbove) {
+      const h = `${nc.sAbove} hour${nc.sAbove === 1 ? '' : 's'} above ${fmtF(ceil)}`;
+      const wb = warmBands(d).find(t => nc.hi >= t.minF && nc.hi <= t.maxF && t.minF <= ceil);
+      if (!wb && warmBands(d).length) ncBits.push(`${h}, peaking at ${fmtF(nc.hi)}, above every window ${d.name} publishes`);
+      else if (!wb) ncBits.push(h);
+      else if (nc.sAbove > wb.hours) ncBits.push(`${h}, more than its ${wb.hours}-hour high-heat window`);
+      else if (nc.sAbove === wb.hours) ncBits.push(`${h}, all of its ${wb.hours}-hour high-heat window`);
+      else if (wb.hours - nc.sAbove < bandMargin(wb)) ncBits.push(`${nc.sAbove} of the ${wb.hours} hours in its high-heat window, too close to the end to clear`);
+      else ncBits.push(`${h}, inside its ${wb.hours}-hour high-heat window`);
+    }
     if (nc.sBelow && floor != null) ncBits.push(`${nc.sBelow} hour${nc.sBelow === 1 ? '' : 's'} below ${fmtF(floor)}`);
     if (nc.durOk === false && allowanceText(d)) ncBits.push(`about ${Math.round(nc.hours / 24)} days out of the fridge against the ${allowanceText(d)} allowance`);
     return judge('JUDGMENT CALL — clears only on the 48-hour rule', [
