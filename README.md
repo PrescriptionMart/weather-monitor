@@ -149,11 +149,21 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   of numbers.
 - **What has to be true before a clean OK.** The weather record has to be good
   enough (at least ~18 of 24 hours reported on every scored day, judged against
-  the hours that day could have had, and a station within 25 miles), and the
+  the hours that day could have had, and a station within 100 miles), and the
   peak has to sit at least `CEILING_MARGIN_F` (5°F) under the ceiling, widened
   to 10°F for products whose ceiling could not be verified. Anything short of
   that is a judgment call naming the reason, never a silent pass. Every verdict
   carries an evidence line: how many readings, from where, how far away.
+- **Weather within 100 miles is treated as the same weather**
+  (`MAX_STATION_MILES`). The nearest station with readings is the record. When
+  it has missing hours, `fillGaps()` fills them from other stations inside the
+  radius, nearest first: another station only ever supplies an hour the
+  primary has no reading for, never replaces or averages one it has. Filling
+  is limited to stations within `FILL_ELEVATION_FT` (1,000 ft) of the primary,
+  because air cools about 3.5°F per 1,000 ft and a higher station would
+  under-read heat. The evidence line names every station used and how many
+  hours each supplied, and so does the NewLeaf note. Extra stations are only
+  fetched when the record actually has holes.
 - **Pack-out coverage** is anchored to the daily carrier pick-up
   (`PICKUP_HOUR`, Central, since we ship from Houston) plus the rated 48 hours,
   not to calendar days. A day straddling the boundary is scored in full.

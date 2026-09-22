@@ -200,9 +200,44 @@ ok('7°F of headroom clears', call(drug('Humira'), 'warm', weather(2, 60, 70), 2
 ok('3°F of headroom does not', call(drug('Humira'), 'warm', weather(2, 60, 74), 2).cls !== 'ok');
 ok('14 days at 62-72°F clears', call(drug('Humira'), 'warm', weather(14, 62, 72), 14).cls === 'ok');
 ok('15 days does not', call(drug('Humira'), 'warm', weather(15, 62, 72), 15).cls !== 'ok');
-ok('a station 41 mi away cannot clear', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 41 }), 3).cls !== 'ok');
+ok('a station 41 mi away is inside the 100-mile radius and clears', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 41 }), 3).cls === 'ok');
+ok('a station 99 mi away clears', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 99 }), 3).cls === 'ok');
+ok('a station 130 mi away cannot clear', call(drug('Humira'), 'warm', weather(3, 60, 70, { miles: 130 }), 3).cls !== 'ok');
 ok('overnight-only readings cannot clear',
    call(drug('Humira'), 'warm', weather(3, 60, 70, { skip: (h) => h >= 9 && h <= 20 }), 3).cls !== 'ok');
+
+console.log('\n--- gaps filled from stations within 100 miles ---');
+{
+  const H = 3600000, t0 = S0();
+  const obsAt = (hours, f) => hours.map(h => ({ t: new Date(t0 + h * H), c: F2C(f) }));
+  const all = [...Array(72).keys()];
+  const primary = { id: 'KHOU', name: 'Hobby', miles: 8, elevFt: 40 };
+  const pObs = obsAt(all.filter(h => h % 24 < 9 || h % 24 > 20), 70);            // afternoons missing
+  const near = { station: { id: 'KIAH', name: 'Bush', miles: 22, elevFt: 90 }, obs: obsAt(all, 96) };
+  const far = { station: { id: 'KAUS', name: 'Austin', miles: 146, elevFt: 540 }, obs: obsAt(all, 60) };
+  const high = { station: { id: 'KHIL', name: 'Hilltop', miles: 60, elevFt: 2400 }, obs: obsAt(all, 60) };
+
+  ok('the gappy primary has holes', C.gapHours(pObs, new Date(t0), new Date(t0 + 71 * H)) > 0);
+  const m = C.fillGaps(primary, pObs, [high, far, near]);
+  ok('holes are filled from the station within the radius', C.gapHours(m.obs, new Date(t0), new Date(t0 + 71 * H)) === 0);
+  ok('  from KIAH only', m.fill.length === 1 && m.fill[0].station.id === 'KIAH', JSON.stringify(m.fill.map(f => f.station.id)));
+  ok('  a station 146 mi away is never used', !m.fill.some(f => f.station.id === 'KAUS'));
+  ok('  a station 2,360 ft higher is never used', !m.fill.some(f => f.station.id === 'KHIL'));
+  ok('  the primary\'s own hours are never overwritten',
+     pObs.every(o => m.obs.filter(x => Math.floor(x.t / H) === Math.floor(o.t / H)).every(x => x.c === o.c)));
+  ok('  no hour is double-counted', new Set(m.obs.map(o => Math.floor(o.t / H))).size === m.obs.length);
+
+  const unfilled = result(3, pObs);
+  const filled = Object.assign(result(3, m.obs), { fill: m.fill });
+  ok('before filling, the record is too thin to clear', call(drug('Humira'), 'warm', unfilled, 3).cls !== 'ok');
+  const v = call(drug('Humira'), 'warm', filled, 3);
+  ok('after filling, the hot afternoons it was missing are seen: 96°F is flagged',
+     /possible heat excursion/.test(v.big) && /96/.test(v.text), v.big);
+  ok('  and the evidence names the station that filled in', /filled from Bush \(22 mi\)/.test(v.text), v.text.slice(-240));
+
+  const cool = C.fillGaps(primary, pObs, [{ station: near.station, obs: obsAt(all, 66) }]);
+  ok('a filled record with nothing hot clears', call(drug('Humira'), 'warm', Object.assign(result(3, cool.obs), { fill: cool.fill }), 3).cls === 'ok');
+}
 
 console.log(failed ? `\n${failed} DECISION TEST(S) FAILED, ${passed} passed` : `\nAll ${passed} decision tests passed.`);
 process.exit(failed ? 1 : 0);
