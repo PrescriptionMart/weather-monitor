@@ -358,25 +358,25 @@
 
 <script>
 const PACKOUT_RATING_HOURS = 48;
-// Next-day air, so a package N days late spends N+1 days in transit. The
-// pack-out covers the ship day and the day after, leaving N-1 days scored
-// against the allowance. It is inside the allowance while N-1 <= allowance,
-// i.e. up to allowance + 1 days late.
-const NORMAL_TRANSIT_DAYS = 1;
-function allowanceDays(d) {
-  const h = d.allowanceHours;
-  return h == null ? null : Math.max(1, Math.ceil(h / 24));
-}
+const PICKUP_HOUR = 16;
+// Next-day air: a package N days late arrives around midday N+1 days after the
+// 4pm pick-up, i.e. 20 + 24N hours. The pack-out covers the first 48 of those
+// and the rest must fit the allowance. Worked in hours, so for whole-day
+// allowances this is allowance days + 1, and a short allowance (Forteo's 36
+// hours, Humatrope's 12) is not rounded up to a day it does not have.
+// Kept identical to maxDaysLate() in excursion.html.
 function maxDaysLate(d) {
   if (d.noExcursion) return 0;
-  const a = allowanceDays(d);
-  return a == null ? null : a + 1;
+  const a = d.allowanceHours;
+  if (a == null) return null;
+  const onTime = 24 - PICKUP_HOUR + 12;
+  return Math.max(0, Math.floor((a + PACKOUT_RATING_HOURS - onTime) / 24));
 }
 function allowanceLabel(d) {
   if (d.noExcursion) return 'none';
   const h = d.allowanceHours;
   if (h == null) return '—';
-  return h < 24 ? h + ' h' : Math.round(h / 24) + ' d';
+  return h < 24 || h % 24 ? h + ' h' : h / 24 + ' d';
 }
 let DRUGS = [];
 

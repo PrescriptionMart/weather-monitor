@@ -1,1 +1,5 @@
 tests/_core.generated.js
+# source spreadsheets carry return-credit figures; the repo is public
+*.xlsx
+*.xls
+*.csv

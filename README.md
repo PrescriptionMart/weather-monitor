@@ -119,11 +119,30 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   `transitHours()`; pick-up is `PICKUP_HOUR` and the received date is assumed
   to be midday, which puts a next-morning delivery inside the rating and
   anything arriving on a third day outside it.
-- **Allowances shorter than a day are counted in hours.** Tremfya allows 4
-  hours out of the fridge and Orencia 6. Scoring in whole days rounded those
-  up to one day, so a full day out read as "1 of 1 day" and cleared. Those
-  products are now measured against elapsed transit hours (`durationOk()`),
-  and the budget line reports hours too.
+- **Short allowances are counted in hours.** Anything under three days
+  (`SHORT_ALLOWANCE_HOURS`) is measured against elapsed hours, not calendar
+  days: Humatrope's 12 hours, Tremfya's 24-hour transit window, Forteo's 36
+  hours, Skyrizi's 48. Calendar days were wrong in both directions. A day
+  rounded a 4-hour allowance up to "1 of 1 day" and cleared it, and a
+  next-day delivery touches two calendar days, so a 24-hour allowance could
+  never clear one. With cool packs only the hours after the 48-hour pack-out
+  count, matching the day scoring. The received date carries no clock time,
+  so delivery is assumed around midday and the budget line says so.
+- **Manufacturer windows are judged in hours.** Many rows carry a short
+  high-temperature window beside the everyday allowance, most of them from
+  Lilly's TempEx tool: Humalog allows 86°F for 28 days *and* up to 104°F for
+  12 hours. A peak above the everyday ceiling is judged against the window it
+  falls in by counting the hours the air spent above that ceiling, and the
+  trip must still fit the main allowance. A window that leaves an uncovered
+  gap beneath it can never clear across the gap. When a window carries its own
+  instruction (Enbrel: back in the fridge, use within 4 days) the card gives
+  that instead of the everyday one. Peaks above every window get *outside the
+  published windows* with a link to the manufacturer's calculator.
+- **Cold data below the floor** (Avonex down to 23°F for 36 hours, Darzalex
+  down to -4°F in limited episodes) is shown on the allowance line and on the
+  cold and freeze cards, with where the dip sat against it. It never widens
+  the floor or clears a shipment: a station low is not the box, and episode
+  limits cannot be read from a weather record.
 - **Both ends of the range are reported.** A trip that dipped below the floor
   *and* exceeded the ceiling used to return on the cold hours alone and never
   show the heat. It now reads *cold and heat exposure* and carries both sets
@@ -162,12 +181,15 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   safety-net line for anxious patients, log it).
 - **How late is too late (`delay-guide.html`)** — the duration half of a delay
   call, for every product, with no ZIP and no weather. Enter how many days late
-  and it splits the list into still-inside and past-the-allowance. A package is
-  inside while `days late <= allowance days + 1` (next-day transit, and the
-  48-hour pack-out covers the ship day and the day after). At 2 days late only
-  Forteo, Genotropin and Omnitrope are past it, because they have no allowance
-  at all. Computed live from `data/drugs.json`, so it tracks the sheet. The
-  selected product's figure also shows on the Excursion Check allowance line.
+  and it splits the list into still-inside and past-the-allowance. Worked in
+  hours: a package N days late arrives around midday N+1 days after the 4pm
+  pick-up, the pack-out covers the first 48 hours, and the rest must fit the
+  allowance (`maxDaysLate()`, kept identical on both pages). For whole-day
+  allowances that is `allowance days + 1`; short ones are no longer rounded up
+  to a day they do not have. At 2 days late Darzalex, Omnitrope and Humatrope
+  are past it; at 3 days Forteo, Nivestym and Tremfya join them.
+  Room-temperature products are left out, since a cold-chain delay does not
+  apply. Computed live from `data/drugs.json`, so it tracks the sheet.
 - **Basis & references (`excursion-basis.html`)** — what each rule rests on
   (USP <659>/<1079>, CDC excursion procedure, ISTA 7D/7E, URAC P-MD, 22 TAC
   §291.12, JAPhA 2023 mail-transit study, manufacturer allowances), where
@@ -218,32 +240,54 @@ the right window. It runs against the page's real `decide()`, extracted by
 and not committed.
 
 ### Drug data
-`data/drugs.json` is generated — do not hand-edit it:
+`data/drugs.json` is generated. Do not hand-edit it:
 ```
-python3 scripts/convert-drugs.py Temperature_Sensitive_Stabilities.xlsx -o data/drugs.json
+python3 scripts/convert-drugs.py Temp_Excursion_CV.xlsx -o data/drugs.json
 ```
-The converter exists because the sheet's **Max Temp column is not consistently
-the excursion ceiling**: for Nivestym, Norditropin and Skyrizi it is the fridge
-ceiling (46°F), for Sogroya it is a hard discard limit (86°F), and for Dupixent
-it is the allowance (77°F). The page needs the allowance ceiling, so it is
-parsed from the excursion text and the column is kept separately as
-`storageMaxF`. Every row where the two disagree is printed on each run, and
-rows needing human judgment sit in an `OVERRIDES` table with a stated reason
-that surfaces on the page.
+The converter finds columns by header (Drug, Manufacturer, Excursion Length,
+Max Temp, Min Temp, Protect From Light?, Storage), so a reordered sheet still
+converts. Product rows run to the first blank row; the **online stability
+calculators** table below them is attached to each product by manufacturer and
+shown as a link on the allowance line and on the cards that say to call the
+manufacturer.
 
-**After-first-use allowances.** Several sheet rows carry an allowance that
-applies to a pen already in use, not to unopened stock in transit — which is
-always what this tool is looking at. Those rows set `inUseAllowance`, show a
-warning on the allowance line, and can never produce a clean OK: the verdict
-becomes "JUDGMENT CALL — allowance may not apply" pointing at the label.
-Currently Norditropin FP and both Sogroya strengths. The values were flagged
-rather than changed, because the unopened allowance could not be verified.
+**The "Credit from Return?" column is deliberately not converted.** It holds
+the pharmacy's return-credit figures, not stability data, and this repository
+and the site it publishes are public. Keep the spreadsheet itself out of the
+repository for the same reason.
 
-Row fields: `name`, `ndc` (reference only, not shown), `storageMinF`/`storageMaxF`,
-`excursionMinF`/`excursionMaxF` (the allowance ceiling), `allowanceHours`,
-`cumulative`, `returnToFridge`, `noExcursion`, `refrigerated`, `calculatorUrl`,
-`tiers`, `inUseAllowance`, `excursionNote`, `storage`, `protectFromLight`, `freezeSensitive`,
-optional `flag` and `derivation`.
+The **Max Temp column is not consistently the excursion ceiling**: for Nivestym
+and Simponi it is the fridge ceiling (46°F), for Tremfya and Sogroya a hard
+limit (86°F), and on the TempEx rows it is the short high-temperature figure
+(104°F). The page needs the everyday allowance ceiling, so it is parsed from
+the text and every row where the two disagree is printed on each run. Rows
+needing human judgment sit in `OVERRIDES` with a stated reason that surfaces
+on the page as the ℹ line; a name in `OVERRIDES` that is not in the sheet stops
+the run, so a renamed product cannot silently lose its rules.
+
+**Two windows per row.** Where the Storage column gives a room-temperature
+allowance and Excursion Length a short manufacturer figure, the row becomes
+`tiers`: the everyday window plus a band from its ceiling up to the excursion
+limit, judged in hours on the page. Cold figures below the floor become cold
+bands for display only.
+
+**After-first-use allowances.** Some rows carry an allowance that applies to a
+pen already in use, not to unopened stock in transit, which is always what this
+tool looks at. Those rows set `inUseAllowance`, show a warning on the allowance
+line, and can never produce a clean OK. They were read by hand, not by wording
+heuristics: Ozempic, Saxenda, Victoza, Xultophy, Soliqua, Toujeo, Norditropin.
+
+**Return to the fridge** is read sentence by sentence, skipping in-use rules.
+"Do not put pen back in the refrigerator after first use" says nothing about
+unopened stock, and reading it as a transit rule marked four insulins wrongly.
+
+Row fields: `name`, `manufacturer`, `ndc` (reference only), `storageMinF`/
+`storageMaxF`, `excursionMinF`/`excursionMaxF` (the everyday allowance
+ceiling), `allowanceHours`, `cumulative`, `returnToFridge`, `noExcursion`,
+`refrigerated`, `calculatorUrl` (only when a row gives no numbers at all),
+`mfrCalculator`, `tiers` (`minF`, `maxF`, `hours`, optional `note`),
+`inUseAllowance`, `excursionNote`, `storage`, `protectFromLight`,
+`freezeSensitive`, optional `flag` and `derivation`.
 
 ### Design system
 All four pages share one token block (copied into each page's `<style>`, since
