@@ -576,12 +576,29 @@ function drugLimits(d) {
 // How long the product may be out of the fridge, in hours. Short allowances
 // (Tremfya 4h, Orencia 6h) must not be rounded up to a day.
 function allowanceHours(d) { return d.allowanceHours ?? null; }
+// A duration as the label states it. Whole days read as days; anything else
+// stays in hours, so Forteo's 36 hours never displays as "2 days".
+function hoursText(h) {
+  if (h < 24 || h % 24) return `${h} hour${h === 1 ? '' : 's'}`;
+  const days = h / 24;
+  return `${days} day${days === 1 ? '' : 's'}`;
+}
 function allowanceText(d) {
   const h = allowanceHours(d);
-  if (h == null) return null;
-  if (h < 24) return `${h} hour${h === 1 ? '' : 's'}`;
-  const days = Math.round(h / 24);
-  return `${days} day${days === 1 ? '' : 's'}`;
+  return h == null ? null : hoursText(h);
+}
+// How many days late a next-day-air package can be and still sit inside the
+// allowance on duration alone. N days late arrives around midday N+1 days
+// after the 4pm pick-up, i.e. onTime + 24N hours; the pack-out covers the
+// first 48 of those; the rest must fit the allowance. For whole-day
+// allowances this is allowance days + 1. For short ones it no longer rounds a
+// 36-hour allowance up to two days and calls three days late safe.
+function maxDaysLate(d) {
+  if (d.noExcursion) return 0;
+  const a = allowanceHours(d);
+  if (a == null) return null;
+  const onTime = 24 - PICKUP_HOUR + 12;
+  return Math.max(0, Math.floor((a + PACKOUT_RATING_HOURS - onTime) / 24));
 }
 
 // ---- location → nearest NWS station → observations ----
@@ -724,10 +741,21 @@ function transitDaysText() {
 // Allowances shorter than a day cannot be judged in whole days: Tremfya's is
 // 4 hours, and one scored day would spend it six times over while still
 // reading as "1 of 1 day". Those are measured against elapsed hours instead.
+// Allowances under three days are measured in elapsed hours. Calendar days are
+// too coarse for them: a next-day delivery touches two calendar days, so a
+// 24-hour transit allowance (Tremfya) could never clear one. Cool packs mean
+// the pack-out was still working through its rated hours, so only the hours
+// after that count, the same rule the day scoring uses.
+const SHORT_ALLOWANCE_HOURS = 72;
+function exposureHours() {
+  const t = transitHours();
+  if (t == null) return null;
+  return packState === 'cool' ? Math.max(0, t - PACKOUT_RATING_HOURS) : t;
+}
 function durationOk(d, nDays) {
   const h = allowanceHours(d);
   if (h == null) return true;
-  if (h < 24) { const t = transitHours(); return t == null ? false : t <= h; }
+  if (h < SHORT_ALLOWANCE_HOURS) { const t = exposureHours(); return t == null ? false : t <= h; }
   return nDays <= allowanceDays(d);
 }
 
@@ -736,8 +764,8 @@ function durationOk(d, nDays) {
 // labels publish a budget ("14 days at up to 77F"), not a rate.
 function budgetUsed(d, nDays) {
   const h = allowanceHours(d);
-  if (h != null && h < 24) {          // reported in hours, or it reads as 1 of 1 day
-    const t = transitHours();
+  if (h != null && h < SHORT_ALLOWANCE_HOURS) {   // reported in hours, or it reads as 1 of 1 day
+    const t = exposureHours();
     if (t == null) return null;
     return { unit: 'hour', used: Math.round(t), total: h, pct: Math.min(100, Math.round(t / h * 100)) };
   }
@@ -752,7 +780,7 @@ function budgetText(d, nDays) {
   const over = b.used - b.total, u = b.unit;
   const body = over > 0
     ? `<strong>all</strong> of the ${allowance} allowance and ${over} ${u}${over === 1 ? '' : 's'} more`
-    : `about <strong>${b.pct}%</strong> of the ${allowance} allowance (${b.used} of ${b.total} ${u}${b.total === 1 ? '' : 's'}${b.total - b.used ? `, ${b.total - b.used} left` : ''})`;
+    : `about <strong>${b.pct}%</strong> of the ${allowance} allowance (${b.used} of ${b.total} ${u}${b.total === 1 ? '' : 's'}${b.total - b.used ? `, ${b.total - b.used} left` : ''}${u === 'hour' ? ', counting to about midday on the received date' : ''})`;
   return body + (d.cumulative ? ', and this is cumulative so it counts against the running total' : '');
 }
 
@@ -768,12 +796,20 @@ function bandFor(d, peakF) {
   if (!d || !d.tiers || peakF == null) return null;
   return d.tiers.find(t => peakF >= t.minF && peakF <= t.maxF) || null;
 }
-function bandDays(t) { return Math.max(1, Math.ceil(t.hours / 24)); }
-function bandText(t) {
-  const dur = t.hours < 24 ? `${t.hours} hours` : `${bandDays(t)} day${bandDays(t) === 1 ? '' : 's'}`;
-  return `${fmtF(t.minF)} to ${fmtF(t.maxF)} for ${dur}`;
+function bandText(t) { return `${fmtF(t.minF)} to ${fmtF(t.maxF)} for ${hoursText(t.hours)}`; }
+// Windows above the main ceiling (manufacturer excursion data such as Lilly's
+// 104°F for 12 hours) and below the floor (Avonex down to 23°F for 36 hours).
+function warmBands(d) { const c = d && d.excursionMaxF; return ((d && d.tiers) || []).filter(t => c != null && t.maxF > c); }
+function coldBands(d) { const f = d && drugLimits(d).floor; return ((d && d.tiers) || []).filter(t => f != null && t.maxF <= f); }
+// The main allowance plus every warm window, the way the sheet states them.
+function allBandsText(d) {
+  const at = allowanceText(d);
+  const main = d.excursionMaxF != null ? `up to ${fmtF(d.excursionMaxF)}${at ? ` for ${at}` : ''}` : null;
+  return [main].concat(warmBands(d).map(t => `up to ${fmtF(t.maxF)} for ${hoursText(t.hours)}`)).filter(Boolean).join(', and ');
 }
-function allBandsText(d) { return (d.tiers || []).map(bandText).join(', and '); }
+function coldBandsText(d) { return coldBands(d).map(t => `down to ${fmtF(t.minF)} for ${hoursText(t.hours)}${t.note ? ` (${t.note})` : ''}`).join(', '); }
+// "Run the manufacturer's calculator" as a link, when the sheet lists one.
+function calcLink(d) { return d && d.mfrCalculator ? ` or run <a href="${d.mfrCalculator.url}" target="_blank" rel="noopener">${d.mfrCalculator.name}'s stability calculator</a>` : ''; }
 
 // Is the ceiling for this product one we could not verify? Flagged rows and
 // after-first-use rows get the wider margin.
@@ -869,11 +905,11 @@ function onDrugChange() {
   if (d.noExcursion) headline = `<b>No room-temperature allowance.</b> Must stay ${rangeText(floor, ceil)} at all times`;
   else if (d.calculatorUrl) headline = `Allowance depends on the presentation and whether it has been started — <a href="${d.calculatorUrl}" target="_blank" rel="noopener">manufacturer calculator</a>`;
   else if (d.refrigerated === false) headline = `<b>Room-temperature product</b> — keep within ${rangeText(floor, ceil)}${at ? `, up to ${at} at the edges` : ''}`;
-  else if (d.tiers) headline = `Allowed out of the fridge: <b>${allBandsText(d)}</b>`;
+  else if (d.tiers) headline = `Allowed out of the fridge: <b>${allBandsText(d)}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${coldBands(d).length ? ` · cold data: <b>${coldBandsText(d)}</b>` : ''}`;
   else headline = `Allowed out of the fridge: <b>up to ${fmtF(ceil)}${at ? ` for ${at}` : ''}</b>${floor != null ? ` · not below <b>${fmtF(floor)}</b>` : ''}${d.freezeSensitive ? ' · <b>do not freeze</b>' : ''}`;
   // the two rules that change what the patient is told if the product is kept
   // the duration half of a delay call, answerable the moment a product is picked
-  const maxLate = d.noExcursion ? 0 : (allowanceDays(d) != null ? allowanceDays(d) + 1 : null);
+  const maxLate = maxDaysLate(d);
   const rules = [];
   if (maxLate === 0) rules.push('<b>any delay is a manufacturer call</b> — there is no allowance to spend');
   else if (maxLate != null) rules.push(`absorbs a delay of up to <b>${maxLate} day${maxLate === 1 ? '' : 's'}</b> on duration alone`);
@@ -885,6 +921,7 @@ function onDrugChange() {
     + (d.inUseAllowance ? `<div class="warn-note">⚠ <strong>This allowance is for a pen already in use.</strong> We ship unopened product, and the unopened allowance may be shorter or may not exist. Confirm against the label before clearing a delivery on this number.</div>` : '')
     + (d.flag ? `<div class="note" style="margin-top:4px;">⚠ ${d.flag}</div>` : '')
     + (d.derivation ? `<div class="note" style="margin-top:4px;">ℹ ${d.derivation}</div>` : '')
+    + (d.manufacturer ? `<div class="note" style="margin-top:4px;">${d.manufacturer}${d.mfrCalculator ? ` · <a href="${d.mfrCalculator.url}" target="_blank" rel="noopener">stability calculator</a>` : ''}</div>` : '')
     + `<div class="note" style="margin-top:4px;">${d.excursionNote || ''}</div>`;
   decide();
 }
@@ -952,10 +989,13 @@ function decide() {
 
   // What the patient must be told when the product is KEPT. A one-time
   // allowance that has been partly spent changes how they store it from here.
-  const aftercare = (d) => {
+  const aftercare = (d, band) => {
     if (!d) return '';
     const bits = [];
-    if (d.returnToFridge === false) bits.push(`<strong>Do not put it back in the refrigerator</strong> — ${d.name}'s label says once it reaches room temperature it stays there`);
+    // a high-temperature window can carry its own instruction (Enbrel: back in
+    // the fridge, use within 4 days) that replaces the everyday one
+    if (band && band.note) bits.push(`After a spell in that range ${d.name}'s data says: <strong>${band.note}</strong>`);
+    else if (d.returnToFridge === false) bits.push(`<strong>Do not put it back in the refrigerator</strong> — ${d.name}'s label says once it reaches room temperature it stays there`);
     else if (d.cumulative) bits.push(`The allowance is <strong>cumulative</strong> (${allowanceText(d) || 'see the label'} total out of the fridge) and this trip has already used part of it — it can go back in the fridge, but the clock does not reset`);
     else if (allowanceHours(d) != null) bits.push(`The ${allowanceText(d).replace(/^(\d+) (day|hour)s?$/, '$1-$2')} allowance is <strong>one-time</strong> and partly spent — have them use it promptly rather than banking it`);
     if (d.protectFromLight) bits.push('Keep it in the original carton, away from light');
@@ -979,6 +1019,7 @@ function decide() {
   // is proof the box never warmed up. The catch is that it proves it about the
   // PACK, not the product, and solid packs are colder than slushy ones.
   if (packState === 'frozen') {
+    const coldCover = coldBands(d).find(t => PACK_MELT_F >= t.minF && PACK_MELT_F <= t.maxF) || null;
     // Solid packs past the pack-out's rating are not the clean signal they look
     // like. Ice that should have melted and did not is usually ice that melted
     // and re-froze, and re-freezing a pack takes air well below freezing — the
@@ -988,7 +1029,7 @@ function decide() {
       `<strong>Ice that outlasts its rating has usually melted and re-frozen</strong>, and re-freezing takes air well below ${fmtF(PACK_MELT_F)} — the same air the product was sitting in`,
       `The alternative is that the pack-out simply ran long, which happens in a cool hold. Nothing inside the box separates the two`,
       'Freeze damage is not always visible, so appearance can confirm freezing but cannot rule it out',
-    ], [
+    ].concat(coldCover ? [`${d.name}'s label data does cover <strong>${bandText(coldCover)}</strong>${coldCover.note ? `, ${coldCover.note}` : ''}, so a limited spell at freezing is inside its data`] : []), [
       `<strong>Where it was held:</strong> tracking shows a clean run ${K} · a hub hold, a cold-storage scan, or a night on a freight ramp ${R}`,
       `<strong>Pack shape:</strong> still in its moulded form ${K} · slumped, settled to one side, or with a void where liquid moved before re-freezing ${R}`,
       `<strong>Appearance:</strong> clear, no crystals, no cloudiness or particles, looks like the last dose ${K} · anything off ${R}`,
@@ -999,7 +1040,7 @@ function decide() {
       `Packs still frozen solid means the box never rose above ${fmtF(PACK_MELT_F)} — heat is not the question here`,
       `<strong>${d.name} must not be used if it froze</strong>, and a solid pack is at or below freezing where the product touches it`,
       'Freeze damage is not always visible, so appearance can confirm freezing but cannot rule it out',
-    ], [
+    ].concat(coldCover ? [`${d.name}'s label data does cover <strong>${bandText(coldCover)}</strong>${coldCover.note ? `, ${coldCover.note}` : ''}, so a limited spell at freezing is inside its data`] : []), [
       `<strong>Appearance:</strong> clear, no crystals, no cloudiness or particles, looks like the last dose ${K} · anything off ${R}`,
       `<strong>Where it sat:</strong> product separated from the packs by the insert ${K} · loose in the box against a pack ${R}`,
       `<strong>Trip length:</strong> arrived on time with packs barely started ${K} · arrived early and deeply frozen ${R}`,
@@ -1043,13 +1084,13 @@ function decide() {
   // Products with no room-temperature allowance at all (Forteo, Genotropin,
   // Omnitrope). There is nothing to spend, so thawed packs mean an excursion
   // by definition and the manufacturer decides, not the weather.
-  if (d.noExcursion && packState !== 'frozen' && packState !== 'slushy')
+  if (d.noExcursion && d.refrigerated !== false && packState !== 'frozen' && packState !== 'slushy')
     return judge('JUDGMENT CALL — no allowance to spend', [
       `<strong>${d.name} has no room-temperature allowance.</strong> Its label is ${rangeText(floor, ceil)} at all times`,
       `The packs had thawed, so the product was out of that range for some part of the trip`,
       `Nothing in the weather data can clear this one — only the manufacturer's stability data can`,
     ], [
-      `<strong>Call the manufacturer's medical information line</strong> with the shipped and received dates and the numbers below. They answer from their own stability data, usually same day`,
+      `<strong>Call the manufacturer's medical information line</strong>${calcLink(d)} with the shipped and received dates and the numbers below. They answer from their own stability data, usually same day`,
       `<strong>How long the packs had been thawed:</strong> arrived cool, likely just melted ${K} · warm to the touch ${R}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
     ], '"I want to check one thing with the manufacturer before you use it. I\'ll call you straight back today."',
@@ -1086,10 +1127,19 @@ function decide() {
     // alone hid the heat completely, so when both happened both are reported.
     const alsoHot = sAbove > 0 && ceil != null;
     const atLeast = scored.some(x => x.thin) ? 'At least' : 'Up to';
+    // Some labels publish cold data below the floor (Avonex down to 23°F for
+    // 36 hours). Say where the dip sat against it; the call stays a judgment,
+    // because a station low is not the box and episode limits can't be seen.
+    const cb = coldBands(d).find(t => lo >= t.minF) || null;
+    const coldNote = !coldBands(d).length ? null
+      : cb ? (sBelow <= cb.hours
+          ? `The low sits inside ${d.name}'s cold data, <strong>${bandText(cb)}</strong>${cb.note ? ` (${cb.note})` : ''}, and ${sBelow} hour${sBelow === 1 ? '' : 's'} is within it`
+          : `The low is inside ${d.name}'s cold data range, <strong>${bandText(cb)}</strong>, but ${sBelow} hours is longer than that covers`)
+      : `The low went below ${d.name}'s cold data as well (${coldBandsText(d)})`;
     return judge(alsoHot ? 'JUDGMENT CALL — cold and heat exposure' : 'JUDGMENT CALL — cold exposure', [
       `Outdoor air dropped to <strong>${fmtF(lo)}</strong> — the floor is ${fmtF(floor)}`,
       `${atLeast} <strong>${sBelow} hour${sBelow === 1 ? '' : 's'}</strong> below the floor across ${nDays} day${nDays === 1 ? '' : 's'} scored`,
-    ].concat(alsoHot ? [
+    ].concat(coldNote ? [coldNote] : []).concat(alsoHot ? [
       `<strong>The same trip also ran hot:</strong> air reached <strong>${fmtF(hi)}</strong> against the ${fmtF(ceil)} ceiling, ${atLeast.toLowerCase()} <strong>${sAbove} hour${sAbove === 1 ? '' : 's'}</strong> above it`,
     ] : []).concat([
       'Station air, assumed for the whole window — inside a box with packs it stays warmer than that',
@@ -1161,46 +1211,60 @@ function decide() {
     ], '"It stayed cool the whole way and was refrigerated for most of that time, so it\'s fine to use."', '"It was out of refrigeration longer than this medication allows, so I\'m going to replace it. Please set it aside; we\'ll send a new one."');
   }
 
-  // Banded products: judge the peak against the band it actually falls in.
-  if (d.tiers && hi != null && ceil != null && hi > ceil) {
-    const band = bandFor(d, hi);
-    if (band && nDays <= bandDays(band) && !evidenceWeak(lastResult, scored))
-      return show('ok', 'OK TO USE',
-        `Peak was ${fmtF(hi)}, above the ${fmtF(ceil)} ceiling — but ${d.name}'s label carries a second window for exactly this range: <strong>${bandText(band)}</strong>. The ${nDays} day${nDays === 1 ? '' : 's'} scored ${nDays === 1 ? 'is' : 'are'} inside it, so this exposure is covered rather than an excursion.`,
-        `"That range is actually covered by ${d.name}'s own stability data for this long, so it's fine to use. Into the fridge and use as normal."`,
-        aftercare(d) + evid(scored));
+  // Banded products: a peak above the main ceiling is judged against the
+  // window it falls in, in HOURS. The manufacturer figures behind these windows
+  // run from 4 hours to a few days, and scoring them in whole days let one full
+  // day clear a 4-hour window. Each window starts at the main ceiling, so the
+  // hours above the ceiling are the hours spent in it, and the trip as a whole
+  // must still fit the main allowance.
+  if (warmBands(d).length && hi != null && ceil != null && hi > ceil) {
+    const band = warmBands(d).find(t => hi >= t.minF && hi <= t.maxF) || null;
+    const joined = !!band && band.minF <= ceil;            // no uncovered gap beneath it
+    const inBand = joined && sAbove <= band.hours;
+    const mainOk = durationOk(d, nDays);
+    const thinAbove = scored.some(x => x.thin);
+    const hrs = (n) => `${n} hour${n === 1 ? '' : 's'}`;
+    const win = band ? `up to ${fmtF(band.maxF)} for ${hoursText(band.hours)}` : '';
 
-    // inside the band on duration, but the record behind it is not good enough
-    if (band && nDays <= bandDays(band)) return judge('JUDGMENT CALL — the weather record is thin', [
-      `Peak was <strong>${fmtF(hi)}</strong>, inside ${d.name}'s <strong>${bandText(band)}</strong> window, and ${nDays} day${nDays === 1 ? '' : 's'} is within it`,
+    if (inBand && mainOk && !evidenceWeak(lastResult, scored))
+      return show('ok', 'OK TO USE',
+        `Peak was ${fmtF(hi)}, above the everyday ${fmtF(ceil)} ceiling, but ${d.name}'s data carries a window for this range: <strong>${win}</strong>. The air was above ${fmtF(ceil)} for ${hrs(sAbove)}, inside that window, and the trip fits the main allowance, so this is covered rather than an excursion.`
+          + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : ''),
+        `"That range is covered by ${d.name}'s own stability data for this long, so it's fine to use."`,
+        aftercare(d, band) + evid(scored));
+
+    // inside the window, but the record behind it is not good enough
+    if (inBand && mainOk) return judge('JUDGMENT CALL — the weather record is thin', [
+      `Peak was <strong>${fmtF(hi)}</strong>, inside ${d.name}'s window of <strong>${win}</strong>, with at least ${hrs(sAbove)} above ${fmtF(ceil)}`,
       `<strong>But the record has gaps.</strong> ${evidenceLine(lastResult, scored)}`,
-      'A hotter unobserved hour could put the peak outside that window entirely',
+      'Unobserved hot hours would add to that count, or put the peak outside the window entirely',
     ], [
       `<strong>Pack state, which does not rely on the record:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
-      `<strong>Headroom in the window:</strong> peak well under ${fmtF(band.maxF)} ${K} · close to it ${R}`,
+      `<strong>Room left in the window:</strong> well under ${hoursText(band.hours)} and ${fmtF(band.maxF)} ${K} · close to either ${R}`,
     ], `"What we can see puts it inside what ${d.name}'s data covers, and the packs back that up. It's fine to use."`,
        '"The weather record for your area has gaps, so I\'d rather replace it than assume. Please set it aside."');
 
     if (band) return judge('JUDGMENT CALL — past the high-temperature window', [
-      `Peak was <strong>${fmtF(hi)}</strong>, which falls in ${d.name}'s <strong>${bandText(band)}</strong> window`,
-      `<strong>${nDays} day${nDays === 1 ? '' : 's'} scored</strong> against that window's ${bandDays(band)}-day limit`,
-      `Published windows: ${allBandsText(d)}`,
-    ], [
-      `<strong>How far past:</strong> a day over ${K} · several days over ${R}`,
+      `Peak was <strong>${fmtF(hi)}</strong>, which falls in ${d.name}'s window of <strong>${win}</strong>`,
+    ].concat(joined && !inBand ? [`${thinAbove ? 'At least' : 'Up to'} <strong>${hrs(sAbove)}</strong> above ${fmtF(ceil)}, against that window's ${hoursText(band.hours)}`] : [])
+     .concat(!joined ? [`Nothing ${d.name} publishes covers ${fmtF(ceil)} to ${fmtF(band.minF)}, and the trip was above ${fmtF(ceil)}`] : [])
+     .concat(!mainOk ? [`<strong>The trip also ran past the main allowance</strong> of ${allowanceText(d)}${budget ? `: it used ${budget}` : ''}`] : [])
+     .concat([`Published windows: ${allBandsText(d)}`]), [
+      `<strong>How far past:</strong> a few hours over ${K} · far over, or several hot afternoons ${R}`,
       `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran colder than the air ${K}` : `warm, so the box tracked the air ${R}`}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
-    ], `"It went above the usual range but within what ${d.name}'s data covers for a short period. It's fine to use."`,
+    ], `"It went above the usual range, but the box ran cooler than the air and it's within what ${d.name}'s data covers. It's fine to use."`,
        '"It sat in that range longer than the data covers, so I\'m replacing it. Please set it aside; we\'ll send a new one."');
 
-    // peak sits between the published windows, or above all of them
-    return judge('JUDGMENT CALL — between the published windows', [
+    // peak is above every published window
+    return judge('JUDGMENT CALL — outside the published windows', [
       `Peak was <strong>${fmtF(hi)}</strong>, above the ${fmtF(ceil)} ceiling`,
-      `<strong>${d.name} publishes ${allBandsText(d)}</strong> — and nothing that covers ${fmtF(hi)}`,
+      `<strong>${d.name} publishes ${allBandsText(d)}</strong>, and nothing that covers ${fmtF(hi)}`,
       `So this is not a case the label speaks to either way`,
     ], [
-      `<strong>Call the manufacturer</strong> with the peak and the ${nDays} day${nDays === 1 ? '' : 's'} — they hold the data for the gap`,
-      `<strong>How close to a covered window:</strong> just over the lower one ${K} · well into the gap ${R}`,
+      `<strong>Call the manufacturer</strong>${calcLink(d)} with the peak and the ${nDays} day${nDays === 1 ? '' : 's'}. They hold the data for it`,
+      `<strong>How far above:</strong> just over the top window ${K} · well above it ${R}`,
       `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
     ], '"Let me confirm one thing with the manufacturer and call you straight back today."',
        '"This landed outside what the label covers, so I\'m replacing it rather than guessing. Please set it aside."');

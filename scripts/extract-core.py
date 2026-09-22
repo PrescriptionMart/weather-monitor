@@ -26,6 +26,7 @@ const document = { getElementById: el, querySelector: () => null, querySelectorA
 EXPORTS = '''
 module.exports = {
   decide, summarize, evidenceWeak, budgetUsed, budgetText, durationOk, transitHours, pastRating,
+  maxDaysLate, hoursText, warmBands, coldBands, exposureHours, SHORT_ALLOWANCE_HOURS,
   zonedInstant, dayStart, dayEnd, coveredUntil, splitCovered, allowanceText, allowanceDays,
   drugLimits, ceilingUncertain, ceilingMargin, onDrugChange, els,
   PICKUP_HOUR, PACKOUT_RATING_HOURS, OBS_HOURS_GOOD, MAX_STATION_MILES,
