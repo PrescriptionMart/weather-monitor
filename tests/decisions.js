@@ -301,7 +301,7 @@ console.log('\n--- use-by date for product that cannot go back in the fridge ---
 {
   call(drug('Aimovig'), 'warm', hotHours(1, 60, 10, 97), 1);
   ok('NewLeaf note on an OK: "Use by 7/12"', /OK TO USE\. Use by 7\/12, not back in fridge\./.test(C.noteText()), C.noteText());
-  call(drug('Aimovig'), 'cool', hotHours(5, 60, 45, 97, MARK), 5);
+  call(drug('Aimovig'), 'warm', hotHours(5, 60, 45, 97, MARK), 5);
   ok('NewLeaf note on a judgment call: "If kept, use by 7/14"', /If kept, use by 7\/14/.test(C.noteText()), C.noteText());
   call(drug('Humira'), 'warm', weather(2, 60, 70), 2);
   ok('no use-by in the note when it may go back in the fridge', !/use by/i.test(C.noteText()));
@@ -365,6 +365,33 @@ console.log('\n--- the clock: out of the fridge 48 hours after pick-up (Aimovig,
     return !(inside && outside);
   });
   ok('for every product, "N days late" on the delay reference matches the card', off.length === 0, off.map(r => r.name).join(', '));
+}
+
+console.log('\n--- cool packs settle the heat question (shipped Mon, delivered Thu) ---');
+['Humira', 'Amjevita', 'Cimzia'].forEach(n => {
+  const cool = call(drug(n), 'cool', weather(3, 78, 95), 3);
+  ok(`${n}, Houston summer, cool packs: OK TO USE`, cool.cls === 'ok' && /packs were still cool on delivery/.test(cool.text), cool.big);
+  ok(`${n}, Houston summer, warm packs: still a heat judgment call`, /possible heat excursion/.test(call(drug(n), 'warm', weather(3, 78, 95), 3).big));
+});
+{
+  const c = call(drug('Humira'), 'cool', weather(3, 78, 95), 3);
+  ok('  the card names the heat it was protected from', /which reached 95°F/.test(c.text) && /stayed below its 77°F limit/.test(c.text), c.text.slice(0, 260));
+  ok('  and keeps the out-of-fridge instructions', /one-time/.test(c.text) || /Use it by/.test(c.text));
+  const heatCards = /heat excursion|high-heat window|ran close to the limit|outside the published windows/;
+  const hit = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion && !r.calculatorUrl)
+                  .filter(r => heatCards.test(call(r, 'cool', weather(3, 78, 100), 3).big));
+  ok('no refrigerated product gets a heat card with cool packs', hit.length === 0, hit.map(r => r.name).join(', '));
+  const t = call(drug('Tremfya'), 'cool', weather(4, 78, 95), 4);
+  ok('cool packs do not stretch time: Tremfya 44 hours on a 24-hour allowance is a duration call',
+     /duration/.test(t.big) && /Heat was not the question/.test(t.text), t.big);
+  ok('cool packs do not cover cold: a 20°F night is still a cold card',
+     /cold exposure/.test(call(drug('Humira'), 'cool', weather(3, 45, 60, { dipAt: 70, dip: 20 }), 3).big));
+  ok('with cool packs, gaps in a summer record do not matter',
+     call(drug('Humira'), 'cool', weather(3, 78, 95, { skip: (h) => h >= 9 && h <= 20 }), 3).cls === 'ok');
+  ok('but a gappy record near the floor still does',
+     /record is thin/.test(call(drug('Humira'), 'cool', weather(3, 38, 55, { skip: (h) => h >= 9 && h <= 20 }), 3).big));
+  C.setDrug(drug('Afinitor')); C.setPack('cool');
+  ok('room-temperature products are not covered by packs', !/packs were still cool/.test(call(drug('Afinitor'), 'cool', weather(3, 78, 95), 3).text));
 }
 
 console.log(failed ? `\n${failed} DECISION TEST(S) FAILED, ${passed} passed` : `\nAll ${passed} decision tests passed.`);
