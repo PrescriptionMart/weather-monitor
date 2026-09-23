@@ -210,6 +210,19 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   delay reference already worked this way, and a test checks the card and the
   reference agree for every product. Setting `PICKUP_HOUR` earlier than reality
   is conservative; later is not.
+- **Cool packs settle the heat question** (`COOL_PACKS_COVER_F`). Packs only
+  warm over a trip, so packs still clearly cooler than the room on delivery
+  mean the inside of the box was never warmer than that and the product never
+  reached the outdoor heat. For every product whose limit is 77°F or higher,
+  which is every product with an allowance, cool packs clear the heat side
+  however hot the air got: shipped Monday, delivered Thursday in a 95°F
+  Houston week, Humira with cool packs is OK TO USE and with warm packs is a
+  heat judgment call. Cool packs do not cover cold, do not stretch the time
+  allowance, and do not change the use-by or fridge instructions. A gappy
+  weather record only matters with cool packs when the low came within 10°F
+  of the floor. Room-temperature products are not covered. The pack button
+  reads "clearly cooler than the room to the touch", because the rule rests
+  on it.
 - **The safeguard on warm packs.** For warm packs on a late delivery the verdict
   is first decided counting from the pick-up. If that would not clear and the
   48-hour rule would, the rule is the only thing clearing it, and warm packs

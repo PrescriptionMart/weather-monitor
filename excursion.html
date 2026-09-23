@@ -319,7 +319,7 @@
       <div class="pack-btns" id="pack-btns">
         <button type="button" class="pack-btn" data-state="frozen" onclick="setPack('frozen')">Still frozen solid<span class="sub">hard, icy</span></button>
         <button type="button" class="pack-btn" data-state="slushy" onclick="setPack('slushy')">Slushy / partly frozen<span class="sub">some ice, some liquid</span></button>
-        <button type="button" class="pack-btn" data-state="cool" onclick="setPack('cool')">Thawed but still cool<span class="sub">liquid, cooler than the room</span></button>
+        <button type="button" class="pack-btn" data-state="cool" onclick="setPack('cool')">Thawed but still cool<span class="sub">clearly cooler than the room to the touch</span></button>
         <button type="button" class="pack-btn" data-state="warm" onclick="setPack('warm')">Thawed and warm<span class="sub">room temperature or warmer</span></button>
       </div>
       <label class="flag-row"><input type="checkbox" id="product-frozen" onchange="decide()" /> <span>Ask: "Does the medication itself look frozen, have ice crystals, or look cloudy / different than usual?" — <strong>check if yes</strong></span></label>
@@ -833,6 +833,15 @@ function transitDaysText() {
 // the pack-out was still working through its rated hours, so only the hours
 // after that count, the same rule the day scoring uses.
 const SHORT_ALLOWANCE_HOURS = 72;
+// Cool packs settle the heat question. Packs only warm over a trip, so packs
+// still clearly cooler than the room on delivery mean the inside of the box
+// was never warmer than that, and the product never reached the outdoor heat.
+// That holds for any product whose limit is at or above room temperature.
+// Cold, duration and the out-of-fridge instructions are still checked.
+const COOL_PACKS_COVER_F = 77;
+function packsCoverHeat(d, ceil) {
+  return packState === 'cool' && d && d.refrigerated !== false && !d.noExcursion && ceil != null && ceil >= COOL_PACKS_COVER_F;
+}
 // THE CLOCK. When a product counts as out of the fridge, and when the count
 // stops. The pharmacy's rule: out of the fridge 48 hours after the 4pm pick-up,
 // the pack-out's rating, whatever the packs felt like on a late delivery. Two
@@ -1300,6 +1309,14 @@ function decide() {
   const nDays = scored.length;
   _scored = scored;
   const budget = budgetText(d, nDays);
+  const packsCover = packsCoverHeat(d, ceil);
+  const heatHours = packsCover ? 0 : sAbove;          // hours of outdoor heat that could have reached it
+  // how the temperature is described on the time-based cards
+  const tempLine = packsCover && hi != null && hi > ceil
+    ? `<strong>Heat was not the question:</strong> the air reached ${fmtF(hi)}, but the packs were still cool on delivery, so the product stayed below ${d.name}'s ${fmtF(ceil)} limit`
+    : `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`;
+  // with cool packs a thin record only matters if cold was possible
+  const coldPlausible = floor != null && lo != null && lo < floor + 10;
   if (_noCredit) _noCreditSummary = { hi, sAbove, sBelow, nDays, hours: exposureHours(), durOk: durationOk(d, nDays) };
 
   // Warm packs on a late delivery clear only because of the 48-hour rule: the
@@ -1341,7 +1358,7 @@ function decide() {
   if (sBelow > 0 && floor != null) {
     // A trip can break both ends of the range. Returning here on the cold hours
     // alone hid the heat completely, so when both happened both are reported.
-    const alsoHot = sAbove > 0 && ceil != null;
+    const alsoHot = heatHours > 0 && ceil != null;
     const atLeast = scored.some(x => x.thin) ? 'At least' : 'Up to';
     // Some labels publish cold data below the floor (Avonex down to 23°F for
     // 36 hours). Say where the dip sat against it; the call stays a judgment,
@@ -1369,25 +1386,25 @@ function decide() {
     ]), '"Since it looks completely normal, it\'s fine to use — put it in the fridge as usual."', '"I\'d rather replace this one to be safe. Please set it aside; we\'ll send a new one and arrange the return."');
   }
 
-  if (sAbove === 0) {
+  if (heatHours === 0) {
     const durOk = durationOk(d, nDays);
     if (durOk && d.inUseAllowance) return judge('JUDGMENT CALL — allowance may not apply', [
-      `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling, across ${nDays} day${nDays === 1 ? '' : 's'}`,
+      `${tempLine}, across ${nDays} day${nDays === 1 ? '' : 's'}`,
       `<strong>But ${d.name}'s ${allowanceText(d)} allowance is an after-first-use figure</strong>, and this was unopened product in transit`,
       `The unopened allowance may be shorter, or may not exist — the sheet does not carry it`,
     ], [
       `<strong>Check the label or call the manufacturer</strong> for the unopened room-temperature allowance. That is the number this decision needs`,
-      `<strong>Temperature was never the problem here</strong> — peak ${fmtF(hi)} stayed under ${fmtF(ceil)} ${K}`,
+      `<strong>Temperature was never the problem here</strong> — ${packsCover && hi > ceil ? `the packs were still cool, so it stayed under ${fmtF(ceil)}` : `peak ${fmtF(hi)} stayed under ${fmtF(ceil)}`} ${K}`,
       `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool on arrival ${K}` : `warm on arrival ${R}`}`,
     ], '"The temperature held the whole way. Let me confirm one storage detail and call you right back."',
        '"I\'d rather replace this than clear it on a number that may not apply to an unopened pen. Please set it aside; we\'ll send a new one."');
     if (durOk) {
       // Thin or distant weather data cannot clear a shipment: the hours we
       // report are only the hours the station happened to report.
-      if (evidenceWeak(lastResult, scored)) return judge('JUDGMENT CALL — the weather record is thin', [
-        `Nothing we observed went above the ${fmtF(ceil)} ceiling (peak ${fmtF(hi)}) across ${nDays} day${nDays === 1 ? '' : 's'}`,
+      if (evidenceWeak(lastResult, scored) && (!packsCover || coldPlausible)) return judge('JUDGMENT CALL — the weather record is thin', [
+        packsCover ? `${tempLine}. The low was ${fmtF(lo)}, within 10°F of the ${fmtF(floor)} floor` : `Nothing we observed went above the ${fmtF(ceil)} ceiling (peak ${fmtF(hi)}) across ${nDays} day${nDays === 1 ? '' : 's'}`,
         `<strong>But the record has gaps.</strong> ${evidenceLine(lastResult, scored)}`,
-        'An unobserved hot hour would not show up in these numbers at all',
+        packsCover ? 'An unobserved colder hour would not show up in these numbers at all' : 'An unobserved hot hour would not show up in these numbers at all',
       ], [
         `<strong>Pack state, which does not rely on the weather record:</strong> ${packState === 'cool' ? `still cool on arrival, so the pack-out was still working ${K}` : `warm on arrival, so it was spent ${R}`}`,
         `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
@@ -1399,7 +1416,7 @@ function decide() {
       // several ceilings could not be verified against a label.
       const headroom = (ceil != null && hi != null) ? ceil - hi : null;
       const margin = ceilingMargin(d);
-      if (headroom != null && headroom < margin) return judge('JUDGMENT CALL — it ran close to the limit', [
+      if (!packsCover && headroom != null && headroom < margin) return judge('JUDGMENT CALL — it ran close to the limit', [
         `Peak was <strong>${fmtF(hi)}</strong> against a ${fmtF(ceil)} ceiling — ${headroom}°F of headroom`,
         ceilingUncertain(d)
           ? `<strong>${d.name}'s ceiling could not be verified against the label</strong>, so ${headroom}°F is not enough room to clear it on`
@@ -1412,13 +1429,16 @@ function decide() {
       ], '"It stayed within what this medication tolerates and the packs were still doing their job. It\'s fine to use."',
          '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
 
-      const why = `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`
+      const why = (packsCover
+          ? `The packs were still cool on delivery, so the inside of the box never got as warm as the air outside${hi > ceil ? `, which reached ${fmtF(hi)}` : ''}. ${d.name} stayed below its ${fmtF(ceil)} limit.`
+          : `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`)
         + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '');
+      if (packsCover) return show('ok', 'OK TO USE', why, `"The ice packs were still cool when it arrived, so it stayed cold inside the box. It's fine to use."`, aftercare(d) + evid(scored));
       if (_creditDecisive) return creditCard();
       return show('ok', 'OK TO USE', why, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
     }
     return judge('JUDGMENT CALL — duration', [
-      `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`,
+      tempLine,
       `<strong>${transitDaysText() || nDays + ' days'}</strong> out of the fridge — the allowance is ${allowanceText(d)}${budget ? `, so this trip would use ${budget}` : ''}`,
       `Allowance: ${d.excursionNote || rangeText(floor, ceil)}`,
     ], [
