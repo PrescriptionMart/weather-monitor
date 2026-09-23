@@ -370,12 +370,17 @@ console.log('\n--- the clock: out of the fridge 48 hours after pick-up (Aimovig,
 console.log('\n--- cool packs settle the heat question (shipped Mon, delivered Thu) ---');
 ['Humira', 'Amjevita', 'Cimzia'].forEach(n => {
   const cool = call(drug(n), 'cool', weather(3, 78, 95), 3);
-  ok(`${n}, Houston summer, cool packs: OK TO USE`, cool.cls === 'ok' && /packs were still cool on delivery/.test(cool.text), cool.big);
+  ok(`${n}, Houston summer, cool packs: LIKELY OK TO USE`, cool.cls === 'likely' && /LIKELY OK TO USE/.test(cool.big), cool.big);
   ok(`${n}, Houston summer, warm packs: still a heat judgment call`, /possible heat excursion/.test(call(drug(n), 'warm', weather(3, 78, 95), 3).big));
 });
 {
   const c = call(drug('Humira'), 'cool', weather(3, 78, 95), 3);
-  ok('  the card names the heat it was protected from', /which reached 95°F/.test(c.text) && /stayed below its 77°F limit/.test(c.text), c.text.slice(0, 260));
+  ok('  the card says the packs outlasted their rating while the air reached 95°F',
+     /20 hours past their 48-hour rating, while the air outside reached 95°F/.test(c.text), c.text.slice(0, 260));
+  ok('  and does not claim more than the packs prove', /cannot prove it never got warm/.test(c.text) && !/never got as warm as the air/.test(c.text));
+  ok('  it lists the two checks before clearing', /Check before you clear it/.test(c.text)
+     && /clearly cooler than the room/.test(c.text) && /Tracking shows the wait at a facility/.test(c.text));
+  ok('  the NewLeaf note carries the verdict', /LIKELY OK TO USE\./.test(C.noteText()), C.noteText());
   ok('  and keeps the out-of-fridge instructions', /one-time/.test(c.text) || /Use it by/.test(c.text));
   const heatCards = /heat excursion|high-heat window|ran close to the limit|outside the published windows/;
   const hit = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion && !r.calculatorUrl)
@@ -383,13 +388,18 @@ console.log('\n--- cool packs settle the heat question (shipped Mon, delivered T
   ok('no refrigerated product gets a heat card with cool packs', hit.length === 0, hit.map(r => r.name).join(', '));
   const t = call(drug('Tremfya'), 'cool', weather(4, 78, 95), 4);
   ok('cool packs do not stretch time: Tremfya 44 hours on a 24-hour allowance is a duration call',
-     /duration/.test(t.big) && /Heat was not the question/.test(t.text), t.big);
+     /duration/.test(t.big) && /Heat is not the deciding question/.test(t.text) && /very likely stayed below/.test(t.text), t.big);
   ok('cool packs do not cover cold: a 20°F night is still a cold card',
      /cold exposure/.test(call(drug('Humira'), 'cool', weather(3, 45, 60, { dipAt: 70, dip: 20 }), 3).big));
   ok('with cool packs, gaps in a summer record do not matter',
-     call(drug('Humira'), 'cool', weather(3, 78, 95, { skip: (h) => h >= 9 && h <= 20 }), 3).cls === 'ok');
+     call(drug('Humira'), 'cool', weather(3, 78, 95, { skip: (h) => h >= 9 && h <= 20 }), 3).cls === 'likely');
   ok('but a gappy record near the floor still does',
      /record is thin/.test(call(drug('Humira'), 'cool', weather(3, 38, 55, { skip: (h) => h >= 9 && h <= 20 }), 3).big));
+  const mild = call(drug('Humira'), 'cool', weather(3, 60, 74), 3);
+  ok('cool packs and the air never over the limit: a plain OK, not "likely"', mild.cls === 'ok' && /under Humira's 77°F limit/.test(mild.text), mild.big);
+  const likelyWarm = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion)
+                         .filter(r => call(r, 'warm', weather(3, 78, 95), 3).cls === 'likely');
+  ok('LIKELY OK never comes from warm packs', likelyWarm.length === 0, likelyWarm.map(r => r.name).join(', '));
   C.setDrug(drug('Afinitor')); C.setPack('cool');
   ok('room-temperature products are not covered by packs', !/packs were still cool/.test(call(drug('Afinitor'), 'cool', weather(3, 78, 95), 3).text));
 }

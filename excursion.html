@@ -152,6 +152,7 @@
     .verdict-card { border-radius: var(--radius-lg); padding: 28px 32px; border: 1px solid var(--border); }
     .verdict-card.ok { background: var(--low-bg); border-color: var(--low-bd); color: var(--low-fg); }
     .verdict-card.call { background: var(--med-bg); border-color: var(--med-bd); color: var(--med-fg); }
+    .verdict-card.likely { background: var(--low-bg); border: 2px dashed var(--med-dot); color: var(--low-fg); }
     .verdict-card.replace { background: var(--high-bg); border-color: var(--high-bd); color: var(--high-fg); }
     .verdict-card.wait { background: var(--surface-2); color: var(--text-muted); }
     .verdict-big { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
@@ -1163,7 +1164,8 @@ function decide() {
   const d = currentDrug();
   const productFrozen = document.getElementById('product-frozen').checked;
   const v = document.getElementById('verdict');
-  const show = (cls, big, why, tell, after) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}${after || ''}`; };
+  // `first` renders ahead of the patient script: checks that decide whether it is said at all
+  const show = (cls, big, why, tell, after, first) => { v.className = 'verdict-card ' + cls; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-why">${why}</div>${first || ''}${tell ? `<div class="verdict-tell"><b>Tell the patient</b>${tell}</div>` : ''}${after || ''}`; };
   const li = (items) => `<ul class="verdict-list">${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
   const evid = (sc) => { const t = evidenceLine(lastResult, sc); return t ? `<div class="verdict-tell"><b>Evidence</b>${t}</div>` : ''; };
   const K = '<span class="lean keep">keep</span>', R = '<span class="lean replace">replace</span>';
@@ -1313,7 +1315,7 @@ function decide() {
   const heatHours = packsCover ? 0 : sAbove;          // hours of outdoor heat that could have reached it
   // how the temperature is described on the time-based cards
   const tempLine = packsCover && hi != null && hi > ceil
-    ? `<strong>Heat was not the question:</strong> the air reached ${fmtF(hi)}, but the packs were still cool on delivery, so the product stayed below ${d.name}'s ${fmtF(ceil)} limit`
+    ? `<strong>Heat is not the deciding question:</strong> the air reached ${fmtF(hi)}, but the packs were still cool on delivery, so the product very likely stayed below ${d.name}'s ${fmtF(ceil)} limit`
     : `Temperature was fine: peak <strong>${fmtF(hi)}</strong>, under the ${fmtF(ceil)} ceiling`;
   // with cool packs a thin record only matters if cold was possible
   const coldPlausible = floor != null && lo != null && lo < floor + 10;
@@ -1429,10 +1431,26 @@ function decide() {
       ], '"It stayed within what this medication tolerates and the packs were still doing their job. It\'s fine to use."',
          '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
 
+      const used = budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '';
+      // LIKELY OK: cool packs, but the air went over the limit. The packs
+      // outlasted their 48-hour rating, which almost always means the box sat
+      // indoors. What they cannot prove: melted packs are just cold mass and
+      // cool back down in an air-conditioned building, so a box that got hot
+      // on a truck and then sat indoors could still arrive with cool packs.
+      if (packsCover && hi != null && hi > ceil) return show('likely', 'LIKELY OK TO USE',
+        `The packs were still cool on delivery, ${Math.round(exposureHours() || 0)} hours past their ${PACKOUT_RATING_HOURS}-hour rating, while the air outside reached ${fmtF(hi)}. `
+        + `Packs that outlast their rating usually mean the box sat indoors, most often in an air-conditioned carrier building, and then ${d.name} stayed below its ${fmtF(ceil)} limit. `
+        + `The packs cannot prove it never got warm on the way, so check two things before you clear it.${used}`,
+        `"The ice packs were still cool when it arrived, so it stayed cold inside the box. It's fine to use."`,
+        aftercare(d) + evid(scored),
+        `<div class="verdict-tell"><b>Check before you clear it</b><ul class="verdict-list">`
+        + `<li><strong>The packs are clearly cooler than the room,</strong> not just not warm. If they are closer to room temperature, mark them warm: this becomes a heat judgment call.</li>`
+        + `<li><strong>Tracking shows the wait at a facility, not on a truck.</strong> Melted packs cool back down in an air-conditioned building, so a box that got hot on a truck and then sat indoors could still arrive with cool packs.</li>`
+        + `</ul></div>`);
       const why = (packsCover
-          ? `The packs were still cool on delivery, so the inside of the box never got as warm as the air outside${hi > ceil ? `, which reached ${fmtF(hi)}` : ''}. ${d.name} stayed below its ${fmtF(ceil)} limit.`
+          ? `The air peaked at ${fmtF(hi)}, under ${d.name}'s ${fmtF(ceil)} limit, and the packs were still cool on delivery.`
           : `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`)
-        + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '');
+        + used;
       if (packsCover) return show('ok', 'OK TO USE', why, `"The ice packs were still cool when it arrived, so it stayed cold inside the box. It's fine to use."`, aftercare(d) + evid(scored));
       if (_creditDecisive) return creditCard();
       return show('ok', 'OK TO USE', why, `"It never got warmer outside than ${d.name} allows, and the time was well within its limit — it\'s fine. Into the fridge and use as normal."`, aftercare(d) + evid(scored));
@@ -1588,6 +1606,7 @@ decide = function() {
   // let the courier respond to what was just decided
   if (window.courierReact && !v.classList.contains('wait')) {
     if (v.classList.contains('ok')) window.courierReact('good', 'Nice. That one\'s fine.');
+    else if (v.classList.contains('likely')) window.courierReact('good', 'Probably fine. Check the packs.');
     else if (v.classList.contains('replace')) window.courierReact('bad', "Ah. I'll take it back.");
     else window.courierReact('think', 'Your call on this one.');
   }

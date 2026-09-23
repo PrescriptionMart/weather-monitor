@@ -67,7 +67,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 
 **Excursion Check (`excursion.html`)**
 - A phone script for the "my medication arrived warm / half-frozen" call, with
-  one verdict: **OK TO USE / JUDGMENT CALL / REPLACE**, one sentence why, and
+  one verdict: **OK TO USE / LIKELY OK TO USE / JUDGMENT CALL / REPLACE**, one sentence why, and
   a ready script for the patient. The pharmacist uses it directly; judgment
   cases show the factors to weigh plus a keep-it script and a replace-it script.
   1. Pick the product (allowance shown in one line: *up to 77°F for 14 days ·
@@ -223,6 +223,16 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   of the floor. Room-temperature products are not covered. The pack button
   reads "clearly cooler than the room to the touch", because the rule rests
   on it.
+- **LIKELY OK TO USE**, the almost category: green like OK with a dashed amber
+  border. Used when the packs were still cool on delivery but the air in the
+  counted stretch went over the limit, e.g. shipped Friday, delivered Monday,
+  91°F on Sunday. Packs that outlast their 48-hour rating usually mean the box
+  sat indoors, but melted packs are just cold mass and cool back down in an
+  air-conditioned building, so they cannot prove the box never got warm on the
+  way. The card says exactly that and lists two checks ahead of the patient
+  script: the packs are clearly cooler than the room, and tracking shows the
+  wait at a facility rather than on a truck. It never comes from warm packs.
+  Cool packs with the air under the limit stay a plain OK.
 - **The safeguard on warm packs.** For warm packs on a late delivery the verdict
   is first decided counting from the pick-up. If that would not clear and the
   48-hour rule would, the rule is the only thing clearing it, and warm packs
