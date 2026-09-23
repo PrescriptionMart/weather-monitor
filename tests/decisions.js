@@ -259,14 +259,16 @@ ok('margin is 10% of the window, at least an hour',
  ['Basaglar', 3, 'ok'], ['Basaglar', 4, 'near'], ['Basaglar', 5, 'past']].forEach(([n, h, want]) => {
   const d = drug(n), days = h > 20 ? 5 : 1;
   const v = call(d, 'warm', hotHours(days, 60, h, 95), days);
-  const got = v.cls === 'ok' ? 'ok' : /near the end/.test(v.big) ? 'near' : /past the high-temperature/.test(v.big) ? 'past' : v.big;
+  const got = v.cls === 'ok' ? 'ok' : v.cls === 'likely' && /last tenth of the window/.test(v.text) ? 'near' : /past the high-temperature/.test(v.big) ? 'past' : v.big;
   ok(`${n}: ${h} hours above ${d.excursionMaxF}°F -> ${want}`, got === want, `got ${got}`);
 });
 {
   const v = call(drug('Aimovig'), 'warm', hotHours(5, 60, 45, 97), 5);
-  ok('the screenshot case, Aimovig at 45 of 48 hours, is now a judgment call', /near the end of the high-heat window/.test(v.big), v.big);
+  ok('the screenshot case, Aimovig at 45 of 48 hours, is LIKELY OK TO USE', v.cls === 'likely' && /LIKELY OK TO USE/.test(v.big), v.big);
   ok('  that says it is covered on the numbers', /On the numbers it is covered/.test(v.text));
-  ok('  and still gives the keep script', /stayed within what Aimovig's own stability data covers/.test(v.text));
+  ok('  gives the check before clearing', /Check before you clear it/.test(v.text) && /did not wait in the sun or on a hot truck/.test(v.text));
+  ok('  keeps the patient script and says what to do if a check fails',
+     /stayed within what Aimovig's own stability data covers/.test(v.text) && /If a check fails/.test(v.text));
   ok('  a clear with room to spare says how much', /with 5 hours to spare/.test(call(drug('Aimovig'), 'warm', hotHours(5, 60, 43, 97), 5).text));
 }
 {
@@ -302,7 +304,7 @@ console.log('\n--- use-by date for product that cannot go back in the fridge ---
   call(drug('Aimovig'), 'warm', hotHours(1, 60, 10, 97), 1);
   ok('NewLeaf note on an OK: "Use by 7/12"', /OK TO USE\. Use by 7\/12, not back in fridge\./.test(C.noteText()), C.noteText());
   call(drug('Aimovig'), 'warm', hotHours(5, 60, 45, 97, MARK), 5);
-  ok('NewLeaf note on a judgment call: "If kept, use by 7/14"', /If kept, use by 7\/14/.test(C.noteText()), C.noteText());
+  ok('NewLeaf note on LIKELY OK: "If the checks hold, use by 7/14"', /LIKELY OK TO USE\. If the checks hold, use by 7\/14/.test(C.noteText()), C.noteText());
   call(drug('Humira'), 'warm', weather(2, 60, 70), 2);
   ok('no use-by in the note when it may go back in the fridge', !/use by/i.test(C.noteText()));
 }
@@ -341,10 +343,12 @@ console.log('\n--- the clock: out of the fridge 48 hours after pick-up (Aimovig,
   // the hours counted from pick-up sit against it
   const sg = (hot) => call(drug('Aimovig'), 'warm', hotHours(3, 65, hot, 88, PICK), 3);
   const all = sg(48);
-  ok('Aimovig safeguard, 48 hot hours before the mark: "all of its 48-hour high-heat window"',
-     /clears only on the 48-hour rule/.test(all.big) && /48 hours above 77°F, all of its 48-hour high-heat window/.test(all.text), all.text.slice(0, 400));
-  ok('  50 hours: "more than its 48-hour high-heat window"', /50 hours above 77°F, more than its 48-hour high-heat window/.test(sg(50).text));
-  ok('  45 hours: "too close to the end to clear"', /45 of the 48 hours in its high-heat window, too close to the end to clear/.test(sg(45).text));
+  ok('Aimovig, 48 hot hours before the mark: LIKELY OK from pick-up, not lifted to OK by the rule',
+     all.cls === 'likely' && /48 of the 48 hours/.test(all.text), all.big + ' | ' + all.text.slice(0, 300));
+  ok('  and it is counted from the pick-up', /when it left the pharmacy/.test(all.text) || /already warm/.test(all.text) || /Counted from Mon, Jul 6, 4 PM/.test(all.text), all.text.slice(-300));
+  ok('  50 hours, past the window from pick-up: the rule alone clears it, so the safeguard card',
+     /clears only on the 48-hour rule/.test(sg(50).big) && /50 hours above 77°F, more than its 48-hour high-heat window/.test(sg(50).text));
+  ok('  45 hours: LIKELY OK', sg(45).cls === 'likely');
   ok('  40 hours clears either way, so no safeguard card', sg(40).cls === 'ok');
 }
 {
@@ -397,11 +401,28 @@ console.log('\n--- cool packs settle the heat question (shipped Mon, delivered T
      /record is thin/.test(call(drug('Humira'), 'cool', weather(3, 38, 55, { skip: (h) => h >= 9 && h <= 20 }), 3).big));
   const mild = call(drug('Humira'), 'cool', weather(3, 60, 74), 3);
   ok('cool packs and the air never over the limit: a plain OK, not "likely"', mild.cls === 'ok' && /under Humira's 77°F limit/.test(mild.text), mild.big);
-  const likelyWarm = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion)
-                         .filter(r => call(r, 'warm', weather(3, 78, 95), 3).cls === 'likely');
-  ok('LIKELY OK never comes from warm packs', likelyWarm.length === 0, likelyWarm.map(r => r.name).join(', '));
+  const coolCardWarm = ROWS.filter(r => r.refrigerated !== false && !r.noExcursion)
+                           .filter(r => /packs were still cool on delivery/.test(call(r, 'warm', weather(3, 78, 95), 3).text));
+  ok('the cool-pack LIKELY card never comes from warm packs', coolCardWarm.length === 0, coolCardWarm.map(r => r.name).join(', '));
   C.setDrug(drug('Afinitor')); C.setPack('cool');
   ok('room-temperature products are not covered by packs', !/packs were still cool/.test(call(drug('Afinitor'), 'cool', weather(3, 78, 95), 3).text));
+}
+
+console.log('\n--- close to the limit is LIKELY OK, with the check that decides it ---');
+{
+  const v = call(drug('Humira'), 'warm', weather(2, 60, 74), 2);
+  ok('Humira peaking 3°F under its limit: LIKELY OK', v.cls === 'likely' && /3°F under Humira's 77°F limit/.test(v.text), v.big + ' | ' + v.text.slice(0, 200));
+  ok('  asks where it waited, and gives the replace script if that fails', /did not wait in the sun or on a hot truck/.test(v.text) && /If a check fails/.test(v.text));
+  ok('  no label check for a verified ceiling', !/The label's limit/.test(v.text));
+  const n = call(drug('Novolin (N and R)'), 'warm', weather(2, 60, 72), 2);
+  ok('Novolin, unverified ceiling, 5°F under: LIKELY OK with a label check too',
+     n.cls === 'likely' && /The label's limit for Novolin \(N and R\) is 77°F/.test(n.text), n.big + ' | ' + n.text.slice(0, 300));
+  ok('7°F under a verified ceiling is still a plain OK', call(drug('Humira'), 'warm', weather(2, 60, 70), 2).cls === 'ok');
+  // heat before the 48-hour mark, close to the limit after it: a judgment call
+  // from pick-up that the rule alone would lift to LIKELY OK
+  const w = weather(3, 60, 74);
+  w.obs.forEach(o => { const h = Math.round((o.t - S0()) / 3600000); if (h >= 38 && h < 45) o.c = F2C(85); });
+  ok('the rule cannot lift a judgment call to LIKELY OK either', /clears only on the 48-hour rule/.test(call(drug('Humira'), 'warm', w, 3).big));
 }
 
 console.log(failed ? `\n${failed} DECISION TEST(S) FAILED, ${passed} passed` : `\nAll ${passed} decision tests passed.`);

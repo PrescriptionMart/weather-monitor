@@ -138,15 +138,15 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   instruction (Enbrel: back in the fridge, use within 4 days) the card gives
   that instead of the everyday one. Peaks above every window get *outside the
   published windows* with a link to the manufacturer's calculator.
-- **The last tenth of a high-heat window is a judgment call, never a
-  replace.** A window is cleared outright only with more than
+- **The last tenth of a high-heat window is LIKELY OK, never a replace.** A
+  window is cleared outright only with more than
   `BAND_MARGIN_SHARE` (10%) of its hours to spare, at least an hour: Aimovig's
   48-hour window clears up to 43 hours, Humalog's 12 up to 10, Basaglar's 4 up
   to 3. It mirrors the 5°F margin on temperature, because the hour count comes
   from station air up to 100 miles away, bucketed by clock hour. Kept small on
   purpose so it does not cost reships: the card says the exposure is covered
-  on the numbers, leads with the keep script, and a clear with room to spare
-  says how many hours were left.
+  on the numbers, asks one check (it did not wait in the sun or on a hot
+  truck), and a clear with room to spare says how many hours were left.
 - **Use-by date.** For a product that cannot go back in the fridge, the card's
   *Then tell them* line gives the date to use it by, and so does the NewLeaf
   note. The deadline is when the clock below started plus the allowance, or a
@@ -172,8 +172,9 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   enough (at least ~18 of 24 hours reported on every scored day, judged against
   the hours that day could have had, and a station within 100 miles), and the
   peak has to sit at least `CEILING_MARGIN_F` (5°F) under the ceiling, widened
-  to 10°F for products whose ceiling could not be verified. Anything short of
-  that is a judgment call naming the reason, never a silent pass. Every verdict
+  to 10°F for products whose ceiling could not be verified. Inside the ceiling
+  but short of that margin is LIKELY OK with a check; anything else short of
+  it is a judgment call naming the reason, never a silent pass. Every verdict
   carries an evidence line: how many readings, from where, how far away.
 - **Weather within 100 miles is treated as the same weather**
   (`MAX_STATION_MILES`). The nearest station with readings is the record. When
@@ -224,15 +225,26 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   reads "clearly cooler than the room to the touch", because the rule rests
   on it.
 - **LIKELY OK TO USE**, the almost category: green like OK with a dashed amber
-  border. Used when the packs were still cool on delivery but the air in the
-  counted stretch went over the limit, e.g. shipped Friday, delivered Monday,
-  91°F on Sunday. Packs that outlast their 48-hour rating usually mean the box
-  sat indoors, but melted packs are just cold mass and cool back down in an
-  air-conditioned building, so they cannot prove the box never got warm on the
-  way. The card says exactly that and lists two checks ahead of the patient
-  script: the packs are clearly cooler than the room, and tracking shows the
-  wait at a facility rather than on a truck. It never comes from warm packs.
-  Cool packs with the air under the limit stay a plain OK.
+  border. Covered on the numbers, with something the numbers cannot see. Every
+  one reads the same way: why, then *Check before you clear it* ahead of the
+  patient script, then the aftercare, then *If a check fails* with the replace
+  script. Three situations:
+  - **Cool packs, air over the limit** (shipped Friday, delivered Monday, 91°F
+    on Sunday). Packs that outlast their 48-hour rating usually mean the box sat
+    indoors, but melted packs are just cold mass and cool back down in an
+    air-conditioned building, so they cannot prove it never got warm. Checks:
+    packs clearly cooler than the room, and tracking shows the wait at a
+    facility rather than on a truck.
+  - **Close to the limit**: the peak inside the ceiling by less than the 5°F
+    margin, or 10°F on an unverified ceiling. Check: it did not wait in the sun
+    or on a hot truck; for an unverified ceiling, also the label's figure.
+  - **The last tenth of a high-heat window.** Check: it did not wait in the sun
+    or on a hot truck.
+  With warm packs on a late delivery, the 48-hour rule can never be the only
+  thing that lifts a verdict: judged from pick-up as a judgment call, it gets
+  the *clears only on the 48-hour rule* card; judged from pick-up as LIKELY OK,
+  it stays LIKELY OK, counted from pick-up. The NewLeaf note reads "If the
+  checks hold, use by …".
 - **The safeguard on warm packs.** For warm packs on a late delivery the verdict
   is first decided counting from the pick-up. If that would not clear and the
   48-hour rule would, the rule is the only thing clearing it, and warm packs
