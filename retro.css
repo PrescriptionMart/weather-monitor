@@ -37,6 +37,7 @@
 @keyframes stamp-replace { 0% { transform: scale(1.5); opacity: 0; } 50% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); } }
 .verdict-card.ok      { animation: stamp-ok .26s steps(5) both; }
 .verdict-card.call    { animation: stamp-call .3s steps(6) both; }
+.verdict-card.likely  { animation: stamp-ok .26s steps(5) both; }
 .verdict-card.replace { animation: stamp-replace .2s steps(3) both; }
 .verdict-card.wait    { animation: none; }
 
