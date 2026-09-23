@@ -851,6 +851,7 @@ function packsCoverHeat(d, ceil) {
 // which have no pack-out. The count stops at delivery, taken as midday on the
 // received date. Slushy or frozen packs never start it at all.
 let _noCredit = false;          // set while checking a verdict without the 48-hour rule
+let _finalNoCredit = false;     // the verdict on screen is the one counted from pick-up
 let _creditDecisive = false;    // the 48-hour rule alone turned it into a clean OK
 let _noCreditSummary = null;    // the numbers counted from pick-up, for that card
 function creditApplies(d) {
@@ -862,7 +863,7 @@ function exposureStart(d) {
   if (!p) return null;
   d = d || currentDrug();
   if (d && d.refrigerated === false) return p;
-  if (packState === 'warm' && (_noCredit || pastRating() === false)) return p;
+  if (packState === 'warm' && (_noCredit || _finalNoCredit || pastRating() === false)) return p;
   return new Date(p.getTime() + PACKOUT_RATING_HOURS * 3600000);
 }
 function exposureEnd() {
@@ -1172,6 +1173,13 @@ function decide() {
   // Judgment card: the numbers as bullets, then one bullet per factor with which way it leans, then both scripts.
   const judge = (big, facts, factors, keepScript, replaceScript) => { v.className = 'verdict-card call'; v.innerHTML = `<div class="verdict-big">${big}</div><div class="verdict-tell" style="border-top:0; margin-top:6px; padding-top:0;"><b>What we know</b>${li(facts)}</div><div class="verdict-tell"><b>Your call — weigh</b>${li(factors)}</div><div class="verdict-tell"><b>If you keep it</b>${keepScript}</div>${aftercare(d)}<div class="verdict-tell"><b>If you replace it</b>${replaceScript}</div>${evid(_scored)}`; };
 
+  // LIKELY OK TO USE: covered on the numbers, with something the numbers
+  // cannot see. Why, then the checks that decide whether it is said at all,
+  // then the patient script, the aftercare, what to say if a check fails.
+  const likely = (why, checks, tell, replaceScript, care, ev) => show('likely', 'LIKELY OK TO USE', why, tell,
+    care + `<div class="verdict-tell"><b>If a check fails</b>${replaceScript}</div>` + ev,
+    `<div class="verdict-tell"><b>Check before you clear it</b>${li(checks)}</div>`);
+
   // What the patient must be told when the product is KEPT. A one-time
   // allowance that has been partly spent changes how they store it from here.
   const aftercare = (d, band) => {
@@ -1418,18 +1426,21 @@ function decide() {
       // several ceilings could not be verified against a label.
       const headroom = (ceil != null && hi != null) ? ceil - hi : null;
       const margin = ceilingMargin(d);
-      if (!packsCover && headroom != null && headroom < margin) return judge('JUDGMENT CALL — it ran close to the limit', [
-        `Peak was <strong>${fmtF(hi)}</strong> against a ${fmtF(ceil)} ceiling — ${headroom}°F of headroom`,
-        ceilingUncertain(d)
-          ? `<strong>${d.name}'s ceiling could not be verified against the label</strong>, so ${headroom}°F is not enough room to clear it on`
-          : `Our margin for a clean pass is ${margin}°F and this sits inside it`,
-        'Station air is a proxy for the box, not a measurement of it — a van or a sunny porch runs hotter',
-      ], [
-        `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran colder than the air ${K}` : `warm, so the box tracked the air ${R}`}`,
-        `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
-        `<strong>How long it sat near the peak:</strong> a brief afternoon high ${K} · hot most of the day ${R}`,
-      ], '"It stayed within what this medication tolerates and the packs were still doing their job. It\'s fine to use."',
-         '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."');
+      // Close to the limit: inside it, but with less room than a plain OK needs,
+      // because station air is a proxy for the box. Likely OK, with the check
+      // that decides it. An unverified ceiling adds a check on the label.
+      if (!packsCover && headroom != null && headroom < margin) {
+        if (_creditDecisive) return creditCard();
+        return likely(
+          `The peak was ${fmtF(hi)}, ${headroom}°F under ${d.name}'s ${fmtF(ceil)} limit. That is inside it, but with less room than the ${margin}°F a plain OK needs, because station air stands in for the box`
+          + (ceilingUncertain(d) ? `, and ${d.name}'s ${fmtF(ceil)} figure could not be verified against the label.` : '.')
+          + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : ''),
+          [`<strong>It did not wait in the sun or on a hot truck.</strong> A box there runs hotter than the station air, and there were only ${headroom}°F to spare`]
+            .concat(ceilingUncertain(d) ? [`<strong>The label's limit for ${d.name} is ${fmtF(ceil)}.</strong> The sheet's figure could not be verified, and ${headroom}°F depends on it`] : []),
+          `"It stayed within what this medication tolerates, so it's fine to use."`,
+          '"It ran close enough to the limit that I\'d rather not risk it. Please set it aside; we\'ll send a new one."',
+          aftercare(d), evid(scored));
+      }
 
       const used = budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : '';
       // LIKELY OK: cool packs, but the air went over the limit. The packs
@@ -1437,16 +1448,15 @@ function decide() {
       // indoors. What they cannot prove: melted packs are just cold mass and
       // cool back down in an air-conditioned building, so a box that got hot
       // on a truck and then sat indoors could still arrive with cool packs.
-      if (packsCover && hi != null && hi > ceil) return show('likely', 'LIKELY OK TO USE',
+      if (packsCover && hi != null && hi > ceil) return likely(
         `The packs were still cool on delivery, ${Math.round(exposureHours() || 0)} hours past their ${PACKOUT_RATING_HOURS}-hour rating, while the air outside reached ${fmtF(hi)}. `
         + `Packs that outlast their rating usually mean the box sat indoors, most often in an air-conditioned carrier building, and then ${d.name} stayed below its ${fmtF(ceil)} limit. `
         + `The packs cannot prove it never got warm on the way, so check two things before you clear it.${used}`,
+        [`<strong>The packs are clearly cooler than the room,</strong> not just not warm. If they are closer to room temperature, mark them warm: this becomes a heat judgment call`,
+         `<strong>Tracking shows the wait at a facility, not on a truck.</strong> Melted packs cool back down in an air-conditioned building, so a box that got hot on a truck and then sat indoors could still arrive with cool packs`],
         `"The ice packs were still cool when it arrived, so it stayed cold inside the box. It's fine to use."`,
-        aftercare(d) + evid(scored),
-        `<div class="verdict-tell"><b>Check before you clear it</b><ul class="verdict-list">`
-        + `<li><strong>The packs are clearly cooler than the room,</strong> not just not warm. If they are closer to room temperature, mark them warm: this becomes a heat judgment call.</li>`
-        + `<li><strong>Tracking shows the wait at a facility, not on a truck.</strong> Melted packs cool back down in an air-conditioned building, so a box that got hot on a truck and then sat indoors could still arrive with cool packs.</li>`
-        + `</ul></div>`);
+        '"It may have gotten warmer on the way than this medication allows, so I\'m going to replace it to be safe. Please set it aside; we\'ll send a new one."',
+        aftercare(d), evid(scored));
       const why = (packsCover
           ? `The air peaked at ${fmtF(hi)}, under ${d.name}'s ${fmtF(ceil)} limit, and the packs were still cool on delivery.`
           : `Even if it sat in outdoor air the whole time, it never got above ${fmtF(ceil)} (peak ${fmtF(hi)}${headroom != null ? `, ${headroom}°F of headroom` : ''}) on the ${nDays} day${nDays === 1 ? '' : 's'} scored.`)
@@ -1493,16 +1503,17 @@ function decide() {
 
     // inside the window, but in its last tenth: covered on the numbers, with
     // too little slack to clear outright. The keep side leads.
-    if (inBand && mainOk && close && !evidenceWeak(lastResult, scored)) return judge('JUDGMENT CALL — near the end of the high-heat window', [
-      `Peak was <strong>${fmtF(hi)}</strong>, inside ${d.name}'s window of <strong>${win}</strong>`,
-      `The air was above ${fmtF(ceil)} for <strong>${sAbove} of the ${band.hours} hours</strong> that window allows, leaving ${hrs(Math.floor(spare))}`,
-      `<strong>On the numbers it is covered.</strong> It is flagged only because the hour count comes from station air and carries a little slack, and it used the last tenth of the window`,
-    ], [
-      `<strong>Pack state:</strong> ${packState === 'cool' ? `still cool, so the box ran well below the air ${K}` : `warm, so the box tracked the air ${R}`}`,
-      `<strong>Where it waited:</strong> indoors, a shaded porch, or delivered in the morning ${K} · a sunny porch or a hot truck through the afternoon ${R}`,
-      `<strong>Appearance:</strong> looks normal ${K} · anything off ${R}`,
-    ], `"It got warm on the way, but it stayed within what ${d.name}'s own stability data covers, so it's fine to use."`,
-       '"It spent nearly all of the time in the heat that this medication\'s data covers, so I\'d rather replace it. Please set it aside; we\'ll send a new one."');
+    if (inBand && mainOk && close && !evidenceWeak(lastResult, scored)) {
+      if (_creditDecisive) return creditCard();
+      return likely(
+        `Peak was ${fmtF(hi)}, inside ${d.name}'s window of <strong>${win}</strong>. The air was above ${fmtF(ceil)} for ${sAbove} of the ${band.hours} hours that window allows, leaving ${hrs(Math.floor(spare))}. `
+        + `On the numbers it is covered. It is not a plain OK because the hour count comes from station air, which carries a little slack, and this used the last tenth of the window.`
+        + (budget ? ` This trip used ${budget.replace(/<\/?strong>/g, '')}.` : ''),
+        [`<strong>It did not wait in the sun or on a hot truck.</strong> A box there runs hotter than the station air, and only ${hrs(Math.floor(spare))} of the window were left`],
+        `"It got warm on the way, but it stayed within what ${d.name}'s own stability data covers, so it's fine to use."`,
+        '"It spent nearly all of the time in the heat that this medication\'s data covers, so I\'d rather replace it. Please set it aside; we\'ll send a new one."',
+        aftercare(d, band), evid(scored));
+    }
 
     // inside the window, but the record behind it is not good enough
     if (inBand && mainOk) return judge('JUDGMENT CALL — the weather record is thin', [
@@ -1593,13 +1604,21 @@ decide = function() {
   // The safeguard. When the 48-hour rule is being applied to warm packs, first
   // decide without it. If that would not clear and the rule would, the rule is
   // the only thing clearing it, and the card says so instead of "OK TO USE".
-  _creditDecisive = false; _noCreditSummary = null;
+  // Ranked OK > LIKELY OK > everything else, the rule may never be the only
+  // thing that lifts a verdict: a trip that is a judgment call from pick-up
+  // gets the "clears only on the 48-hour rule" card, and one that is LIKELY OK
+  // from pick-up stays LIKELY OK, counted from pick-up.
+  const rank = (cls) => /\bok\b/.test(cls) ? 3 : /\blikely\b/.test(cls) ? 2 : 1;
+  _creditDecisive = false; _noCreditSummary = null; _finalNoCredit = false;
+  let probe = 0;
   if (lastResult && creditApplies()) {
     _noCredit = true;
     try { _decide(); } finally { _noCredit = false; }
-    _creditDecisive = !/\bok\b/.test(document.getElementById('verdict').className);
+    probe = rank(document.getElementById('verdict').className);
+    _creditDecisive = probe === 1;
   }
   _decide();
+  if (probe === 2 && rank(document.getElementById('verdict').className) === 3) { _finalNoCredit = true; _decide(); }
   renderDetails();
   const v = document.getElementById('verdict');
   replayStamp(v);
@@ -1652,7 +1671,7 @@ function noteText() {
     out.push(l2 + ` ${r.station.id} ${r.station.miles.toFixed(0)}mi${(r.fill || []).length ? ` +${r.fill.map(x => x.station.id).join('/')}` : ''}${thin ? ', partial record' : ''}.`);
   }
   if (call) out.push(call.replace(/\s+/g, ' ') + '.' + (_useBy && !_useBy.spent && !/REPLACE/.test(call)
-    ? ` ${/JUDGMENT/.test(call) ? 'If kept, use' : 'Use'} by ${_useBy.md}, not back in fridge.` : ''));
+    ? ` ${/JUDGMENT/.test(call) ? 'If kept, use' : /LIKELY/.test(call) ? 'If the checks hold, use' : 'Use'} by ${_useBy.md}, not back in fridge.` : ''));
   return out.join('\n');
 }
 
