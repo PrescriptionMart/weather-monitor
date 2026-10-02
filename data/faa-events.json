@@ -1,1 +1,1 @@
-[]
+[{"airportId":"BOS","departureDelay":null,"groundDelay":{"avgDelay":65.0,"endTime":"2026-10-03T03:59:00Z","impactingCondition":"runway construction","maxDelay":184,"startTime":"2026-10-02T16:00:00Z"},"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":58.0,"endTime":"2026-10-03T06:29:00Z","impactingCondition":"airport volume","maxDelay":100,"startTime":"2026-10-02T15:00:00Z"},"groundStop":null}]
