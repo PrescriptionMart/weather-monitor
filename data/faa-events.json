@@ -1,1 +1,1 @@
-[{"airportId":"IAD","departureDelay":{"averageDelay":"45","reason":"WX:Thunderstorms","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":{"averageDelay":"60","reason":"RWY:Disabled Aircraft","trend":"increasing"},"groundDelay":{"avgDelay":107.0,"endTime":"2026-10-03T06:29:00Z","impactingCondition":"airport volume","maxDelay":754,"startTime":"2026-10-03T00:09:00Z"},"groundStop":null}]
+[]
