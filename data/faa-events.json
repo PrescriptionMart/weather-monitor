@@ -1,1 +1,1 @@
-[]
+[{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":29.0,"endTime":"2026-10-11T01:59:00Z","impactingCondition":"low ceilings","maxDelay":106,"startTime":"2026-10-10T16:15:00Z"},"groundStop":null},{"airportId":"YUL","departureDelay":null,"groundDelay":{"avgDelay":21.0,"endTime":"2026-10-10T21:59:00Z","impactingCondition":"runway construction","maxDelay":65,"startTime":"2026-10-10T19:30:00Z"},"groundStop":null}]
