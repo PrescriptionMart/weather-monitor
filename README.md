@@ -57,10 +57,13 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   offered only when its delivery day's 11am–6pm is fully inside the NWS hourly
   forecast in every time zone (delivery up to 5 days out). After the 4pm
   pickup the page opens on the next night.
-- **Checkpoints** (`data/winter-checkpoints.json`, ~2,630): built from every
+- **Checkpoints** (`data/winter-checkpoints.json`, ~2,750): built from every
   area we shipped to in Jul–Sep 2026 (all services), thinned to one per 20 km,
   plus earlier ship-to towns and cold corners not already covered, plus at
-  least one in every 3-digit ZIP area. Each checkpoint sits on a **town
+  least one in every 3-digit ZIP area, plus a checkpoint at every town standing
+  1,500 ft or more above all the others in its ZIP area (124 mountain towns,
+  e.g. Big Bear Lake, Estes Park, Brighton UT), so a warm valley never speaks
+  for a mountain town. Each checkpoint sits on a **town
   centre** (Census place point), or a 0.05° grid corner where no town is near,
   never on a ZIP centre, and within 1,000 ft of the elevation of the spot it
   stands for (so a mountainside ZIP centre like Gardiner MT's no longer reads
