@@ -74,15 +74,21 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   `tests/winter.js` checks the points don't line up with ZIP centres. Rebuild
   with `scripts/build-winter-data.mjs` (instructions at the top of the script).
 - **Loading.** Each checkpoint carries its NWS gridpoint, so a load is one
-  request per checkpoint (no `/points` lookups) through a bounded queue
-  (`MAX_INFLIGHT = 10`; a 10 s timeout that covers the body too; retries with
-  backoff; a 5xx retry gives its slot back while it waits, a 429 keeps it so
-  throttling slows everything; a request that hangs twice is left for the
-  end-of-load pass). Failures get one more pass at the end. When ~25 requests
-  in a row fail with nothing answering for 30 s while a backlog is still
-  queued, the page stops and says the service is down (about 40 s) instead of
-  grinding for half an hour; a few stuck places or one failing region never
-  trip this. A gridpoint NWS has retired is looked up again once and remembered.
+  request per gridpoint (no `/points` lookups; checkpoints sharing a gridpoint
+  share the request) through a bounded queue (`MAX_INFLIGHT = 10`; a 6 s
+  timeout that covers the body too, against real NWS answers under 1 s;
+  retries with backoff; a 5xx retry gives its slot back while it waits, a 429
+  keeps it so throttling slows everything; a request that hangs twice is left
+  for the end-of-load pass). Failures get one more pass at the end. Three
+  checkpoints in a row failing every retry at one NWS office skip the rest of
+  that office for this load (its areas read Not checked; **Try these again**
+  retries them), so one bad office no longer stalls everyone. If nothing has
+  answered at all, ~40 failed tries across 5+ offices after 10 s mean the
+  service is down ("No forecast — ask a pharmacist", under 20 s for a fast
+  outage); a backlog that keeps failing for 30 s trips the same. The first
+  load of the day takes two to three minutes (~2,750 requests at real NWS
+  speed, against ~4,650 for the old page). A gridpoint NWS has retired is
+  looked up again once and remembered.
 - **Saved forecast.** The answer is kept on the computer for the day (tied to
   the checkpoint file's version): a reload shows it instantly, and once it is
   an hour old the page updates in the background, keeping the old answer on

@@ -265,7 +265,7 @@
       <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them is <strong>35°F or colder</strong> in that window. When more than half of a state's 3-digit groups need one, the whole state does.</li>
       <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over 55°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
-      <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes a minute or two.</li>
+      <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
     </ul>
   </details>
 
@@ -288,7 +288,7 @@ const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has mo
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
 const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
 const MAX_INFLIGHT = 10;                                // NWS throttles hard above this
-const TIMEOUT_MS = 10000;                               // whole request, body included
+const TIMEOUT_MS = 6000;                                // whole request, body included (real NWS answers in under 1 s)
 const RETRY_AFTER_FAIL_MS = [10, 20, 30].map(m => m * 60000); // automatic retries after a failed update
 const GIVE_UP_AFTER = 25;                               // requests in a row that fail every retry
 
@@ -324,6 +324,22 @@ let dataError = false;
 
 // ---- NWS requests: one bounded queue for the whole page -------------------------------------
 let inflight = 0, failStreak = 0, giveUp = false, lastOkAt = 0;
+// Per load: an NWS office whose requests keep failing is skipped (its places
+// read Not checked) instead of slowing everyone else; and if nothing at all
+// has answered, a few dozen fast failures across several offices mean the
+// service is down.
+let deadOffice = {}, okThisLoad = false, failAttempts = 0, failOffices = new Set(), inRetryPass = false;
+const officeOf = (url) => (/gridpoints\/([A-Z]{3})\//.exec(url) || [])[1];
+function resetBreakers() {
+  giveUp = false; failStreak = 0; lastOkAt = Date.now();
+  deadOffice = {}; okThisLoad = false; failAttempts = 0; failOffices = new Set(); inRetryPass = false;
+}
+function failedAttempt(url) {
+  if (okThisLoad) return;
+  failAttempts++;
+  const o = officeOf(url); if (o) failOffices.add(o);
+  if (failAttempts >= 40 && failOffices.size >= 5 && Date.now() - lastOkAt > 10000) giveUp = true;
+}
 const waiting = [];
 function acquire(front) {
   if (inflight < MAX_INFLIGHT) { inflight++; return Promise.resolve(); }
@@ -349,23 +365,27 @@ async function timedFetch(url) {
 // (the service is up, that address isn't), or null after retries. `priority`
 // jumps the queue (the ZIP box) and is never cut off by the give-up rule.
 async function nwsFetch(url, priority) {
-  if (giveUp && !priority) return null;
+  const office = officeOf(url);
+  const skip = () => !priority && (giveUp || (office && deadOffice[office] >= 3));
+  if (skip()) return null;
   await acquire(priority);
   let held = true, timeouts = 0;
   try {
     for (let attempt = 0; attempt < 4; attempt++) {
       if (!held) { await acquire(true); held = true; }
-      if (giveUp && !priority) return null;
+      if (skip()) return null;   // checked when the request reaches the front of the queue
       let resp = null;
       try { resp = await timedFetch(url); }
       catch (e) {
         // network blip, timeout or bad JSON: retry, but a request that has
         // hung twice is left for the end-of-load pass instead of holding a slot
+        if (!priority) failedAttempt(url);
         if (e && e.message === 'timeout' && ++timeouts >= 2) break;
       }
-      if (resp && resp.ok) { failStreak = 0; lastOkAt = Date.now(); return resp; }
-      if (resp && resp.status === 404) { failStreak = 0; lastOkAt = Date.now(); return { notFound: true }; }
+      if (resp && resp.ok) { failStreak = 0; lastOkAt = Date.now(); okThisLoad = true; if (office) deadOffice[office] = 0; return resp; }
+      if (resp && resp.status === 404) { failStreak = 0; lastOkAt = Date.now(); okThisLoad = true; return { notFound: true }; }
       if (resp && resp.status !== 429 && resp.status < 500) return null;
+      if (resp && !priority) failedAttempt(url);
       if (attempt < 3) {
         // 429 = NWS is throttling: keep the slot so everything slows down.
         // 5xx or network = this request's problem: free the slot while waiting.
@@ -378,7 +398,8 @@ async function nwsFetch(url, priority) {
     // ~2,600 x 4 tries for half an hour. Only while a real backlog is still
     // queued: one region failing while the rest answers, or a few stuck places
     // at the end of a load, never trips this.
-    if (!priority && ++failStreak >= GIVE_UP_AFTER && Date.now() - lastOkAt > 30000 && waiting.length >= MAX_INFLIGHT) giveUp = true;
+    if (!priority && office) deadOffice[office] = (deadOffice[office] || 0) + 1;
+    if (!priority && !inRetryPass && ++failStreak >= GIVE_UP_AFTER && Date.now() - lastOkAt > 30000 && waiting.length >= MAX_INFLIGHT) giveUp = true;
     return null;
   } finally { if (held) release(); }
 }
@@ -432,14 +453,17 @@ const answered = (arr) => arr.some(v => v && v.some(x => x !== null));
 // until the new one is complete; in the foreground the screen fills in.
 async function runLoad(background) {
   if (load.running || !POINTS.length) return;
-  giveUp = false; failStreak = 0; lastOkAt = Date.now();
+  resetBreakers();
   const fresh = new Array(POINTS.length);
   if (!background) lows = fresh;
   load = { running: true, background, done: 0, gaveUp: false, failed: false };
   render();
   let last = 0;
+  // a few checkpoints share an NWS gridpoint: fetch each one once
+  const byUrl = new Map();
+  const get = (p) => { const u = hourlyUrl(p); if (!byUrl.has(u)) byUrl.set(u, fetchLows(p, dayKeys, false)); return byUrl.get(u); };
   const one = async (i) => {
-    try { fresh[i] = await fetchLows(POINTS[i], dayKeys, false); } catch (e) { fresh[i] = null; }
+    try { fresh[i] = await get(POINTS[i]); } catch (e) { fresh[i] = null; }
     load.done++;
     const now = Date.now();
     if (now - last > 400) { last = now; background ? renderFoot() : render(); }
@@ -448,6 +472,7 @@ async function runLoad(background) {
     await Promise.all(POINTS.map((p, i) => one(i)));
     // one more try for anything that failed, unless the service is down
     if (!giveUp) {
+      inRetryPass = true;
       const again = POINTS.map((p, i) => i).filter(i => fresh[i] === null);
       await Promise.all(again.map(async i => { try { fresh[i] = await fetchLows(POINTS[i], dayKeys, false); } catch (e) { fresh[i] = null; } }));
     }
@@ -482,7 +507,7 @@ function retryUnchecked() {
 }
 async function refetch(idx) {
   if (load.running || !idx.length) return;
-  giveUp = false; failStreak = 0; lastOkAt = Date.now();
+  resetBreakers();
   load = { running: true, background: true, done: 0, gaveUp: false, failed: false, retrying: idx.length };
   render();
   let got = 0;
