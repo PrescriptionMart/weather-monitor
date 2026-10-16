@@ -529,15 +529,18 @@ function shipName(n) {
   if (n.shipOffset === 1) return 'Ships tomorrow';
   return 'Ships ' + n.ship.toLocaleDateString('en-US', { weekday: 'long' });
 }
-function tripNote(n) {
+// `short` is for the ship-night button; the long form goes in the answer and the note.
+function tripNote(n, short) {
   if (n.saturdayOnly) return 'Saturday-delivery items only';
   if (n.transitDays > 1) {
+    const arrive = n.deliv.toLocaleDateString('en-US', { weekday: 'long' });
     // the first no-delivery weekday between ship and delivery names the holiday
     for (let d = C.addDays(n.ship, 1); d < n.deliv; d = C.addDays(d, 1)) {
       const name = C.HOLIDAY_NAMES[C.dateKey(d)];
-      if (name) return `${name}: no UPS ${d.toLocaleDateString('en-US', { weekday: 'long' })}, so these arrive ${n.deliv.toLocaleDateString('en-US', { weekday: 'long' })}. The answer is for that day's weather`;
+      if (name) return short ? `${name}: arrives ${arrive}`
+        : `${name}: no UPS ${d.toLocaleDateString('en-US', { weekday: 'long' })}, so these arrive ${arrive}. The answer is for ${arrive}'s weather`;
     }
-    return `${n.transitDays} days in transit`;
+    return short ? `Arrives ${arrive}` : `${n.transitDays} days in transit; the answer is for ${arrive}'s weather`;
   }
   return '';
 }
@@ -558,7 +561,7 @@ function renderNights() {
   }
   plan.forEach((n, i) => {
     const b = el.children[i];
-    const note = tripNote(n);
+    const note = tripNote(n, true);
     const picked = n.shipOffset === 0 && benchNow().hour >= C.PICKUP_HOUR ? ' (picked up)' : '';
     const html = `<b>${shipName(n)}${picked}</b><span>delivers ${fmtDay(n.deliv)}</span>${note ? `<em>${note}</em>` : ''}`;
     if (b.innerHTML !== html) b.innerHTML = html;
