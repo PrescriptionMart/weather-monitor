@@ -631,9 +631,9 @@ function render() {
   // the lists
   let r = '';
   if (!dataError && s.status !== 'down') {
-    const so = s.status === 'loading' ? ' so far' : '';
-    if (s.whole.length) r += `<div class="row pack"><div class="row-label">Winter pack, whole state${so}</div><div>${joinItems(s.whole.sort(byName).map(c => stateLine(c)))}</div></div>`;
-    if (s.part.length) r += `<div class="row pack"><div class="row-label">Winter pack, only ZIPs starting with${so}</div><div>${joinItems(s.part.sort(byName).map(c => stateLine(c, c.coldZips)))}</div></div>`;
+    const so = s.status === 'loading' ? 'So far: w' : 'W';
+    if (s.whole.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, whole state</div><div>${joinItems(s.whole.sort(byName).map(c => stateLine(c)))}</div></div>`;
+    if (s.part.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, only ZIPs starting with</div><div>${joinItems(s.part.sort(byName).map(c => stateLine(c, c.coldZips)))}</div></div>`;
     if (s.status !== 'loading' && s.unchecked.length) {
       const items = s.unchecked.sort(byName).map(c => c.allUnchecked ? `<span class="item">${esc(STATE_NAME[c.state])} <span class="zips">(all ZIPs)</span></span>`
         : c.restUnchecked ? `<span class="item">${esc(STATE_NAME[c.state])} <span class="zips">(rest of the state)</span></span>` : stateLine(c, c.uncheckedZips));
