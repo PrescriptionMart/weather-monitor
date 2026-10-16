@@ -75,8 +75,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   with `scripts/build-winter-data.mjs` (instructions at the top of the script).
 - **Loading.** Each checkpoint carries its NWS gridpoint, so a load is one
   request per gridpoint (no `/points` lookups; checkpoints sharing a gridpoint
-  share the request) through a bounded queue (`MAX_INFLIGHT = 10`; a 6 s
-  timeout that covers the body too, against real NWS answers under 1 s;
+  share the request) through a bounded queue (`MAX_INFLIGHT = 10`; a 10 s
+  timeout that covers the body too, so a slow-but-answering NWS still counts;
   retries with backoff; a 5xx retry gives its slot back while it waits, a 429
   keeps it so throttling slows everything; a request that hangs twice is left
   for the end-of-load pass). Failures get one more pass at the end. Three

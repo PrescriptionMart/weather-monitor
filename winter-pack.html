@@ -288,7 +288,7 @@ const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has mo
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
 const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
 const MAX_INFLIGHT = 10;                                // NWS throttles hard above this
-const TIMEOUT_MS = 6000;                                // whole request, body included (real NWS answers in under 1 s)
+const TIMEOUT_MS = 10000;                               // whole request, body included; slow NWS answers can take 5-9 s
 const RETRY_AFTER_FAIL_MS = [10, 20, 30].map(m => m * 60000); // automatic retries after a failed update
 const GIVE_UP_AFTER = 25;                               // requests in a row that fail every retry
 
