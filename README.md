@@ -26,44 +26,87 @@ The site is three pages (tabs at the top):
 
 Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" for an app-like, installable shortcut that still shows the last-loaded data when offline.
 
-**Winter Packing Map (`winter-pack.html`)**
-- One decision per state per ship night: **WINTER PACK or STANDARD**.
-  Packages ship overnight, are delivered around midday the next day, and sit
-  on the porch for a few hours — so the rule is: **winter pack if the coldest
-  hour between 11am and 6pm on delivery day is ≤35°F at any town we actually
-  ship to in that state** (NWS hourly forecast). 32°F is freezing; the extra
-  3°F absorbs hourly-forecast error and a shaded porch.
-- **Two kinds of sampled towns** (≈2,300 total). *Ship-to towns* (`ship: true`,
-  ~1,950) are our real delivery footprint — every town with 2+ shipments in a
-  month of our own shipment history plus a top-10 floor per state, thinned so
-  no two are within 8 km — and they **drive the call**. *Coverage towns*
-  (~370: vetted cities plus cold corners) can't flip a
-  state on their own; if one is ≤35°F while the footprint is fine, the state
-  is shown as **standard with cold-pocket exceptions** — winter pack only if
-  the label is going to one of the listed towns. (Only town names and
-  coordinates are stored — no shipment counts, ZIPs, or customer data.)
-- States at **≤15°F** at a ship-to town are still "winter pack" but tagged
-  **severe** so ops can also cut dwell (hold-at-location / signature) — beyond
-  a standard winter shipper's qualification.
-- A big banner gives the day's answer, solid dots mark the ship-to town
-  driving each winter-pack state, hollow dots mark cold pockets, and
-  **Copy pack-out note** produces a paste-ready list including the exceptions.
-  Overnight and hub lows are shown for context only.
-- **Refresh.** Forecasts are cached for an hour, so the map card shows how old
-  the data is ("Forecasts fetched 20 minutes ago") and a **Refresh** button
-  discards the cache and pulls fresh ones. It is disabled while a load runs,
-  and overlapping loads (refresh vs. retry-incomplete) are guarded.
-- **Load behaviour.** A cold load needs a forecast for ~2,300 towns (two NWS
-  calls each). Requests go through a bounded queue (`MAX_INFLIGHT = 10`) and
-  every call — including the `/points/` lookup — retries throttling and outages
-  four times with exponential backoff. States that return nothing render grey
-  (never as "standard"), states that answered on only part of their footprint
-  are named, and a banner offers a one-click retry of just those. A partial
-  load is cached for 5 minutes instead of an hour so it self-heals.
-- Window, dwell and thresholds are named constants at the top of
-  `winter-pack.html` (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`,
-  `DWELL_HOURS`, `WINTER_PACK_F`, `SEVERE_F`). To refresh the footprint, mark
-  towns `ship: true` in `STATES_BY_FIPS` (the generic list needs no change).
+**Winter Pack (`winter-pack.html`)**
+- **The rule.** A 3-digit ZIP area gets a **winter pack** when any checkpoint in
+  it is **35°F or colder at any hour from 11am to 6pm**, local time, on the
+  delivery day (next-day air lands 11am–3pm, plus about 3 hours on the porch;
+  NWS hourly forecast). When more than half of a state's ZIP areas need one,
+  the whole state does. 32°F is freezing; the extra 3°F covers forecast error
+  and a shaded porch. Winter pack = refrigerated ice packs mixed with frozen
+  ones (instead of all frozen), so the box absorbs the cold.
+- **The screen**, top to bottom: the ship nights; one answer ("Winter pack:
+  3 whole states and parts of 2", "Standard packing", "Checking the
+  forecast… don't pack from this yet", "No forecast"); the lists (*whole
+  state* / *only ZIPs starting 960, 961* / *Not checked — ask a pharmacist*);
+  **Copy pack-out note**; a **Check a label** box that answers for any 5-digit
+  US ZIP; and a map.
+- **Nothing unchecked is called standard.** While loading, the page says so
+  and shows no all-clear and no copy button. A ZIP area where a checkpoint
+  didn't answer reads **Not checked — ask a pharmacist** unless the rest of the
+  area is already cold (then it's winter pack anyway) or clearly warm (every
+  other checkpoint above 55°F and the missing one no more than 1,000 ft higher).
+  If the areas still loading or not checked could push a state past half cold,
+  none of that state is called standard until they're in. If nothing answers
+  at all, the page says the weather service is down. The ZIP box follows the
+  same rules and never shows "Standard" before its own exact check is back.
+  These rules are pinned by `tests/winter.js`, including randomised loads.
+- **Ship nights.** Monday–Thursday deliver the next day; Friday is for
+  Saturday-delivery items; no weekend nights. Carrier holidays
+  (`NO_SERVICE_DATES` in `winter-core.js`, update yearly) move delivery to the
+  next service day and the night is tagged with the days in transit. A night is
+  offered only when its delivery day's 11am–6pm is fully inside the NWS hourly
+  forecast in every time zone (delivery up to 5 days out). After the 4pm
+  pickup the page opens on the next night.
+- **Checkpoints** (`data/winter-checkpoints.json`, ~2,750): built from every
+  area we shipped to in Jul–Sep 2026 (all services), thinned to one per 20 km,
+  plus earlier ship-to towns and cold corners not already covered, plus at
+  least one in every 3-digit ZIP area, plus a checkpoint at every town standing
+  1,500 ft or more above all the others in its ZIP area (124 mountain towns,
+  e.g. Big Bear Lake, Estes Park, Brighton UT), so a warm valley never speaks
+  for a mountain town. Each checkpoint sits on a **town
+  centre** (Census place point), or a 0.05° grid corner where no town is near,
+  never on a ZIP centre, and within 1,000 ft of the elevation of the spot it
+  stands for (so a mountainside ZIP centre like Gardiner MT's no longer reads
+  8°F too cold). Each one is filed under the state its 3-digit ZIP area
+  belongs to (Census ZIP-to-county data), whatever the shipping record said.
+  Only coordinates, the 3-digit ZIP area, ground elevation and the NWS
+  gridpoint are stored: no patient ZIPs, names, counts or town names, and
+  `tests/winter.js` checks the points don't line up with ZIP centres. Rebuild
+  with `scripts/build-winter-data.mjs` (instructions at the top of the script).
+- **Loading.** Each checkpoint carries its NWS gridpoint, so a load is one
+  request per gridpoint (no `/points` lookups; checkpoints sharing a gridpoint
+  share the request) through a bounded queue (`MAX_INFLIGHT = 10`; a 10 s
+  timeout that covers the body too, so a slow-but-answering NWS still counts;
+  retries with backoff; a 5xx retry gives its slot back while it waits, a 429
+  keeps it so throttling slows everything; a request that hangs twice is left
+  for the end-of-load pass). Failures get one more pass at the end. Three
+  checkpoints in a row failing every retry at one NWS office skip the rest of
+  that office for this load (its areas read Not checked; **Try these again**
+  retries them), so one bad office no longer stalls everyone. If nothing has
+  answered at all, ~40 failed tries across 5+ offices after 10 s mean the
+  service is down ("No forecast — ask a pharmacist", under 20 s for a fast
+  outage); a backlog that keeps failing for 30 s trips the same. The first
+  load of the day takes two to three minutes (~2,750 requests at real NWS
+  speed, against ~4,650 for the old page). A gridpoint NWS has retired is
+  looked up again once and remembered.
+- **Saved forecast.** The answer is kept on the computer for the day (tied to
+  the checkpoint file's version): a reload shows it instantly, and once it is
+  an hour old the page updates in the background, keeping the old answer on
+  screen until the new one is complete. The new forecast replaces the old one
+  entirely; a place that failed this time shows as not checked rather than
+  keeping an older reading. If an update fails, the answer card says which
+  time the forecast is from, and automatic retries back off to 10, 20, then
+  30 minutes. **Refresh** updates on demand. "Today" and the 4pm pickup are
+  Beaumont (Central) time on any computer; past midnight the page reloads
+  itself for the new day.
+- **The map** is drawn from pre-projected state outlines (`data/us-states.json`)
+  with no map library. It shows whole-state winter packs darkest, states with
+  some ZIPs lighter (dots mark the cold places), standard near-white and not
+  checked striped grey, so it reads by lightness for colour-blind viewers. If
+  the map file fails, the answer above is unaffected.
+- The rule's numbers are named constants at the top of `winter-core.js`
+  (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`, `DWELL_HOURS`, `WINTER_PACK_F`,
+  `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).
 
 **Excursion Check (`excursion.html`)**
 - A phone script for the "my medication arrived warm / half-frozen" call, with
@@ -408,9 +451,7 @@ shadows instead of soft blurs.
 - **Verdict cards** land like a title card, with a different entrance per
   outcome. OK bounces, JUDGMENT wobbles, REPLACE gets a single heavy thud and
   no bounce — a binned dose should not feel like a win.
-- **The winter map's 2–3 minute load** gets a pixel parcel crossing a
-  segmented bar. The sprite is an inline SVG built in `retro.js`, so there is
-  no image file. The Excursion Check's lookup gets a scanning bar.
+- **The Excursion Check's lookup** gets a scanning bar.
 - **Retro mode** is hidden: the Konami code, or five taps on the header mark
   on a phone. It squares every corner, adds scanlines and a slow CRT roll, and
   switches headings and chrome to Press Start 2P. Body copy stays Inter,

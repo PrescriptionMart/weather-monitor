@@ -3,6 +3,7 @@
 #   1. the JS embedded in each HTML page parses cleanly (node --check)
 #   2. the committed FAA data feed is valid JSON
 #   3. the Excursion Check's decision rules still hold (tests/decisions.js)
+#   4. the Winter Pack rules still hold (tests/winter.js)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -26,11 +27,11 @@ PY
   fi
 done
 
-for j in retro.js characters.js battle.js; do
+for j in retro.js characters.js battle.js winter-core.js; do
   if node --check "$j"; then echo "ok: $j — parses"; else echo "FAIL: $j"; fail=1; fi
 done
 
-for j in data/faa-events.json data/drugs.json; do
+for j in data/faa-events.json data/drugs.json data/winter-checkpoints.json data/us-states.json; do
   if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$j"; then
     echo "ok: $j — valid JSON"
   else
@@ -44,6 +45,14 @@ if python3 scripts/extract-core.py > /dev/null && node tests/decisions.js; then
   echo "ok: tests/decisions.js — decision rules hold"
 else
   echo "FAIL: tests/decisions.js — a decision rule changed"; fail=1
+fi
+
+# The Winter Pack rules: which nights ship, which hours count, and that nothing
+# unchecked is ever reported as standard.
+if node tests/winter.js > /dev/null; then
+  echo "ok: tests/winter.js — winter pack rules hold"
+else
+  node tests/winter.js | grep -v '^ok' ; echo "FAIL: tests/winter.js — a winter pack rule changed"; fail=1
 fi
 
 [ "$fail" -eq 0 ] && echo "All checks passed." || echo "Checks failed."
