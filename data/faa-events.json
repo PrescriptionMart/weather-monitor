@@ -1,1 +1,1 @@
-[]
+[{"airportId":"SEA","departureDelay":{"averageDelay":"30","reason":"WX:Low Ceilings","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"YUL","departureDelay":null,"groundDelay":{"avgDelay":30.0,"endTime":"2026-10-20T22:14:00Z","impactingCondition":"other","maxDelay":54,"startTime":"2026-10-20T19:15:00Z"},"groundStop":null}]
