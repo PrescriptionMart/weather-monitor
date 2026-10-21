@@ -1,1 +1,1 @@
-[]
+[{"airportId":"BOS","departureDelay":null,"groundDelay":{"avgDelay":55.0,"endTime":"2026-10-22T03:59:00Z","impactingCondition":"runway construction","maxDelay":279,"startTime":"2026-10-21T17:00:00Z"},"groundStop":null},{"airportId":"LGA","departureDelay":{"averageDelay":"30","reason":"WX:Wind","trend":"decreasing"},"groundDelay":null,"groundStop":null}]
