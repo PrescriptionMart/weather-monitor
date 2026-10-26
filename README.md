@@ -101,7 +101,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   itself for the new day.
 - **The map** is drawn from pre-projected state outlines (`data/us-states.json`)
   with no map library. It shows whole-state winter packs darkest, states with
-  some ZIPs lighter (dots mark the cold places), standard near-white and not
+  some ZIPs lighter (dots mark the cold places), standard pale green and not
   checked striped grey, so it reads by lightness for colour-blind viewers. If
   the map file fails, the answer above is unaffected.
 - The rule's numbers are named constants at the top of `winter-core.js`
