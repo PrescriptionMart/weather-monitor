@@ -1,1 +1,1 @@
-[{"airportId":"DEN","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-10-27T15:15:00Z","impactingCondition":"low visibility","startTime":"2026-10-27T13:52:00Z"}},{"airportId":"SFO","departureDelay":null,"groundDelay":{"avgDelay":39.0,"endTime":"2026-10-27T19:59:00Z","impactingCondition":"low ceilings","maxDelay":103,"startTime":"2026-10-27T15:15:00Z"},"groundStop":null}]
+[{"airportId":"SEA","departureDelay":{"averageDelay":"15","reason":"RWY:Construction","trend":"increasing"},"groundDelay":null,"groundStop":null}]
