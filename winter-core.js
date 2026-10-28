@@ -313,6 +313,9 @@
       const a = document.getElementById('answer'), t = document.getElementById('as-of');
       if (a) { a.className = 'answer down'; a.innerHTML = '<div class="answer-big">Page data didn\'t load</div><div class="answer-sub">Reload the page. If it keeps happening, ask a pharmacist before packing cold boxes.</div>'; }
       if (t) t.textContent = '';
+      const z = document.getElementById('zip-out'), m = document.getElementById('map-wrap');
+      if (z) z.textContent = 'Page data didn’t load. Reload the page.';
+      if (m) m.innerHTML = '<div class="map-note">Page data didn’t load. Reload the page.</div>';
     });
     return false;
   }

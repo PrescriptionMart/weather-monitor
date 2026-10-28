@@ -249,7 +249,7 @@
       .legend { font-size: 10px; gap: 2px 12px; }
       .map-wrap { padding: 0; background: none; }
       .map-wrap svg { max-height: 4.3in; }
-      .many-unchecked .map-wrap svg { max-height: 3.7in; }   /* a long not-checked list: keep the map on page 1 */
+      .long-lists .map-wrap svg { max-height: 3.7in; }   /* long lists: keep the map on page 1 */
       /* still checking prints with level lines: in black and white a plain grey
          would read as an answer, dots mean cold spots and the slant hatch means not checked */
       .st.pending { fill: url(#pending-print); }
@@ -360,13 +360,20 @@ if (!C || C.VERSION !== PAGE_VERSION) {
   document.getElementById('refresh-btn').hidden = true;   // nothing below this runs, so it couldn't work
   // The browser keeps a wrong copy for 10 minutes, so F5 alone can't fix it:
   // fetch the file past the cache every 15 s and reload once the right one arrives.
+  // At most 3 reloads per tab, in case the right file arrives but fails to run.
   (function refetchCore() {
     fetch('winter-core.js?v=' + PAGE_VERSION, { cache: 'reload' }).then(r => r.ok ? r.text() : '')
-      .then(t => { if (t.includes('const VERSION = ' + PAGE_VERSION + ';')) location.reload(); else setTimeout(refetchCore, 15000); },
-            () => setTimeout(refetchCore, 15000));
+      .then(t => {
+        let n = 3; try { n = +sessionStorage.getItem('winter-core-refetch') || 0; } catch (e) {}
+        if (t.includes('const VERSION = ' + PAGE_VERSION + ';') && n < 3) {
+          try { sessionStorage.setItem('winter-core-refetch', String(n + 1)); } catch (e) {}
+          location.reload();
+        } else setTimeout(refetchCore, 15000);
+      }, () => setTimeout(refetchCore, 15000));
   })();
   throw new Error('winter-core.js is missing or not version ' + PAGE_VERSION);
 }
+try { sessionStorage.removeItem('winter-core-refetch'); } catch (e) {}
 
 // ---- settings --------------------------------------------------------------------
 const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;       // saved lows were worked out by this core's rule; a new core starts fresh
@@ -523,7 +530,7 @@ async function fetchLows(p, keys, priority) {
 // ---- loading ------------------------------------------------------------------------------
 function readCache() {
   try {
-    Object.keys(localStorage).filter(k => k.startsWith('winter-pack-') && k !== CACHE_KEY).forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => /^winter-pack-(v\d+|forecast-cache-v\d+)$/.test(k) && k !== CACHE_KEY).forEach(k => localStorage.removeItem(k));
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
     if (!c || c.version !== dataVersion || c.dayKey !== C.dateKey(today) || c.keys.join() !== dayKeys.join() || !Array.isArray(c.lows) || c.lows.length !== POINTS.length) return null;
     return c;
@@ -764,7 +771,9 @@ function render() {
     if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row, 11am–6pm local time on the delivery day.</div>`;
   }
   rows.innerHTML = r;
-  document.body.classList.toggle('many-unchecked', !dataError && s.status !== 'loading' && s.status !== 'down' && s.unchecked.length >= 20);
+  // long lists on paper: a smaller map keeps it on page 1 (lists of about 1,100
+  // characters fit beside the full-size map; 1,300 don't)
+  document.body.classList.toggle('long-lists', !dataError && s.status !== 'loading' && s.status !== 'down' && rows.textContent.length > 1200);
   document.getElementById('copy-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete' || s.status === 'down') || dataError;
   if (!document.getElementById('copy-fallback').hidden && s.status === 'loading') document.getElementById('copy-fallback').hidden = true;
 
@@ -942,7 +951,11 @@ function layoutLabels(svg, spots, dotR) {
       svg.querySelector(`.st-hit[data-code="${t.textContent}"]`).setAttribute('y', (y - 9).toFixed(1));
     });
   });
-  const unitW = new Map(all.map(t => [t, t.getBBox().width / fs]));   // label width per unit of font size
+  // label width per unit of font size, from the font itself (a screen's
+  // rounding of small text would make paper placement depend on the device)
+  const ctx = (layoutLabels.ctx ||= document.createElement('canvas').getContext('2d'));
+  ctx.font = `600 100px ${getComputedStyle(all[0]).fontFamily}`;
+  const unitW = new Map(all.map(t => [t, ctx.measureText(t.textContent).width / 100]));
   const screen = placeLabels(svg, all, unitW, spots, dotR * 7 / 6, fs);
   screen.forEach(([x, y], t) => { t.setAttribute('x', x.toFixed(1)); t.setAttribute('y', y.toFixed(1)); });
   placeLabels(svg, all, unitW, spots, PRINT_DOT * 7 / 6, PRINT_LABEL).forEach(([x, y], t) => {
@@ -964,14 +977,15 @@ function placeLabels(svg, all, unitW, spots, spotR, size) {
     if (!near.some(s => hitsSpot(boxAt(t, x0, y0), s))) return;
     const shape = svg.querySelector(`.st[data-code="${t.textContent}"]`);
     const inside = (x, y) => { pt.x = x; pt.y = y; return shape.isPointInFill(pt); };
-    // corners and edge midpoints inside the state: a move may not poke out more than home does
-    const fit = b => [[b.l, b.t], [b.r, b.t], [b.l, b.b], [b.r, b.b], [b.l, (b.t + b.b) / 2], [b.r, (b.t + b.b) / 2], [(b.l + b.r) / 2, b.t], [(b.l + b.r) / 2, b.b]]
-      .filter(([x, y]) => inside(x, y)).length;
-    const homeFit = fit(boxAt(t, x0, y0));
+    // how much of the label's ink (7x3 samples) is inside its state: a move may not poke out more than home does
+    const fit = (x, y) => { const hw = unitW.get(t) * size / 2, hh = 0.36 * size; let n = 0;
+      for (let i = 0; i < 7; i++) for (let j = 0; j < 3; j++) if (inside(x - hw + hw * i / 3, y - hh + hh * j)) n++;
+      return n; };
+    const homeFit = fit(x0, y0);
     const others = all.filter(o => o !== t).map(o => boxAt(o, ...pos.get(o)));
     for (const [dx, dy] of LABEL_MOVES) {
       const x = x0 + dx * size, y = y0 + dy * size, b = boxAt(t, x, y);
-      if (near.some(s => hitsSpot(b, s)) || !inside(x, y) || fit(b) < homeFit || others.some(o => overlaps(b, o))) continue;
+      if (near.some(s => hitsSpot(b, s)) || !inside(x, y) || fit(x, y) < homeFit || others.some(o => overlaps(b, o))) continue;
       pos.set(t, [x, y]);
       return;
     }
@@ -1178,6 +1192,7 @@ document.addEventListener('visibilitychange', () => {
   if (dueForUpdate()) runLoad(answered(lows));
 });
 let resizeTimer = null;
+if (document.fonts) document.fonts.ready.then(() => { if (lastCalls.length && plan.length) renderMap(lastCalls, plan[night]); });
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (lastCalls.length && plan.length) renderMap(lastCalls, plan[night]); }, 200); });
 
 // ---- light/dark theme toggle ----
