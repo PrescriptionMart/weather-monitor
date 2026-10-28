@@ -106,11 +106,14 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   itself for the new day.
 - **The map** is drawn from pre-projected state outlines (`data/us-states.json`,
   which also holds each state's label spot; MA, RI, CT, NJ, DE, MD and DC are
-  labelled out in the Atlantic with a short line) with no map library. It
-  shows whole-state winter packs darkest, states with some ZIPs lighter (dots
-  mark the cold places), standard pale green and not checked striped grey, so
-  it reads by lightness for colour-blind viewers and on a black-and-white
-  printer. If the map file fails, the answer above is unaffected.
+  labelled out in the Atlantic with a short line, and tapping one of those
+  labels answers for its state) with no map library. Labels grow on smaller
+  screens as far as they fit, and a label that would cover a cold-spot dot
+  moves to a clear spot inside its state. It shows whole-state winter packs
+  darkest, states with some ZIPs lighter (dots mark the cold places),
+  standard pale green and not checked striped grey, so it reads by lightness
+  for colour-blind viewers and on a black-and-white printer. If the map file
+  fails, the answer above is unaffected.
 - **Printing** (Ctrl+P) gives one letter-size page: the ship night, the
   answer, the state and ZIP lists and the labelled map, in the light palette
   even from a dark-mode screen. Buttons, the ZIP box and the explanations stay

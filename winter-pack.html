@@ -170,10 +170,14 @@
     .st:hover, .st.sel { stroke: var(--text); stroke-width: 1.5; }
     .dot { fill: var(--map-dot); stroke: var(--map-stroke); pointer-events: none; }
     /* state abbreviations: dark text with a light halo (light mode) reads on
-       every fill; the halo flips in dark mode */
-    .st-label { font: 600 12px var(--font-sans); fill: var(--map-label); stroke: var(--map-label-halo); stroke-width: 3px;
-      paint-order: stroke; stroke-linejoin: round; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-    .st-label.out { text-anchor: start; }
+       every fill; the halo flips in dark mode. --lbl (map units) is set from the
+       drawn map's width so labels stay about 10 screen px wherever they fit. */
+    .st-label { font: 600 var(--lbl, 12px) var(--font-sans); fill: var(--map-label); stroke: var(--map-label-halo);
+      stroke-width: calc(var(--lbl, 12px) / 4); paint-order: stroke; stroke-linejoin: round; text-anchor: middle;
+      dominant-baseline: central; pointer-events: none; }
+    /* the Atlantic labels stand in for states too small to tap */
+    .st-label.out { text-anchor: start; pointer-events: auto; cursor: pointer; }
+    .st-hit { fill: transparent; pointer-events: all; cursor: pointer; }
     .st-callout { stroke: var(--text-muted); stroke-width: .8; pointer-events: none; }
     .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
     .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--border); }
@@ -194,7 +198,6 @@
 
     @media (max-width: 640px) {
       :root { --gutter: 16px; }
-      .st-label { font-size: 19px; stroke-width: 4px; }
       .header { padding-top: 18px; padding-bottom: 20px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
       .card { padding: 18px; border-radius: 24px; }
       .answer { padding: 16px; }
@@ -242,7 +245,7 @@
       .legend { font-size: 10px; gap: 2px 12px; }
       .map-wrap { padding: 0; background: none; }
       .map-wrap svg { max-height: 5.6in; }
-      .st-label { font-size: 13px; }
+      .st-label { font-size: 13px; stroke-width: 3px; }
     }
   </style>
   <script>
@@ -806,10 +809,9 @@ function buildMap() {
     g.appendChild(p);
   });
   svg.appendChild(g);
-  const dots = document.createElementNS(SVGNS, 'g'); dots.id = 'dots';
-  svg.appendChild(dots);
   // state abbreviations; small East Coast states get theirs in the Atlantic
-  // with a short line back to the state
+  // with a short line back to the state, and the label (with some padding)
+  // answers taps for that state
   const labels = document.createElementNS(SVGNS, 'g');
   SHAPES.forEach(([code, d, at, from]) => {
     if (!at) return;
@@ -818,15 +820,25 @@ function buildMap() {
       ln.setAttribute('class', 'st-callout');
       ln.setAttribute('x1', from[0]); ln.setAttribute('y1', from[1]);
       ln.setAttribute('x2', at[0] - 3); ln.setAttribute('y2', at[1]);
+      ln.dataset.for = code;
       labels.appendChild(ln);
+      const hit = document.createElementNS(SVGNS, 'rect');
+      hit.setAttribute('class', 'st-hit'); hit.dataset.code = code;
+      hit.setAttribute('x', at[0] - 6); hit.setAttribute('y', at[1] - 9); hit.setAttribute('width', 36); hit.setAttribute('height', 18);
+      labels.appendChild(hit);
     }
     const t = document.createElementNS(SVGNS, 'text');
     t.setAttribute('class', 'st-label' + (from ? ' out' : ''));
     t.setAttribute('x', at[0]); t.setAttribute('y', at[1]);
+    t.dataset.x = at[0]; t.dataset.y = at[1];   // home position; layoutLabels moves from here
+    if (from) t.dataset.code = code;
     t.textContent = code;
     labels.appendChild(t);
   });
   svg.appendChild(labels);
+  // the cold-spot dots go on top: a label must never hide one
+  const dots = document.createElementNS(SVGNS, 'g'); dots.id = 'dots';
+  svg.appendChild(dots);
   wrap.innerHTML = ''; wrap.appendChild(svg);
   wireTooltip(svg);
   mapBuilt = true;
@@ -853,11 +865,62 @@ function renderMap(calls, n) {
   const r = Math.max(2.5, 3.5 * 975 / Math.max(300, wrap.clientWidth || 975));
   const part = new Set(calls.filter(c => c.call === 'part').map(c => c.state));
   let dots = '';
+  const spots = [];
   POINTS.forEach((p, i) => {
     if (!part.has(p.state) || p.x === null || !lows[i] || lows[i][k] === null || lows[i][k] > C.WINTER_PACK_F) return;
     dots += `<circle class="dot" cx="${p.x}" cy="${p.y}" r="${r.toFixed(1)}" stroke-width="${(r / 3).toFixed(2)}"/>`;
+    spots.push({ state: p.state, x: p.x, y: p.y, r: r * 7 / 6 });
   });
   document.getElementById('dots').innerHTML = dots;
+  layoutLabels(wrap.querySelector('svg'), spots);
+}
+// Label size follows the drawn map (about 10 screen px, between 12 and 19 map
+// units). A label in a state with cold-spot dots moves off them to a clear
+// spot inside its state (the dots are drawn on top and matter more), and the
+// stacked Atlantic labels spread apart when they're big.
+const LABEL_MOVES = [[0, 1.1], [0, -1.1], [1.4, 0], [-1.4, 0], [1.4, 1.1], [-1.4, 1.1], [1.4, -1.1], [-1.4, -1.1], [0, 2.2], [0, -2.2]];
+function layoutLabels(svg, spots) {
+  const w = svg.getBoundingClientRect().width;
+  if (!w) return;   // not on screen; the next render places them
+  const fs = Math.min(19, Math.max(12, 10 * 975 / w));
+  svg.style.setProperty('--lbl', fs.toFixed(1) + 'px');
+  const all = [...svg.querySelectorAll('.st-label')];
+  all.forEach(t => { t.setAttribute('x', t.dataset.x); t.setAttribute('y', t.dataset.y); });
+  // Atlantic stacks: rows stay at least one label apart
+  const spread = Math.max(1, fs * 1.05 / 18), cols = {};
+  all.filter(t => t.classList.contains('out')).forEach(t => { (cols[t.dataset.x] ||= []).push(t); });
+  Object.values(cols).forEach(col => {
+    const ys = col.map(t => +t.dataset.y), mid = (Math.min(...ys) + Math.max(...ys)) / 2;
+    col.forEach(t => {
+      const y = mid + (t.dataset.y - mid) * spread;
+      t.setAttribute('y', y.toFixed(1));
+      svg.querySelector(`.st-callout[data-for="${t.textContent}"]`).setAttribute('y2', y.toFixed(1));
+      svg.querySelector(`.st-hit[data-code="${t.textContent}"]`).setAttribute('y', (y - 9).toFixed(1));
+    });
+  });
+  // labels clear of the cold spots, with room for the print size (13)
+  const room = Math.max(fs, 13);
+  const pt = svg.createSVGPoint();
+  const boxAt = (bw, x, y) => ({ l: x - bw / 2, r: x + bw / 2, t: y - 0.45 * room, b: y + 0.45 * room });
+  const hitsSpot = (b, s) => { const dx = Math.max(b.l - s.x, 0, s.x - b.r), dy = Math.max(b.t - s.y, 0, s.y - b.b); return dx * dx + dy * dy < s.r * s.r; };
+  const overlaps = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+  all.filter(t => !t.classList.contains('out')).forEach(t => {
+    const code = t.textContent, x0 = +t.dataset.x, y0 = +t.dataset.y, bw = t.getBBox().width * room / fs;
+    // any state's spot counts: a label must not cover a neighbour's cold spot either
+    const near = spots.filter(s => Math.abs(s.x - x0) < 4 * room && Math.abs(s.y - y0) < 4 * room);
+    if (!near.some(s => hitsSpot(boxAt(bw, x0, y0), s))) return;
+    const shape = svg.querySelector(`.st[data-code="${code}"]`);
+    const inside = (x, y) => { pt.x = x; pt.y = y; return shape.isPointInFill(pt); };
+    const others = all.filter(o => o !== t).map(o => o.getBBox());
+    for (const [dx, dy] of LABEL_MOVES) {
+      const x = x0 + dx * room, y = y0 + dy * room, b = boxAt(bw, x, y);
+      if (near.some(s => hitsSpot(b, s))) continue;
+      if (!inside(b.l, y) || !inside(b.r, y) || !inside(x, b.t) || !inside(x, b.b)) continue;
+      if (others.some(o => overlaps(b, { l: o.x, r: o.x + o.width, t: o.y, b: o.y + o.height }))) continue;
+      t.setAttribute('x', x.toFixed(1)); t.setAttribute('y', y.toFixed(1));
+      return;
+    }
+  });
 }
 function stateTip(code) {
   const c = lastCalls.find(x => x.state === code);
@@ -883,15 +946,20 @@ function wireTooltip(svg) {
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
   };
   const show = (code, x, y) => { tip.textContent = stateTip(code); tip.style.display = 'block'; place(x, y); };
+  // the state shape under the pointer, or the one an Atlantic label stands for
+  const stateAt = (target) => {
+    const hit = target.closest('[data-code]');
+    return !hit ? null : hit.classList.contains('st') ? hit : svg.querySelector(`.st[data-code="${hit.dataset.code}"]`);
+  };
   const hide = () => { tip.style.display = 'none'; if (pinned) { pinned.classList.remove('sel'); pinned = null; } };
   svg.addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse' || pinned) return;
-    const t = e.target.closest('.st');
+    const t = stateAt(e.target);
     if (t) show(t.dataset.code, e.clientX, e.clientY); else tip.style.display = 'none';
   });
   svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !pinned) tip.style.display = 'none'; });
   svg.addEventListener('click', e => {
-    const t = e.target.closest('.st');
+    const t = stateAt(e.target);
     if (!t) return hide();
     if (pinned) pinned.classList.remove('sel');
     pinned = t; t.classList.add('sel');
@@ -900,6 +968,10 @@ function wireTooltip(svg) {
   });
   document.addEventListener('click', hide);
   addEventListener('scroll', () => { if (pinned) hide(); }, { passive: true });
+  // Chrome snaps a finger tap only to elements with a listener of their own;
+  // without one, a tap on a small Atlantic label lands on the map background.
+  // The svg handler above does the work.
+  svg.querySelectorAll('.st-hit, .st-label.out').forEach(el => el.addEventListener('click', () => {}));
 }
 
 // ---- the ZIP box ---------------------------------------------------------------------------
@@ -964,10 +1036,10 @@ function zipMessage(zip, ex) {
   if (v.verdict === 'pack') {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
-        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours.${reading}`
-        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
+        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`
+        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours in a row${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours (4-hour low ${deg(area && area.low)}).${reading}`;
+    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (4-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
