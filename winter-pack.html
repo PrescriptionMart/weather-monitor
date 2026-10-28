@@ -360,20 +360,22 @@ if (!C || C.VERSION !== PAGE_VERSION) {
   document.getElementById('refresh-btn').hidden = true;   // nothing below this runs, so it couldn't work
   // The browser keeps a wrong copy for 10 minutes, so F5 alone can't fix it:
   // fetch the file past the cache every 15 s and reload once the right one arrives.
-  // At most 3 reloads per tab, in case the right file arrives but fails to run.
+  // At most 3 reloads per tab (counted in history.state, which survives a reload
+  // and works with site storage blocked), in case the right file arrives but fails to run.
   (function refetchCore() {
-    fetch('winter-core.js?v=' + PAGE_VERSION, { cache: 'reload' }).then(r => r.ok ? r.text() : '')
+    fetch('winter-core.js?v=' + PAGE_VERSION, { cache: 'no-cache' }).then(r => r.ok ? r.text() : '')
       .then(t => {
-        let n = 3; try { n = +sessionStorage.getItem('winter-core-refetch') || 0; } catch (e) {}
-        if (t.includes('const VERSION = ' + PAGE_VERSION + ';') && n < 3) {
-          try { sessionStorage.setItem('winter-core-refetch', String(n + 1)); } catch (e) {}
-          location.reload();
-        } else setTimeout(refetchCore, 15000);
+        let go = false;
+        if (t.includes('const VERSION = ' + PAGE_VERSION + ';')) try {
+          const n = (history.state && history.state.coreRefetch) || 0;
+          if (n < 3) { history.replaceState({ coreRefetch: n + 1 }, ''); go = true; }
+        } catch (e) {}
+        if (go) location.reload(); else setTimeout(refetchCore, 15000);
       }, () => setTimeout(refetchCore, 15000));
   })();
   throw new Error('winter-core.js is missing or not version ' + PAGE_VERSION);
 }
-try { sessionStorage.removeItem('winter-core-refetch'); } catch (e) {}
+if (history.state && history.state.coreRefetch) history.replaceState(null, '');
 
 // ---- settings --------------------------------------------------------------------
 const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;       // saved lows were worked out by this core's rule; a new core starts fresh
@@ -771,8 +773,10 @@ function render() {
     if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row, 11am–6pm local time on the delivery day.</div>`;
   }
   rows.innerHTML = r;
-  // long lists on paper: a smaller map keeps it on page 1 (lists of about 1,100
-  // characters fit beside the full-size map; 1,300 don't)
+  // long lists on paper: a smaller map keeps it on page 1. Calibrated by printing
+  // real forecasts with failed checks: up to ~1,250 characters of #rows text
+  // (template whitespace and button text included) fit beside the full-size
+  // map, ~1,300 don't. A markup change to the rows moves these numbers.
   document.body.classList.toggle('long-lists', !dataError && s.status !== 'loading' && s.status !== 'down' && rows.textContent.length > 1200);
   document.getElementById('copy-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete' || s.status === 'down') || dataError;
   if (!document.getElementById('copy-fallback').hidden && s.status === 'loading') document.getElementById('copy-fallback').hidden = true;
@@ -951,14 +955,16 @@ function layoutLabels(svg, spots, dotR) {
       svg.querySelector(`.st-hit[data-code="${t.textContent}"]`).setAttribute('y', (y - 9).toFixed(1));
     });
   });
-  // label width per unit of font size, from the font itself (a screen's
-  // rounding of small text would make paper placement depend on the device)
+  // label width per unit of font size: on screen, what this screen draws; for
+  // paper, the font's own widths (a screen's rounding of small text would make
+  // the printout depend on the device it was printed from)
+  const screenW = new Map(all.map(t => [t, t.getBBox().width / fs]));
   const ctx = (layoutLabels.ctx ||= document.createElement('canvas').getContext('2d'));
-  ctx.font = `600 100px ${getComputedStyle(all[0]).fontFamily}`;
-  const unitW = new Map(all.map(t => [t, ctx.measureText(t.textContent).width / 100]));
-  const screen = placeLabels(svg, all, unitW, spots, dotR * 7 / 6, fs);
+  ctx.font = `600 1000px ${getComputedStyle(all[0]).fontFamily}`;
+  const paperW = new Map(all.map(t => [t, ctx.measureText(t.textContent).width / 1000]));
+  const screen = placeLabels(svg, all, screenW, spots, dotR * 7 / 6, fs);
   screen.forEach(([x, y], t) => { t.setAttribute('x', x.toFixed(1)); t.setAttribute('y', y.toFixed(1)); });
-  placeLabels(svg, all, unitW, spots, PRINT_DOT * 7 / 6, PRINT_LABEL).forEach(([x, y], t) => {
+  placeLabels(svg, all, paperW, spots, PRINT_DOT * 7 / 6, PRINT_LABEL).forEach(([x, y], t) => {
     const [sx, sy] = screen.get(t);
     if (x !== sx || y !== sy) { t.style.setProperty('--pdx', (x - sx).toFixed(1) + 'px'); t.style.setProperty('--pdy', (y - sy).toFixed(1) + 'px'); }
   });
@@ -977,15 +983,17 @@ function placeLabels(svg, all, unitW, spots, spotR, size) {
     if (!near.some(s => hitsSpot(boxAt(t, x0, y0), s))) return;
     const shape = svg.querySelector(`.st[data-code="${t.textContent}"]`);
     const inside = (x, y) => { pt.x = x; pt.y = y; return shape.isPointInFill(pt); };
-    // how much of the label's ink (7x3 samples) is inside its state: a move may not poke out more than home does
-    const fit = (x, y) => { const hw = unitW.get(t) * size / 2, hh = 0.36 * size; let n = 0;
-      for (let i = 0; i < 7; i++) for (let j = 0; j < 3; j++) if (inside(x - hw + hw * i / 3, y - hh + hh * j)) n++;
+    // how much of the label's ink (13x5 samples) lies outside its state: a move
+    // may not put more of it outside than home does (counting stops past that)
+    const inkW = unitW.get(t) * size, inkH = 0.72 * size;
+    const outside = (x, y, max) => { let n = 0;
+      for (let i = 0; i <= 12; i++) for (let j = 0; j <= 4; j++) if (!inside(x - inkW / 2 + inkW * i / 12, y - inkH / 2 + inkH * j / 4) && ++n > max) return n;
       return n; };
-    const homeFit = fit(x0, y0);
+    const homeOut = outside(x0, y0, Infinity);
     const others = all.filter(o => o !== t).map(o => boxAt(o, ...pos.get(o)));
     for (const [dx, dy] of LABEL_MOVES) {
       const x = x0 + dx * size, y = y0 + dy * size, b = boxAt(t, x, y);
-      if (near.some(s => hitsSpot(b, s)) || !inside(x, y) || fit(x, y) < homeFit || others.some(o => overlaps(b, o))) continue;
+      if (near.some(s => hitsSpot(b, s)) || !inside(x, y) || outside(x, y, homeOut) > homeOut || others.some(o => overlaps(b, o))) continue;
       pos.set(t, [x, y]);
       return;
     }

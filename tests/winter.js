@@ -322,7 +322,22 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const notThere = shell.filter(u => u !== './').map(u => u.replace(/^\.\//, '').replace(/\?.*$/, '')).filter(f => !fs.existsSync(path.join(__dirname, '..', f)));
   ok('every file the service worker saves for offline exists', shell.length > 10 && notThere.length === 0, notThere.join());
   ok('the saved forecast is kept per core version', html.includes("const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;"));
-  ok('reloads to fetch a fixed core are capped per tab', html.includes("n < 3") && html.includes("'winter-core-refetch'"));
+  ok('reloads to fetch a fixed core are capped per tab', html.includes('if (n < 3) { history.replaceState({ coreRefetch: n + 1 }'));
+  // the core's in-page version check: a page that asked for this version gets the rules; any other page
+  // gets none and one reload
+  const vm = require('vm'), coreSrc = fs.readFileSync(path.join(__dirname, '..', 'winter-core.js'), 'utf8');
+  const inPage = (src) => {
+    const store = {}, box = { reloads: 0 };
+    box.window = box;
+    box.document = { currentScript: { src }, addEventListener() {}, getElementById() { return null; } };
+    box.sessionStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; } };
+    box.location = { reload() { box.reloads++; } };
+    vm.runInNewContext(coreSrc, box);
+    return box;
+  };
+  const right = inPage(`https://x/winter-core.js?v=${W.VERSION}`), wrong = inPage('https://x/winter-core.js');
+  ok('in a page: the matching version gets the rules; another page gets none and reloads once',
+     !!right.WinterCore && right.reloads === 0 && !wrong.WinterCore && wrong.reloads === 1);
   const pl = html.match(/const PRINT_LABEL = ([\d.]+), PRINT_DOT = ([\d.]+);/) || [];
   ok('paper label layout uses the print sizes', !!pl[1] && html.includes(`font-size: ${pl[1]}px; stroke-width: 3px; transform: translate(var(--pdx`) && html.includes(`.dot { r: ${pl[2]}px;`));
   ok('ZIP lists use markup, not invisible characters, to stay in one piece', !html.includes('\\u2060') && html.includes('class="nw"'));
@@ -365,9 +380,10 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('the 7 Atlantic labels sit clear of every checkpoint', callouts.length === 7 && crowded.length === 0, crowded.join());
   // and their lines pass no other state's checkpoint (where a dot can sit), except where no route can
   const segDist = (px, py, [x1, y1], [x2, y2]) => { const dx = x2 - x1, dy = y2 - y1, t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy))); return Math.hypot(px - x1 - t * dx, py - y1 - t * dy); };
-  const UNAVOIDABLE = { CT: 'RI', DC: 'VA' };   // Block Island; Arlington (see the build script)
-  const linesNear = callouts.filter(([code, , [lx, ly], from]) => d.points.some(r => r[6] !== null && r[0] !== code && r[0] !== UNAVOIDABLE[code] && !(code === 'DC' && r[0] === 'MD')
-    && segDist(r[6], r[7], from, [lx - 3, ly]) < 4.2)).map(s => s[0]);
+  // no route out of CT misses Block Island; DC's line has to cross Maryland past Arlington (see the build script)
+  const UNAVOIDABLE = { CT: ['BOX/64,44'] };
+  const linesNear = callouts.filter(([code]) => code !== 'DC').filter(([code, , [lx, ly], from]) => d.points.some(r => r[6] !== null && r[0] !== code
+    && !(UNAVOIDABLE[code] || []).includes(r[5]) && segDist(r[6], r[7], from, [lx - 3, ly]) < 4.2)).map(s => s[0]);
   ok('the Atlantic labels\' lines pass no other state\'s checkpoint', linesNear.length === 0, linesNear.join());
   const share = d.points.filter(r => onZip(r[2], r[3])).length / d.points.length;
   ok(`checkpoints don't sit on ZIP centres (${(100 * share).toFixed(1)}% near one; chance is ~2%)`, share < 0.04);

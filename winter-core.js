@@ -316,6 +316,8 @@
       const z = document.getElementById('zip-out'), m = document.getElementById('map-wrap');
       if (z) z.textContent = 'Page data didn’t load. Reload the page.';
       if (m) m.innerHTML = '<div class="map-note">Page data didn’t load. Reload the page.</div>';
+      const i = document.getElementById('zip-in');
+      if (i) i.disabled = true;   // that page's ZIP box can't answer any more
     });
     return false;
   }

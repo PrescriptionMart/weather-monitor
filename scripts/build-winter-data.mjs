@@ -81,8 +81,9 @@ if (shapes.length !== 51) throw new Error('expected 51 state shapes, got ' + sha
 // centroid would cross another state or pass over another state's checkpoint
 // (where a cold-spot dot can appear): MD's starts on its Eastern Shore, RI's
 // on its south coast, CT's at its east end, DE's in the south and NJ's in the
-// southeast. No route out of CT misses Block Island (RI) and none out of DC
-// misses Arlington (VA); a dot there still shows, drawn over the line.
+// southeast. No route out of CT misses Block Island (RI 028), and DC's line
+// has to cross Maryland past Arlington (VA); a cold-spot dot there is drawn
+// over the line, so it still shows.
 // Coordinates are in the 975x610 map frame.
 const LABEL_AT = { MI: [694, 198], FL: [790, 532], LA: [566, 470], HI: [300, 586], ID: [196, 160], VT: [872, 128], NH: [894, 146], KY: [700, 318] };
 const CALLOUT = { MA: [938, 170], RI: [938, 198], CT: [938, 216], NJ: [904, 236], DE: [904, 256], MD: [904, 274], DC: [904, 292] };
