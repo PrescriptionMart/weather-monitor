@@ -68,25 +68,40 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
 }
 {
   const K = '2026-12-08';
+  const at = (hours, cold, warm = 50) => (h) => hours.includes(h) ? cold : warm;   // tempAt for a few cold hours
+  const spell = (tempAt, offset = '-06:00') => W.coldSpell(periods(K, offset, tempAt), K);
   const cold = (h) => (h < 11 || h > 18) ? 10 : 40;
-  ok('only 11am-6pm counts: 10°F at 10am and 7pm is ignored', W.windowLow(periods(K, '-06:00', cold), K) === 40);
-  ok('6pm counts', W.windowLow(periods(K, '-06:00', h => h === 18 ? 33 : 50), K) === 33);
-  ok('11am counts', W.windowLow(periods(K, '-06:00', h => h === 11 ? 34 : 50), K) === 34);
-  ok('7pm does not', W.windowLow(periods(K, '-06:00', h => h === 19 ? 20 : 50), K) === 50);
+  ok('only 11am-6pm counts: 10°F before 11am and after 6pm is ignored', spell(cold) === 40);
+  // the 4-hour rule: a brief dip doesn't make a winter pack
+  ok('a 1-hour dip to 20°F does not count (4-hour low stays 50°F)', spell(at([14], 20)) === 50);
+  ok('a 3-hour stretch at 30°F does not count', spell(at([12, 13, 14], 30)) === 50);
+  ok('4 hours in a row at 30°F counts (4-hour low 30°F)', spell(at([12, 13, 14, 15], 30)) === 30);
+  ok('4 cold hours that are not in a row do not count', spell(at([11, 12, 17, 18], 30)) === 50);
+  ok('the 4-hour low is the warmest reading of the coldest 4 hours in a row',
+     spell(h => ({ 11: 28, 12: 31, 13: 34, 14: 35, 15: 38, 16: 40, 17: 41, 18: 42 })[h]) === 35);
+  ok('a cold morning that warms past 35°F by 2pm does not count',
+     spell(h => ({ 11: 29, 12: 32, 13: 34, 14: 37, 15: 40, 16: 41, 17: 40, 18: 38 })[h]) === 37);
+  ok('35°F for exactly 4 hours counts; 36°F does not',
+     spell(at([15, 16, 17, 18], 35)) <= W.WINTER_PACK_F && spell(at([15, 16, 17, 18], 36)) > W.WINTER_PACK_F);
+  ok('11am-2pm is the first 4-hour stretch, 3pm-6pm the last',
+     spell(at([11, 12, 13, 14], 33)) === 33 && spell(at([15, 16, 17, 18], 33)) === 33);
+  ok('cold hours outside the window do not help a stretch inside it (9am-12pm cold → no)', spell(at([9, 10, 11, 12], 30)) === 50);
   ok('a missing hour makes the window incomplete (null), never a guess',
-     W.windowLow(periods(K, '-06:00', () => 50).filter(p => !p.startTime.includes('T15')), K) === null);
-  ok('a window cut off by the end of the forecast is incomplete', W.windowLow(periods(K, '-10:00', () => 50, 0, 15), K) === null);
-  ok('local hours are read from each point\'s own offset (Pacific)',
-     W.windowLow(periods(K, '-08:00', h => h === 11 ? 30 : 50), K) === 30);
-  ok('other dates are ignored', W.windowLow(periods('2026-12-09', '-06:00', () => 0), K) === null);
+     W.coldSpell(periods(K, '-06:00', () => 50).filter(p => !p.startTime.includes('T15')), K) === null);
+  ok('a window cut off by the end of the forecast is incomplete', W.coldSpell(periods(K, '-10:00', () => 50, 0, 15), K) === null);
+  ok('local hours are read from each point\'s own offset (Pacific)', spell(at([11, 12, 13, 14], 30), '-08:00') === 30);
+  ok('other dates are ignored', W.coldSpell(periods('2026-12-09', '-06:00', () => 0), K) === null);
   // Nov 1 2026: clocks fall back at 2am; 1am appears twice, the window is untouched
   const dst = periods('2026-11-01', '-05:00', () => 45, 0, 1).concat(periods('2026-11-01', '-06:00', () => 45, 1, 23));
-  ok('the fall-back day still has a complete window', W.windowLow(dst, '2026-11-01') === 45);
+  ok('the fall-back day still has a complete window', W.coldSpell(dst, '2026-11-01') === 45);
   // temperatures in the announced {value, unitCode} form, and junk
-  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: p.startTime.includes('T13') ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
-  ok('Celsius values are converted (0°C = 32°F)', W.windowLow(qv, K) === 32);
-  ok('a null temperature is missing, not 0°F', W.windowLow(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
-  ok('a non-number temperature is missing, not a reading', W.windowLow(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
+  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: /T1[3-6]/.test(p.startTime) ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
+  ok('Celsius values are converted (0°C = 32°F)', W.coldSpell(qv, K) === 32);
+  ok('a null temperature is missing, not 0°F', W.coldSpell(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
+  ok('a non-number temperature is missing, not a reading', W.coldSpell(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
+  // the stretch length is one constant; every window has 5 possible 4-hour stretches
+  ok('the rule is 4 hours in a row', W.COLD_HOURS === 4);
+  ok('a stretch can never be longer than the window', W.spellTemp([30, 30, 30], 4) === null);
   ok('NaN is missing', W.toF(NaN) === null && W.toF({ value: NaN, unitCode: 'wmoUnit:degF' }) === null);
 }
 

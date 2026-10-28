@@ -35,6 +35,7 @@
          standard a pale green (lightest), not checked striped grey */
       --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #bcc2c7;
       --map-nodata: #c9ced2; --map-nodata-line: #8a9096; --map-dot: #6e0b1d; --map-stroke: #ffffff;
+      --map-label: #16191c; --map-label-halo: rgba(255,255,255,.85);
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -48,6 +49,7 @@
         --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349;
         --map-whole: #ef7088; --map-part: #8c3a4b; --map-standard: #1d4a3a; --map-pending: #4e575e;
         --map-nodata: #4a525a; --map-nodata-line: #6b737b; --map-dot: #ffd6de; --map-stroke: #121517;
+        --map-label: #f1f3f5; --map-label-halo: rgba(18,21,23,.85);
       }
     }
     :root[data-theme="dark"] {
@@ -61,6 +63,7 @@
       --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349;
       --map-whole: #ef7088; --map-part: #8c3a4b; --map-standard: #1d4a3a; --map-pending: #4e575e;
       --map-nodata: #4a525a; --map-nodata-line: #6b737b; --map-dot: #ffd6de; --map-stroke: #121517;
+      --map-label: #f1f3f5; --map-label-halo: rgba(18,21,23,.85);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -134,6 +137,7 @@
     .row .t { font-size: 13px; opacity: .85; white-space: nowrap; }
     .row .sep { opacity: .5; margin: 0 2px; }
     .row .item { white-space: nowrap; }
+    .row .item.long { white-space: normal; }   /* a long ZIP list may wrap, but only between ranges */
     .row .zips { font-weight: 700; font-variant-numeric: tabular-nums; }
     .row .note { grid-column: 2; font-size: 13px; opacity: .9; }
     .define { font-size: 14px; margin-top: 12px; color: var(--text-muted); }
@@ -165,6 +169,12 @@
     .st.unchecked { fill: url(#nodata-hatch); }
     .st:hover, .st.sel { stroke: var(--text); stroke-width: 1.5; }
     .dot { fill: var(--map-dot); stroke: var(--map-stroke); pointer-events: none; }
+    /* state abbreviations: dark text with a light halo (light mode) reads on
+       every fill; the halo flips in dark mode */
+    .st-label { font: 600 12px var(--font-sans); fill: var(--map-label); stroke: var(--map-label-halo); stroke-width: 3px;
+      paint-order: stroke; stroke-linejoin: round; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    .st-label.out { text-anchor: start; }
+    .st-callout { stroke: var(--text-muted); stroke-width: .8; pointer-events: none; }
     .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
     .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--border); }
     .sw.whole { background: var(--map-whole); } .sw.part { background: var(--map-part); } .sw.standard { background: var(--map-standard); }
@@ -184,6 +194,7 @@
 
     @media (max-width: 640px) {
       :root { --gutter: 16px; }
+      .st-label { font-size: 19px; stroke-width: 4px; }
       .header { padding-top: 18px; padding-bottom: 20px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
       .card { padding: 18px; border-radius: 24px; }
       .answer { padding: 16px; }
@@ -262,7 +273,8 @@
     <ul>
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
       <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
-      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them is <strong>35°F or colder</strong> in that window. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong>35°F or colder for 4 hours in a row</strong> in that window. A shorter dip below 35°F doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>The <strong>4-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest 4 hours in a row. 35°F or below means winter pack.</li>
       <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over 55°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
       <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
@@ -282,8 +294,8 @@
 const C = window.WinterCore;
 
 // ---- settings --------------------------------------------------------------------
-const CACHE_KEY = 'winter-pack-v9';                     // v9: ZIP areas, baked gridpoints
-const OLD_CACHE_KEYS = ['winter-pack-forecast-cache-v8'];
+const CACHE_KEY = 'winter-pack-v10';                    // v10: 4-hour lows (v9 saved single-hour lows)
+const OLD_CACHE_KEYS = ['winter-pack-forecast-cache-v8', 'winter-pack-v9'];
 const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has moved since the build
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
 const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
@@ -431,7 +443,7 @@ async function fetchLows(p, keys, priority) {
     r = await nwsFetch(url, priority);
   }
   if (!r || r.notFound) return null;
-  try { return C.windowLows(r.body.properties.periods, keys); } catch (e) { return null; }
+  try { return C.coldSpells(r.body.properties.periods, keys); } catch (e) { return null; }
 }
 
 // ---- loading ------------------------------------------------------------------------------
@@ -596,8 +608,12 @@ function renderNights() {
 
 function stateLine(c, withZips) {
   const name = esc(STATE_NAME[c.state]);
-  const zips = withZips ? ` <span class="zips">${C.zipRanges(withZips)}</span>` : '';
-  return `<span class="item">${name}${zips}</span>`;
+  if (!withZips) return `<span class="item">${name}</span>`;
+  // keep the state with its first range and each range in one piece, so a
+  // long list wraps only at the commas (and never pushes a phone screen wider)
+  const ranges = C.zipRanges(withZips).split(', ').map(r => r.replace('–', '\u2060–\u2060'));
+  const cls = ranges.length > 2 ? 'item long' : 'item';
+  return `<span class="${cls}">${name}\u00a0<span class="zips">${ranges.join(', ')}</span></span>`;
 }
 function joinItems(items) { return items.join(' <span class="sep" aria-hidden="true">·</span> '); }
 
@@ -750,6 +766,25 @@ function buildMap() {
   svg.appendChild(g);
   const dots = document.createElementNS(SVGNS, 'g'); dots.id = 'dots';
   svg.appendChild(dots);
+  // state abbreviations; small East Coast states get theirs in the Atlantic
+  // with a short line back to the state
+  const labels = document.createElementNS(SVGNS, 'g');
+  SHAPES.forEach(([code, d, at, from]) => {
+    if (!at) return;
+    if (from) {
+      const ln = document.createElementNS(SVGNS, 'line');
+      ln.setAttribute('class', 'st-callout');
+      ln.setAttribute('x1', from[0]); ln.setAttribute('y1', from[1]);
+      ln.setAttribute('x2', at[0] - 3); ln.setAttribute('y2', at[1]);
+      labels.appendChild(ln);
+    }
+    const t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('class', 'st-label' + (from ? ' out' : ''));
+    t.setAttribute('x', at[0]); t.setAttribute('y', at[1]);
+    t.textContent = code;
+    labels.appendChild(t);
+  });
+  svg.appendChild(labels);
   wrap.innerHTML = ''; wrap.appendChild(svg);
   wireTooltip(svg);
   mapBuilt = true;
@@ -786,7 +821,7 @@ function stateTip(code) {
   const c = lastCalls.find(x => x.state === code);
   const name = STATE_NAME[code] || code;
   if (!c) return name;
-  const cold = c.coldest !== null ? ` · coldest ${deg(c.coldest)}` : '';
+  const cold = c.coldest !== null ? ` · 4-hour low ${deg(c.coldest)}` : '';
   switch (c.call) {
     case 'whole': return `${name}: winter pack, whole state${cold}`;
     case 'part': return `${name}: winter pack only for ZIPs starting with ${C.zipRanges(c.coldZips)}${cold}` + (c.uncheckedZips.length ? ` · not checked: ZIPs starting with ${C.zipRanges(c.uncheckedZips)}` : '');
@@ -861,7 +896,7 @@ function exactLow(zip, day) {
     const url = await lookUpPoint(at[0].toFixed(4), at[1].toFixed(4), true);
     const r = url ? await nwsFetch(url, true) : null;
     let v = null;
-    if (r && r.ok) { try { v = C.windowLow(r.body.properties.periods, day); } catch (e) { v = null; } }
+    if (r && r.ok) { try { v = C.coldSpell(r.body.properties.periods, day); } catch (e) { v = null; } }
     return v === null ? { failed: true, at: Date.now() } : { value: v };
   })().then(res => { exact[key] = res; return res; });
   exact[key] = job;
@@ -878,7 +913,7 @@ function zipMessage(zip, ex) {
   const v = C.zipVerdict(call, zip3, low);
   const area = call && call.areas.find(x => x.zip3 === zip3);
   const where = `ZIPs starting with ${zip3}` + (st ? ` (${STATE_NAME[st]})` : '');
-  const reading = low !== null ? ` This ZIP: ${deg(low)} at its coldest, 11am–6pm.`
+  const reading = low !== null ? ` This ZIP's 4-hour low: ${deg(low)}.`
     : ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
     : ex && ex.failed ? ` (This exact ZIP couldn’t be checked; this is the answer for all ${where}.)` : '';
   // never show a green Standard while this ZIP's own check could still add a pack
@@ -887,10 +922,10 @@ function zipMessage(zip, ex) {
   if (v.verdict === 'pack') {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
-        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group reach ${deg(area && area.low)}.${reading}`
-        : `This ZIP's own forecast reaches ${deg(low)}, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
+        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for 4 hours.${reading}`
+        : `This ZIP itself stays at ${deg(low)} or colder for 4 hours, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} stay above 35°F (coldest ${deg(area && area.low)}).${reading}`;
+    big = 'Standard'; why = `The ${where} don't stay at 35°F or below for 4 hours (4-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {

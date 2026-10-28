@@ -2,9 +2,10 @@
 // Pure functions only: no DOM, no network, no clock (callers pass dates in).
 //
 // THE RULE (one sentence the whole page hangs on):
-//   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it is 35°F or
-//   colder at any hour from 11am to 6pm, local time, on the delivery day.
-//   When more than half of a state's ZIP areas need one, the whole state does.
+//   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
+//   35°F or colder for 4 hours in a row between 11am and 6pm, local time, on
+//   the delivery day. A shorter dip below 35°F doesn't count. When more than
+//   half of a state's ZIP areas need one, the whole state does.
 //
 // Why 11am-6pm: next-day air lands late morning to mid-afternoon (11am-3pm)
 // and we account for about 3 hours on the porch after that.
@@ -17,6 +18,7 @@
   const WINDOW_END_HOUR = DELIVERY_END_HOUR + DWELL_HOURS;           // 18:00
   const WINDOW_HOURS = WINDOW_END_HOUR - DELIVERY_START_HOUR + 1;     // 8 hourly readings
   const WINTER_PACK_F = 35;   // 32°F is freezing; 3°F of room for forecast error and a shaded porch
+  const COLD_HOURS = 4;       // ...for this many hours in a row; a 1-3 hour dip doesn't trigger a pack
   // A ZIP area with a checkpoint that didn't answer is still called "checked"
   // when every checkpoint that did answer is above 55°F AND the missing one is
   // no more than 1,000 ft higher than the highest one that answered: at about
@@ -112,29 +114,49 @@
     return null;
   }
 
-  // Coldest reading 11:00-18:00 on `key`, local to the forecast point (the
-  // startTime carries the point's own UTC offset, so the first 10 characters are
-  // its local date and characters 11-12 its local hour). Null unless all 8
-  // hours are present: half a window is not a check.
-  function windowLow(periods, key) {
-    let n = 0, low = null;
+  // The 11:00-18:00 readings on `key`, hour by hour, local to the forecast
+  // point (the startTime carries the point's own UTC offset, so the first 10
+  // characters are its local date and characters 11-12 its local hour). Null
+  // unless all 8 hours are present: half a window is not a check.
+  function windowTemps(periods, key) {
+    const byHour = {};
     for (const p of periods || []) {
       if (!p || typeof p.startTime !== 'string' || p.startTime.slice(0, 10) !== key) continue;
       const h = parseInt(p.startTime.slice(11, 13), 10);
       if (!(h >= DELIVERY_START_HOUR && h <= WINDOW_END_HOUR)) continue;
       const t = toF(p.temperature, p.temperatureUnit);
       if (t === null) continue;
-      n++;
-      if (low === null || t < low) low = t;
+      byHour[h] = byHour[h] === undefined ? t : Math.min(byHour[h], t);
     }
-    return n >= WINDOW_HOURS ? low : null;
+    const out = [];
+    for (let h = DELIVERY_START_HOUR; h <= WINDOW_END_HOUR; h++) {
+      if (byHour[h] === undefined) return null;
+      out.push(byHour[h]);
+    }
+    return out;
   }
-  function windowLows(periods, keys) { return keys.map(k => windowLow(periods, k)); }
+  // The "4-hour low": the warmest reading during the coldest COLD_HOURS hours
+  // in a row. At or below 35°F means the place stayed that cold for 4 hours
+  // straight; a 1-3 hour dip below 35°F leaves it above. Every comparison the
+  // page makes (ZIP areas, whole states, the missing-checkpoint margin) uses
+  // this one number per place per day.
+  function spellTemp(temps, hours) {
+    hours = hours || COLD_HOURS;
+    if (!temps || temps.length < hours) return null;
+    let best = null;
+    for (let i = 0; i + hours <= temps.length; i++) {
+      const top = Math.max.apply(null, temps.slice(i, i + hours));
+      if (best === null || top < best) best = top;
+    }
+    return best;
+  }
+  function coldSpell(periods, key) { return spellTemp(windowTemps(periods, key)); }
+  function coldSpells(periods, keys) { return keys.map(k => coldSpell(periods, k)); }
 
   // ---- the call ----------------------------------------------------------------------
   // points:  [{state, zip3, elev (ft, optional)}]
   // lows:    per point: undefined = not fetched yet, null = fetch failed,
-  //          otherwise {key: lowF|null} (null for a day = window incomplete)
+  //          otherwise {key: 4-hour low °F | null} (null = window incomplete)
   // Returns one entry per state (in `states` order):
   //   {state, call, coldest, coldZips, uncheckedZips, pendingZips, areas}
   //   call: 'pending' | 'whole' | 'part' | 'standard' | 'unchecked'
@@ -257,7 +279,7 @@
     DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR, WINDOW_HOURS,
     WINTER_PACK_F, CHECK_MARGIN_F, CHECK_MARGIN_CLIMB_FT, WHOLE_STATE_SHARE, PICKUP_HOUR, LAST_DELIVERY_OFFSET, NO_SERVICE_DATES, HOLIDAY_NAMES,
     dateKey, addDays, daysBetween, deliveryFor, shipPlan, defaultNight,
-    toF, windowLow, windowLows, stateCalls, summarize, zipRanges, zipVerdict,
+    COLD_HOURS, toF, windowTemps, spellTemp, coldSpell, coldSpells, stateCalls, summarize, zipRanges, zipVerdict,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.WinterCore = api;

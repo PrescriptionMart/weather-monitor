@@ -28,9 +28,12 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 
 **Winter Pack (`winter-pack.html`)**
 - **The rule.** A 3-digit ZIP area gets a **winter pack** when any checkpoint in
-  it is **35°F or colder at any hour from 11am to 6pm**, local time, on the
-  delivery day (next-day air lands 11am–3pm, plus about 3 hours on the porch;
-  NWS hourly forecast). When more than half of a state's ZIP areas need one,
+  it **stays at 35°F or colder for 4 hours in a row between 11am and 6pm**,
+  local time, on the delivery day (next-day air lands 11am–3pm, plus about 3
+  hours on the porch; NWS hourly forecast). A 1–3 hour dip below 35°F doesn't
+  count. Each place's **4-hour low** (the warmest reading during its coldest 4
+  hours in a row) is the one number the page compares (`COLD_HOURS` in
+  `winter-core.js`). When more than half of a state's ZIP areas need one,
   the whole state does. 32°F is freezing; the extra 3°F covers forecast error
   and a shaded porch. Winter pack = refrigerated ice packs mixed with frozen
   ones (instead of all frozen), so the box absorbs the cold.
@@ -99,14 +102,15 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   30 minutes. **Refresh** updates on demand. "Today" and the 4pm pickup are
   Beaumont (Central) time on any computer; past midnight the page reloads
   itself for the new day.
-- **The map** is drawn from pre-projected state outlines (`data/us-states.json`)
-  with no map library. It shows whole-state winter packs darkest, states with
+- **The map** is drawn from pre-projected state outlines (`data/us-states.json`,
+  which also holds each state's label spot; MA, RI, CT, NJ, DE, MD and DC are
+  labelled out in the Atlantic with a short line) with no map library. It shows whole-state winter packs darkest, states with
   some ZIPs lighter (dots mark the cold places), standard pale green and not
   checked striped grey, so it reads by lightness for colour-blind viewers. If
   the map file fails, the answer above is unaffected.
 - The rule's numbers are named constants at the top of `winter-core.js`
   (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`, `DWELL_HOURS`, `WINTER_PACK_F`,
-  `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).
+  `COLD_HOURS`, `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).
 
 **Excursion Check (`excursion.html`)**
 - A phone script for the "my medication arrived warm / half-frozen" call, with
