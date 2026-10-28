@@ -115,9 +115,18 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   for colour-blind viewers and on a black-and-white printer. If the map file
   fails, the answer above is unaffected.
 - **Printing** (Ctrl+P) gives one letter-size page: the ship night, the
-  answer, the state and ZIP lists and the labelled map, in the light palette
-  even from a dark-mode screen. Buttons, the ZIP box and the explanations stay
-  off the paper.
+  answer, the state and ZIP lists, a one-line statement of the rule and the
+  labelled map, in the light palette even from a dark-mode screen and at the
+  same dot size from any screen. Buttons, the ZIP box and the explanations
+  stay off the paper. Only on an extreme day (very long lists plus many
+  places not checked) does the whole map move to a second page.
+- **Releasing a change to `winter-core.js`**: bump `VERSION` there, the
+  `?v=` on its script tag and `PAGE_VERSION` in `winter-pack.html`, and the
+  two versioned URLs in `sw.js` (`tests/winter.js` fails until they match).
+  For the 10 minutes browsers cache files, a page and core from different
+  releases can meet: a new page with an old core says "Reload the page", and
+  an old page with a new core reloads itself into the new page. Neither
+  makes weather requests or shows an answer on mixed rules.
 - The rule's numbers are named constants at the top of `winter-core.js`
   (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`, `DWELL_HOURS`, `WINTER_PACK_F`,
   `COLD_HOURS`, `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).

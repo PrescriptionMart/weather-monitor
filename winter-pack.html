@@ -138,9 +138,11 @@
     .row .sep { opacity: .5; margin: 0 2px; }
     .row .item { white-space: nowrap; }
     .row .item.long { white-space: normal; }   /* a long ZIP list may wrap, but only between ranges */
+    .row .nw { white-space: nowrap; }
     .row .zips { font-weight: 700; font-variant-numeric: tabular-nums; }
     .row .note { grid-column: 2; font-size: 13px; opacity: .9; }
     .define { font-size: 14px; margin-top: 12px; color: var(--text-muted); }
+    .rule-line { display: none; }   /* the screen has "How this is decided"; paper gets this line */
     .answer-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
     .copy-status { font-size: 13px; color: var(--low-fg); }
     .copy-status.warn { color: var(--med-fg); font-weight: 600; }
@@ -221,7 +223,7 @@
         --high-bg: #ffe9ed; --high-fg: #9e0f2b; --high-bd: #f9aab7;
         --med-bg: #fff4d6;  --med-fg: #6b4700;  --med-bd: #ffd766;
         --low-bg: #e4f6ef;  --low-fg: #0b5c43;  --low-bd: #9ad9c2;
-        --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #bcc2c7;
+        --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #eceef0;
         --map-nodata: #c9ced2; --map-nodata-line: #8a9096; --map-dot: #6e0b1d; --map-stroke: #ffffff;
         --map-label: #000000; --map-label-halo: rgba(255,255,255,.9);
       }
@@ -240,12 +242,14 @@
       .row { grid-template-columns: 160px 1fr; padding: 5px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
       .row-label { font-size: 11px; }
       .define { font-size: 11px; margin-top: 6px; }
+      .rule-line { display: block; margin-top: 2px; }
       section[aria-label="Map"] { break-inside: avoid; page-break-inside: avoid; }
       .map-head { margin-bottom: 4px; }
       .legend { font-size: 10px; gap: 2px 12px; }
       .map-wrap { padding: 0; background: none; }
-      .map-wrap svg { max-height: 5.6in; }
+      .map-wrap svg { max-height: 4.3in; }   /* room for long lists before the map jumps to page 2 */
       .st-label { font-size: 13px; stroke-width: 3px; }
+      .dot { r: 3.2px; stroke-width: 1.07px; }   /* the screen size, whatever screen it was printed from */
     }
   </style>
   <script>
@@ -332,11 +336,20 @@
 
 <div class="tooltip" id="tooltip" role="tooltip"></div>
 
-<!-- ?v= changes whenever winter-core.js changes what it exports (with sw.js SHELL), so a
-     browser that cached the old file for its 10 minutes can't pair it with this page -->
+<!-- ?v= is winter-core.js's VERSION (see the note there): a browser that cached an
+     older core for its 10 minutes can't pair it with this page -->
 <script src="winter-core.js?v=10"></script>
 <script>
 const C = window.WinterCore;
+const PAGE_VERSION = 10;      // = the ?v= above, WinterCore.VERSION and sw.js SHELL
+// A missing or mismatched winter-core.js: say "reload" and stop here, before
+// any weather request (instead of failing them all and blaming the weather service).
+if (!C || C.VERSION !== PAGE_VERSION) {
+  document.getElementById('answer').className = 'answer down';
+  document.getElementById('answer').innerHTML = '<div class="answer-big">Page data didn\'t load</div><div class="answer-sub">Reload the page. If it keeps happening, ask a pharmacist before packing cold boxes.</div>';
+  document.getElementById('as-of').textContent = '';
+  throw new Error('winter-core.js is missing or not version ' + PAGE_VERSION);
+}
 
 // ---- settings --------------------------------------------------------------------
 const CACHE_KEY = 'winter-pack-v10';                    // v10: 4-hour lows (v9 saved single-hour lows)
@@ -654,13 +667,15 @@ function renderNights() {
 function stateLine(c, withZips) {
   const name = esc(STATE_NAME[c.state]);
   if (!withZips) return `<span class="item">${name}</span>`;
-  // keep the state with its first range and each range in one piece, so a
-  // long list wraps only at the commas (and never pushes a phone screen wider)
-  const ranges = C.zipRanges(withZips).split(', ').map(r => r.replace('–', '\u2060–\u2060'));
-  const cls = ranges.length > 2 ? 'item long' : 'item';
-  return `<span class="${cls}">${name}\u00a0<span class="zips">${ranges.join(', ')}</span></span>`;
+  // keep the state name with its first range and each range in one piece, so
+  // a long list wraps only at the commas (and never pushes a phone screen wider)
+  const [first, ...rest] = C.zipRanges(withZips).split(', ');
+  const cls = rest.length > 1 ? 'item long' : 'item';
+  return `<span class="${cls}"><span class="nw">${name} <span class="zips">${first}</span></span>`
+    + (rest.length ? `<span class="zips">${rest.map(r => `, <span class="nw">${r}</span>`).join('')}</span>` : '') + '</span>';
 }
-function joinItems(items) { return items.join(' <span class="sep" aria-hidden="true">·</span> '); }
+// the dot stays at the end of a line, never starts the next one
+function joinItems(items) { return items.join('\u00a0<span class="sep" aria-hidden="true">·</span> '); }
 
 function render() {
   if (!plan.length) return;
@@ -730,6 +745,7 @@ function render() {
     if (s.status === 'complete' && s.packCount) r += `<div class="row std"><div class="row-label">Everything else</div><div>Standard</div></div>`;
     if (s.status === 'incomplete') r += `<div class="row std"><div class="row-label">Everything else checked</div><div>Standard</div></div>`;
     if (s.packCount && s.status !== 'loading') r += define;
+    if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row, 11am–6pm local time on the delivery day.</div>`;
   }
   rows.innerHTML = r;
   document.getElementById('copy-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete' || s.status === 'down') || dataError;
@@ -813,6 +829,7 @@ function buildMap() {
   // with a short line back to the state, and the label (with some padding)
   // answers taps for that state
   const labels = document.createElementNS(SVGNS, 'g');
+  labels.setAttribute('aria-hidden', 'true');
   SHAPES.forEach(([code, d, at, from]) => {
     if (!at) return;
     if (from) {
@@ -1074,17 +1091,13 @@ document.getElementById('zip-in').addEventListener('input', checkZip);
 document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
 
 // ---- start ----------------------------------------------------------------------------------
-// A cached older winter-core.js can't run this page: say "reload" and make no
-// weather requests, instead of failing every one and blaming the weather service.
-const CORE_OK = !!C && typeof C.coldSpells === 'function' && typeof C.coldSpell === 'function' && C.COLD_HOURS > 0;
 // the How-this-is-decided text takes its numbers from winter-core.js
-if (CORE_OK) document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
-if (CORE_OK) document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
-if (CORE_OK) document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
+document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
+document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
+document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
 async function start() {
-  if (!CORE_OK) { dataError = true; render(); return; }
   render();
-  const mapPromise = fetch('data/us-states.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  const mapPromise = fetch('data/us-states.json?v=' + PAGE_VERSION).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(s => { SHAPES = s; if (lastCalls.length) renderMap(lastCalls, plan[night]); })
     .catch(() => { mapFailed = true; mapUnavailable(); });
   try {

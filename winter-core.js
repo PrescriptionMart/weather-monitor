@@ -1,5 +1,6 @@
 // Winter Pack decision rules, shared by winter-pack.html and tests/winter.js.
-// Pure functions only: no DOM, no network, no clock (callers pass dates in).
+// Pure functions only: no DOM, no network, no clock (callers pass dates in),
+// apart from the version check at the bottom when a page loads this file.
 //
 // THE RULE (one sentence the whole page hangs on):
 //   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
@@ -16,7 +17,6 @@
   const DELIVERY_END_HOUR = 15;
   const DWELL_HOURS = 3;
   const WINDOW_END_HOUR = DELIVERY_END_HOUR + DWELL_HOURS;           // 18:00
-  const WINDOW_HOURS = WINDOW_END_HOUR - DELIVERY_START_HOUR + 1;     // 8 hourly readings
   const WINTER_PACK_F = 32;   // actual freezing (the team's call; no extra cushion for forecast error)
   const COLD_HOURS = 4;       // ...for this many hours in a row; a 1-3 hour dip doesn't trigger a pack
   // A ZIP area with a checkpoint that didn't answer is still called "checked"
@@ -276,12 +276,36 @@
     return { verdict: 'standard', why: 'area' };
   }
 
+  // The page asks for this file as winter-core.js?v=VERSION. For about 10
+  // minutes after a release a browser can pair a cached copy of the previous
+  // page (which asks for plain winter-core.js) with this file, and that page
+  // must not run on rules it wasn't written for. Bump VERSION, the page's
+  // ?v= and PAGE_VERSION, and sw.js SHELL together; tests/winter.js checks.
+  const VERSION = 10;
+
   const api = {
-    DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR, WINDOW_HOURS,
+    VERSION, DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR,
     WINTER_PACK_F, CHECK_MARGIN_F, CHECK_MARGIN_CLIMB_FT, WHOLE_STATE_SHARE, PICKUP_HOUR, LAST_DELIVERY_OFFSET, NO_SERVICE_DATES, HOLIDAY_NAMES,
     dateKey, addDays, daysBetween, deliveryFor, shipPlan, defaultNight,
     COLD_HOURS, toF, windowTemps, spellTemp, coldSpell, coldSpells, stateCalls, summarize, zipRanges, zipVerdict,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else root.WinterCore = api;
+  else if (pageMatches()) root.WinterCore = api;
+
+  // Loaded by a page that asked for another version: give it no rules (it
+  // stops before any weather request) and reload, which fetches the current
+  // page. At most 3 tries per tab, in case the host is mid-deploy.
+  function pageMatches() {
+    const src = (document.currentScript && document.currentScript.src) || '';
+    const key = 'winter-core-reloads';
+    if (new RegExp('[?&]v=' + VERSION + '(&|$)').test(src)) {
+      try { sessionStorage.removeItem(key); } catch (e) {}
+      return true;
+    }
+    try {
+      const n = +sessionStorage.getItem(key) || 0;
+      if (n < 3) { sessionStorage.setItem(key, String(n + 1)); location.reload(); }
+    } catch (e) {}
+    return false;
+  }
 })(typeof window !== 'undefined' ? window : this);

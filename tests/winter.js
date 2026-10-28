@@ -107,6 +107,8 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
      W.coldSpell(periods(K, '-06:00', at([12, 13, 14, 15], 30)).concat([{ startTime: K + 'T13:00:00-06:00', temperature: 60, temperatureUnit: 'F' }]), K) === 30);
   // the stretch length is one constant; every window has 5 possible 4-hour stretches
   ok('the rule is 4 hours in a row', W.COLD_HOURS === 4);
+  ok('the missing-checkpoint margin is 52°F', M === 52);
+  ok('spellTemp takes the stretch length (3 hours here)', W.spellTemp([30, 30, 30, 50], 3) === 30 && W.spellTemp([30, 30, 30, 50], 4) === 50);
   ok('a stretch can never be longer than the window', W.spellTemp([30, 30, 30], 4) === null);
   ok('NaN is missing', W.toF(NaN) === null && W.toF({ value: NaN, unitCode: 'wmoUnit:degF' }) === null);
 }
@@ -311,9 +313,18 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const html = fs.readFileSync(path.join(__dirname, '..', 'winter-pack.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
   const v = (html.match(/<script src="winter-core\.js\?v=(\d+)"><\/script>/) || [])[1];
-  ok('the page loads winter-core.js by version, and the service worker caches that same version',
-     !!v && sw.includes(`'./winter-core.js?v=${v}'`), `page v=${v}`);
-  ok('the page checks it got a winter-core.js that has what it calls', /typeof C\.coldSpells === 'function'/.test(html) && typeof W.coldSpells === 'function');
+  const pv = (html.match(/const PAGE_VERSION = (\d+);/) || [])[1];
+  ok('page, core and service worker agree on one version (core ?v=, PAGE_VERSION, VERSION, SHELL)',
+     !!v && v === pv && +v === W.VERSION && sw.includes(`'./winter-core.js?v=${v}'`) && sw.includes(`'./data/us-states.json?v=${v}'`),
+     `script ?v=${v}, PAGE_VERSION ${pv}, core ${W.VERSION}`);
+  ok('the page stops on a missing or mismatched core, and loads the map file by version',
+     html.includes('if (!C || C.VERSION !== PAGE_VERSION)') && html.includes("fetch('data/us-states.json?v=' + PAGE_VERSION)"));
+  // the page's fixed wording matches the constants it describes
+  const hourWords = [...html.matchAll(/(\d+)-hour low/g)].map(m => +m[1]);
+  ok(`every "N-hour low" on the page says ${W.COLD_HOURS}`, hourWords.length > 0 && hourWords.every(n => n === W.COLD_HOURS), hourWords.join());
+  ok('the How text starts from the right numbers before the script fills them',
+     html.includes(`<span class="v-pack">${W.WINTER_PACK_F}</span>`) && html.includes(`<span class="v-hours">${W.COLD_HOURS}</span>`) && html.includes(`<span class="v-margin">${M}</span>`));
+  ok('"freezing" is only said while the trigger is 32°F', W.WINTER_PACK_F === 32 || !/\(freezing\)|dip to freezing/.test(html));
 
   const d = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'winter-checkpoints.json'), 'utf8'));
   const cols = d.columns.join();

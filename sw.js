@@ -6,11 +6,13 @@
 // device is offline. Cross-origin requests (OpenWeatherMap, NWS, the map CDN)
 // are left untouched and go straight to the network.
 const CACHE = 'pm-weather-v10';
-const SHELL = ['./', './index.html', './winter-pack.html', './winter-core.js?v=10', './data/winter-checkpoints.json', './data/us-states.json', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './characters.js', './battle.js', './manifest.json', './icon.svg'];
+const SHELL = ['./', './index.html', './winter-pack.html', './winter-core.js?v=10', './data/winter-checkpoints.json', './data/us-states.json?v=10', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './characters.js', './battle.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
+  // cache: 'reload' skips the browser's 10-minute HTTP cache, so a fresh
+  // install never stores the previous release's files
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).catch(() => {}));
 });
 
 self.addEventListener('activate', (event) => {
