@@ -120,7 +120,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   same dot size from any screen. Buttons, the ZIP box and the explanations
   stay off the paper. Only on an extreme day (very long lists plus many
   places not checked) does the whole map move to a second page.
-- **Releasing a change to `winter-core.js`**: bump `VERSION` there, the
+- **Releasing a change to `winter-core.js` or the shape of
+  `data/us-states.json`**: bump `VERSION` in the core, the
   `?v=` on its script tag and `PAGE_VERSION` in `winter-pack.html`, and the
   two versioned URLs in `sw.js` (`tests/winter.js` fails until they match).
   For the 10 minutes browsers cache files, a page and core from different

@@ -317,6 +317,8 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('page, core and service worker agree on one version (core ?v=, PAGE_VERSION, VERSION, SHELL)',
      !!v && v === pv && +v === W.VERSION && sw.includes(`'./winter-core.js?v=${v}'`) && sw.includes(`'./data/us-states.json?v=${v}'`),
      `script ?v=${v}, PAGE_VERSION ${pv}, core ${W.VERSION}`);
+  ok('the service worker installs from the network, not the 10-minute HTTP cache', /new Request\(u, \{ cache: 'reload' \}\)/.test(sw));
+  ok('ZIP lists use markup, not invisible characters, to stay in one piece', !html.includes('\\u2060') && html.includes('class="nw"'));
   ok('the page stops on a missing or mismatched core, and loads the map file by version',
      html.includes('if (!C || C.VERSION !== PAGE_VERSION)') && html.includes("fetch('data/us-states.json?v=' + PAGE_VERSION)"));
   // the page's fixed wording matches the constants it describes

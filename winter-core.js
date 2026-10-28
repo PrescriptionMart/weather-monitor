@@ -294,7 +294,9 @@
 
   // Loaded by a page that asked for another version: give it no rules (it
   // stops before any weather request) and reload, which fetches the current
-  // page. At most 3 tries per tab, in case the host is mid-deploy.
+  // page. At most 3 tries per tab, in case the host is mid-deploy; after that
+  // (or with storage blocked, where tries can't be counted) the page says
+  // "Reload the page" instead of sitting on "Loading…".
   function pageMatches() {
     const src = (document.currentScript && document.currentScript.src) || '';
     const key = 'winter-core-reloads';
@@ -302,10 +304,16 @@
       try { sessionStorage.removeItem(key); } catch (e) {}
       return true;
     }
+    let reloading = false;
     try {
       const n = +sessionStorage.getItem(key) || 0;
-      if (n < 3) { sessionStorage.setItem(key, String(n + 1)); location.reload(); }
+      if (n < 3) { sessionStorage.setItem(key, String(n + 1)); location.reload(); reloading = true; }
     } catch (e) {}
+    if (!reloading) document.addEventListener('DOMContentLoaded', () => {
+      const a = document.getElementById('answer'), t = document.getElementById('as-of');
+      if (a) { a.className = 'answer down'; a.innerHTML = '<div class="answer-big">Page data didn\'t load</div><div class="answer-sub">Reload the page. If it keeps happening, ask a pharmacist before packing cold boxes.</div>'; }
+      if (t) t.textContent = '';
+    });
     return false;
   }
 })(typeof window !== 'undefined' ? window : this);

@@ -11,6 +11,10 @@
 // The page then needs no map library and no /points lookups: each checkpoint
 // carries its NWS gridpoint and its map position.
 //
+// After changing the shape of us-states.json (or anything the page reads
+// from winter-core.js), bump the version: winter-core.js VERSION, the page's
+// ?v= and PAGE_VERSION, and the sw.js SHELL URLs (tests/winter.js checks).
+//
 // Inputs (none of them are committed):
 //   --points <file>   JSON [{state, zip3, lat, lon, elev, g}] — the checkpoint list.
 //                     It is built from shipment history outside the repo; only
