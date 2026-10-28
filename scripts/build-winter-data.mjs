@@ -75,13 +75,16 @@ if (shapes.length !== 51) throw new Error('expected 51 state shapes, got ' + sha
 // Labels sit on each state's centroid, except where the centroid falls in a
 // lake or crowds a neighbour (LABEL_AT), and for states too small to hold
 // their abbreviation, which get it out in the Atlantic with a short line
-// back to the state (CALLOUT). The line starts at the centroid, or at
-// LINE_FROM where a line from the centroid would cross another state
-// (MD's over Delaware, RI's over Massachusetts) or start on top of DC's.
-// Coordinates are in the 975x610 map frame.
+// back to the state (CALLOUT). The MA/RI/CT column sits east of Cape Cod and
+// Nantucket (land ends at x 933), so no label covers a Massachusetts cold spot.
+// The line starts at the centroid, or at LINE_FROM where a line from the
+// centroid would cross another state or a cold spot: MD's starts on its
+// Eastern Shore (clear of Delaware and of DC's line), RI's on its south coast
+// (clear of Massachusetts and the islands), CT's at its east end (clear of
+// Long Island). Coordinates are in the 975x610 map frame.
 const LABEL_AT = { MI: [694, 198], FL: [790, 532], LA: [566, 470], HI: [300, 586], ID: [196, 160], VT: [872, 128], NH: [894, 146], KY: [700, 318] };
-const CALLOUT = { MA: [932, 170], RI: [932, 188], CT: [932, 206], NJ: [904, 236], DE: [904, 256], MD: [904, 274], DC: [904, 292] };
-const LINE_FROM = { MD: [848, 276], RI: [904, 192] };
+const CALLOUT = { MA: [938, 170], RI: [938, 198], CT: [938, 216], NJ: [904, 236], DE: [904, 256], MD: [904, 274], DC: [904, 292] };
+const LINE_FROM = { MD: [861, 273], RI: [907, 190], CT: [899, 192] };
 for (const s of shapes) {
   if (CALLOUT[s.code]) { s.label = CALLOUT[s.code]; s.from = LINE_FROM[s.code] || s.centroid; }
   else { s.label = LABEL_AT[s.code] || s.centroid; s.from = null; }

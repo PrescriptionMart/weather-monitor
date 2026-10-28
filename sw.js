@@ -11,8 +11,9 @@ const SHELL = ['./', './index.html', './winter-pack.html', './winter-core.js?v=1
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   // cache: 'reload' skips the browser's 10-minute HTTP cache, so a fresh
-  // install never stores the previous release's files
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).catch(() => {}));
+  // install never stores the previous release's files; one file at a time, so
+  // a single failed download doesn't leave the new cache empty
+  event.waitUntil(caches.open(CACHE).then((c) => Promise.allSettled(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' }))))));
 });
 
 self.addEventListener('activate', (event) => {
@@ -40,7 +41,9 @@ self.addEventListener('fetch', (event) => {
     } catch (err) {
       const cached = await caches.match(req);
       if (cached) return cached;
-      return caches.match('./index.html');
+      // offline and not saved: a page falls back to the dashboard; a script
+      // or data file fails plainly (an HTML page in its place would only break it)
+      return req.mode === 'navigate' ? caches.match('./index.html') : Response.error();
     }
   })());
 });

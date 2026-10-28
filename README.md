@@ -109,7 +109,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   labelled out in the Atlantic with a short line, and tapping one of those
   labels answers for its state) with no map library. Labels grow on smaller
   screens as far as they fit, and a label that would cover a cold-spot dot
-  moves to a clear spot inside its state. It shows whole-state winter packs
+  moves to the nearest clear spot inside its state, placed separately for
+  the screen and for paper. It shows whole-state winter packs
   darkest, states with some ZIPs lighter (dots mark the cold places),
   standard pale green and not checked striped grey, so it reads by lightness
   for colour-blind viewers and on a black-and-white printer. If the map file
@@ -125,9 +126,13 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   `?v=` on its script tag and `PAGE_VERSION` in `winter-pack.html`, and the
   two versioned URLs in `sw.js` (`tests/winter.js` fails until they match).
   For the 10 minutes browsers cache files, a page and core from different
-  releases can meet: a new page with an old core says "Reload the page", and
-  an old page with a new core reloads itself into the new page. Neither
-  makes weather requests or shows an answer on mixed rules.
+  releases can meet: a new page with an old core says "Reload the page" (and
+  reloads itself once the right file is reachable), and an old page with a
+  new core reloads itself into the new page. Neither makes weather requests
+  or shows an answer on mixed rules. Saved forecasts are kept per version,
+  so the first visit after a release fetches fresh. A Winter Pack tab that
+  was already open keeps the old rules until it reloads (it does at Central
+  midnight): release after the day's packing, or have each station press F5.
 - The rule's numbers are named constants at the top of `winter-core.js`
   (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`, `DWELL_HOURS`, `WINTER_PACK_F`,
   `COLD_HOURS`, `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).
