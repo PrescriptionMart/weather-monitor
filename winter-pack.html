@@ -204,6 +204,46 @@
       .night { min-width: 0; flex: 1 1 calc(50% - 8px); }
     }
     @media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+
+    /* ---- printing: the team prints the answer and the labelled map ------
+       One letter-size page: the ship night, the answer, the lists and the
+       map, always in the light palette (even from a dark-mode screen) and
+       with background colours kept, so the map prints as it looks. Buttons,
+       tabs, the ZIP box and the explanations are left off the paper. */
+    @media print {
+      @page { size: letter portrait; margin: 0.45in; }
+      :root:not(#print) {
+        --bg: #ffffff; --surface: #ffffff; --surface-2: #f1f3f3; --border: #c9cdd1;
+        --text: #16191c; --text-muted: #4a4f54; --text-faint: #5b6065;
+        --high-bg: #ffe9ed; --high-fg: #9e0f2b; --high-bd: #f9aab7;
+        --med-bg: #fff4d6;  --med-fg: #6b4700;  --med-bd: #ffd766;
+        --low-bg: #e4f6ef;  --low-fg: #0b5c43;  --low-bd: #9ad9c2;
+        --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #bcc2c7;
+        --map-nodata: #c9ced2; --map-nodata-line: #8a9096; --map-dot: #6e0b1d; --map-stroke: #ffffff;
+        --map-label: #000000; --map-label-halo: rgba(255,255,255,.9);
+      }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { background: #fff; min-height: 0; }
+      .tabs, .theme-toggle, .nights, .answer-foot, #copy-fallback, section[aria-label="Check one label"],
+      details.how, .foot, .jump, .row .note button, .tooltip, .progress { display: none !important; }
+      .header { background: none; color: #000; border-radius: 0; padding: 0 0 6px; border-bottom: 2px solid #000; }
+      .header .sub, .header .updated { color: #000; }
+      .container { max-width: none; padding: 8px 0 0; }
+      .card { border: none; border-radius: 0; padding: 0; margin: 0 0 8px; }
+      .answer { padding: 8px 12px; border-radius: 10px; }
+      .answer-big { font-size: 22px; }
+      .answer-sub { font-size: 12px; }
+      .rows { gap: 4px; margin-top: 8px; }
+      .row { grid-template-columns: 160px 1fr; padding: 5px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
+      .row-label { font-size: 11px; }
+      .define { font-size: 11px; margin-top: 6px; }
+      section[aria-label="Map"] { break-inside: avoid; page-break-inside: avoid; }
+      .map-head { margin-bottom: 4px; }
+      .legend { font-size: 10px; gap: 2px 12px; }
+      .map-wrap { padding: 0; background: none; }
+      .map-wrap svg { max-height: 5.6in; }
+      .st-label { font-size: 13px; }
+    }
   </style>
   <script>
     (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
@@ -273,9 +313,9 @@
     <ul>
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
       <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
-      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong>35°F or colder for 4 hours in a row</strong> in that window. A shorter dip below 35°F doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
-      <li>The <strong>4-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest 4 hours in a row. 35°F or below means winter pack.</li>
-      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over 55°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
+      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">4</span> hours in a row</strong> in that window. A shorter dip to freezing doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>The <strong>4-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">4</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
+      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
       <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
     </ul>
@@ -922,10 +962,10 @@ function zipMessage(zip, ex) {
   if (v.verdict === 'pack') {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
-        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for 4 hours.${reading}`
-        : `This ZIP itself stays at ${deg(low)} or colder for 4 hours, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
+        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours.${reading}`
+        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} don't stay at 35°F or below for 4 hours (4-hour low ${deg(area && area.low)}).${reading}`;
+    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours (4-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
@@ -960,6 +1000,10 @@ document.getElementById('zip-in').addEventListener('input', checkZip);
 document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
 
 // ---- start ----------------------------------------------------------------------------------
+// the How-this-is-decided text takes its numbers from winter-core.js
+document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
+document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
+document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
 async function start() {
   render();
   const mapPromise = fetch('data/us-states.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })

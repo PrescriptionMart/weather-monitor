@@ -28,15 +28,16 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 
 **Winter Pack (`winter-pack.html`)**
 - **The rule.** A 3-digit ZIP area gets a **winter pack** when any checkpoint in
-  it **stays at 35°F or colder for 4 hours in a row between 11am and 6pm**,
-  local time, on the delivery day (next-day air lands 11am–3pm, plus about 3
-  hours on the porch; NWS hourly forecast). A 1–3 hour dip below 35°F doesn't
-  count. Each place's **4-hour low** (the warmest reading during its coldest 4
-  hours in a row) is the one number the page compares (`COLD_HOURS` in
+  it **stays at 32°F (freezing) or colder for 4 hours in a row between 11am
+  and 6pm**, local time, on the delivery day (next-day air lands 11am–3pm, plus
+  about 3 hours on the porch; NWS hourly forecast). A 1–3 hour dip to freezing
+  doesn't count. Each place's **4-hour low** (the warmest reading during its
+  coldest 4 hours in a row) is the one number the page compares (`COLD_HOURS` in
   `winter-core.js`). When more than half of a state's ZIP areas need one,
-  the whole state does. 32°F is freezing; the extra 3°F covers forecast error
-  and a shaded porch. Winter pack = refrigerated ice packs mixed with frozen
-  ones (instead of all frozen), so the box absorbs the cold.
+  the whole state does. The line is actual freezing (`WINTER_PACK_F = 32`),
+  the team's choice, with no extra cushion for forecast error. Winter pack =
+  refrigerated ice packs mixed with frozen ones (instead of all frozen), so the
+  box absorbs the cold.
 - **The screen**, top to bottom: the ship nights; one answer ("Winter pack:
   3 whole states and parts of 2", "Standard packing", "Checking the
   forecast… don't pack from this yet", "No forecast"); the lists (*whole
@@ -47,7 +48,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   and shows no all-clear and no copy button. A ZIP area where a checkpoint
   didn't answer reads **Not checked — ask a pharmacist** unless the rest of the
   area is already cold (then it's winter pack anyway) or clearly warm (every
-  other checkpoint above 55°F and the missing one no more than 1,000 ft higher).
+  other checkpoint above 52°F and the missing one no more than 1,000 ft higher).
   If the areas still loading or not checked could push a state past half cold,
   none of that state is called standard until they're in. If nothing answers
   at all, the page says the weather service is down. The ZIP box follows the
@@ -104,10 +105,15 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   itself for the new day.
 - **The map** is drawn from pre-projected state outlines (`data/us-states.json`,
   which also holds each state's label spot; MA, RI, CT, NJ, DE, MD and DC are
-  labelled out in the Atlantic with a short line) with no map library. It shows whole-state winter packs darkest, states with
-  some ZIPs lighter (dots mark the cold places), standard pale green and not
-  checked striped grey, so it reads by lightness for colour-blind viewers. If
-  the map file fails, the answer above is unaffected.
+  labelled out in the Atlantic with a short line) with no map library. It
+  shows whole-state winter packs darkest, states with some ZIPs lighter (dots
+  mark the cold places), standard pale green and not checked striped grey, so
+  it reads by lightness for colour-blind viewers and on a black-and-white
+  printer. If the map file fails, the answer above is unaffected.
+- **Printing** (Ctrl+P) gives one letter-size page: the ship night, the
+  answer, the state and ZIP lists and the labelled map, in the light palette
+  even from a dark-mode screen. Buttons, the ZIP box and the explanations stay
+  off the paper.
 - The rule's numbers are named constants at the top of `winter-core.js`
   (`DELIVERY_START_HOUR`, `DELIVERY_END_HOUR`, `DWELL_HOURS`, `WINTER_PACK_F`,
   `COLD_HOURS`, `CHECK_MARGIN_F`, `WHOLE_STATE_SHARE`, `NO_SERVICE_DATES`).

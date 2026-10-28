@@ -3,9 +3,9 @@
 //
 // THE RULE (one sentence the whole page hangs on):
 //   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
-//   35°F or colder for 4 hours in a row between 11am and 6pm, local time, on
-//   the delivery day. A shorter dip below 35°F doesn't count. When more than
-//   half of a state's ZIP areas need one, the whole state does.
+//   32°F (freezing) or colder for 4 hours in a row between 11am and 6pm, local
+//   time, on the delivery day. A shorter dip to freezing doesn't count. When
+//   more than half of a state's ZIP areas need one, the whole state does.
 //
 // Why 11am-6pm: next-day air lands late morning to mid-afternoon (11am-3pm)
 // and we account for about 3 hours on the porch after that.
@@ -17,15 +17,16 @@
   const DWELL_HOURS = 3;
   const WINDOW_END_HOUR = DELIVERY_END_HOUR + DWELL_HOURS;           // 18:00
   const WINDOW_HOURS = WINDOW_END_HOUR - DELIVERY_START_HOUR + 1;     // 8 hourly readings
-  const WINTER_PACK_F = 35;   // 32°F is freezing; 3°F of room for forecast error and a shaded porch
+  const WINTER_PACK_F = 32;   // actual freezing (the team's call; no extra cushion for forecast error)
   const COLD_HOURS = 4;       // ...for this many hours in a row; a 1-3 hour dip doesn't trigger a pack
   // A ZIP area with a checkpoint that didn't answer is still called "checked"
-  // when every checkpoint that did answer is above 55°F AND the missing one is
-  // no more than 1,000 ft higher than the highest one that answered: at about
-  // the same elevation, a missing point in the same 3-digit ZIP area is not
-  // 20°F+ colder than all of its neighbours. A missing mountain checkpoint
+  // when every checkpoint that did answer is above 52°F (32°F + the 20°F
+  // margin) AND the missing one is no more than 1,000 ft higher than the
+  // highest one that answered: at about the same elevation, a missing point
+  // in the same 3-digit ZIP area is not 20°F+ colder than all of its
+  // neighbours. A missing mountain checkpoint
   // (Mammoth next to Bishop) is never covered this way; its area reads NOT
-  // CHECKED, and so does any area at 55°F or below with a gap.
+  // CHECKED, and so does any area at 52°F or below with a gap.
   const CHECK_MARGIN_F = 20;
   const CHECK_MARGIN_CLIMB_FT = 1000;
   const WHOLE_STATE_SHARE = 0.5;   // more than half the ZIP areas cold → whole state
@@ -136,8 +137,8 @@
     return out;
   }
   // The "4-hour low": the warmest reading during the coldest COLD_HOURS hours
-  // in a row. At or below 35°F means the place stayed that cold for 4 hours
-  // straight; a 1-3 hour dip below 35°F leaves it above. Every comparison the
+  // in a row. At or below 32°F means the place stayed freezing for 4 hours
+  // straight; a 1-3 hour dip to freezing leaves it above. Every comparison the
   // page makes (ZIP areas, whole states, the missing-checkpoint margin) uses
   // this one number per place per day.
   function spellTemp(temps, hours) {

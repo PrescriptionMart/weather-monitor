@@ -7,6 +7,8 @@
 //
 //   node tests/winter.js
 const W = require('../winter-core.js');
+const F = W.WINTER_PACK_F;                       // the trigger temperature (32°F)
+const M = W.WINTER_PACK_F + W.CHECK_MARGIN_F;    // "clearly warm" for the missing-checkpoint margin
 
 let failed = 0, passed = 0;
 const ok = (name, cond, extra = '') => {
@@ -79,10 +81,12 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
   ok('4 cold hours that are not in a row do not count', spell(at([11, 12, 17, 18], 30)) === 50);
   ok('the 4-hour low is the warmest reading of the coldest 4 hours in a row',
      spell(h => ({ 11: 28, 12: 31, 13: 34, 14: 35, 15: 38, 16: 40, 17: 41, 18: 42 })[h]) === 35);
-  ok('a cold morning that warms past 35°F by 2pm does not count',
+  ok('a cold morning that warms up by 2pm does not count',
      spell(h => ({ 11: 29, 12: 32, 13: 34, 14: 37, 15: 40, 16: 41, 17: 40, 18: 38 })[h]) === 37);
-  ok('35°F for exactly 4 hours counts; 36°F does not',
-     spell(at([15, 16, 17, 18], 35)) <= W.WINTER_PACK_F && spell(at([15, 16, 17, 18], 36)) > W.WINTER_PACK_F);
+  ok(`${F}°F for exactly 4 hours counts; ${F + 1}°F does not`,
+     spell(at([15, 16, 17, 18], F)) <= F && spell(at([15, 16, 17, 18], F + 1)) > F);
+  ok('the trigger is actual freezing, 32°F', F === 32);
+  ok('33°F for the whole window is not a winter pack', spell(() => 33) > F);
   ok('11am-2pm is the first 4-hour stretch, 3pm-6pm the last',
      spell(at([11, 12, 13, 14], 33)) === 33 && spell(at([15, 16, 17, 18], 33)) === 33);
   ok('cold hours outside the window do not help a stretch inside it (9am-12pm cold → no)', spell(at([9, 10, 11, 12], 30)) === 50);
@@ -116,23 +120,23 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const [ca] = callFor(['CA'], pts, [31, 44, 60, 62, 65]);
   ok('one cold checkpoint makes its ZIP area winter pack, not the whole state', ca.call === 'part' && ca.coldZips.join() === '960', JSON.stringify(ca));
   ok('  coldest reading reported', ca.coldest === 31);
-  ok('35°F exactly is winter pack', callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [35, 60])[0].coldZips.join() === '960');
-  ok('36°F is not', callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [36, 60])[0].call === 'standard');
+  ok(`${F}°F exactly is winter pack`, callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [F, 60])[0].coldZips.join() === '960');
+  ok(`${F + 1}°F is not`, callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [F + 1, 60])[0].call === 'standard');
 
   const mn = callFor(['MN'], [pt('MN', '550'), pt('MN', '551'), pt('MN', '556')], [20, 30, 33])[0];
   ok('every ZIP area cold: whole state', mn.call === 'whole');
-  const tx = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770')], [30, 34, 60])[0];
+  const tx = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770')], [30, 31, 60])[0];
   ok('more than half the ZIP areas cold: whole state', tx.call === 'whole');
-  const half = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770'), pt('TX', '787')], [30, 34, 60, 61])[0];
+  const half = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770'), pt('TX', '787')], [30, 31, 60, 61])[0];
   ok('exactly half: only those ZIP areas', half.call === 'part' && half.coldZips.join() === '790,791');
 
   // missing checkpoints
   const warmGap = callFor(['FL'], [pt('FL', '331'), pt('FL', '331')], [null, 72])[0];
-  ok('a missing checkpoint in a warm area (all others above 55°F) is still checked', warmGap.call === 'standard');
+  ok(`a missing checkpoint in a warm area (all others above ${M}°F) is still checked`, warmGap.call === 'standard');
   const coolGap = callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 45])[0];
-  ok('a missing checkpoint where the others are 55°F or below: NOT CHECKED', coolGap.call === 'unchecked' && coolGap.uncheckedZips.join() === '305');
-  ok('  55°F exactly is not enough margin', callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 55])[0].call === 'unchecked');
-  ok('  56°F is', callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 56])[0].call === 'standard');
+  ok(`a missing checkpoint where the others are ${M}°F or below: NOT CHECKED`, coolGap.call === 'unchecked' && coolGap.uncheckedZips.join() === '305');
+  ok(`  ${M}°F exactly is not enough margin`, callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, M])[0].call === 'unchecked');
+  ok(`  ${M + 1}°F is`, callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, M + 1])[0].call === 'standard');
   const allGone = callFor(['ND'], [pt('ND', '580'), pt('ND', '581')], [null, null])[0];
   ok('nothing answered: NOT CHECKED, the whole state', allGone.call === 'unchecked' && allGone.allUnchecked && allGone.coldest === null);
   const coldGap = callFor(['MT'], [pt('MT', '590'), pt('MT', '590'), pt('MT', '591')], [null, 30, 60])[0];
@@ -202,7 +206,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
 }
 
 // Random loads: whatever arrives, fails or is still pending, "complete" is only
-// said when the checkpoints still loading can't change any call, a checkpoint at or below 35°F always makes a winter
+// said when the checkpoints still loading can't change any call, a checkpoint at or below the trigger always makes a winter
 // pack, and losing an answer never turns a winter pack into standard.
 // Temperatures are realistic: checkpoints in one ZIP area sit within ±9°F of
 // each other (the 20°F margin rule assumes no more than that).
@@ -232,7 +236,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
       });
     }
     calls.forEach(c => {
-      if (c.call === 'standard' && pts.some((p, i) => p.state === c.state && typeof vals[i] === 'number' && vals[i] <= 35)) standardWithCold++;
+      if (c.call === 'standard' && pts.some((p, i) => p.state === c.state && typeof vals[i] === 'number' && vals[i] <= F)) standardWithCold++;
     });
     // knock out one more answer: no state may go from a pack to standard
     const j = Math.floor(rnd() * vals.length);
@@ -264,7 +268,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
     ok('3000 random loads: a ZIP called standard is still standard once every checkpoint is known', wrong === 0, String(wrong));
   }
   ok('3000 random loads: "complete" is final — the checkpoints still loading cannot change it', badComplete === 0, String(badComplete));
-  ok('3000 random loads: a state with a checkpoint at 35°F or below is never standard', standardWithCold === 0, String(standardWithCold));
+  ok(`3000 random loads: a state with a checkpoint at ${F}°F or below is never standard`, standardWithCold === 0, String(standardWithCold));
   ok('3000 random loads: losing an answer never turns a winter pack into standard', flipped === 0, String(flipped));
 }
 
@@ -278,7 +282,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const [ca] = callFor(['CA'], pts, [31, 60, 61, 62]);
   ok('ZIP in a cold area: winter pack', W.zipVerdict(ca, '960', 45).verdict === 'pack');
   ok('ZIP in a warm area: standard', W.zipVerdict(ca, '900', 58).verdict === 'standard');
-  ok('ZIP in a warm area that reads 35°F itself: winter pack (the box can add a pack)', W.zipVerdict(ca, '900', 35).verdict === 'pack');
+  ok(`ZIP in a warm area that reads ${F}°F itself: winter pack (the box can add a pack)`, W.zipVerdict(ca, '900', F).verdict === 'pack');
   ok('ZIP in a cold area that reads warm itself: still winter pack (the box never overrules the list)', W.zipVerdict(ca, '960', 50).verdict === 'pack');
   const [mn] = callFor(['MN'], [pt('MN', '550'), pt('MN', '551'), pt('MN', '556')], [20, 30, 50]);
   ok('ZIP in a whole-state winter pack: winter pack even if its own area is warm', W.zipVerdict(mn, '556', 50).verdict === 'pack');
