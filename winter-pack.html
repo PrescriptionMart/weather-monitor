@@ -315,7 +315,7 @@
       <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
       <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">4</span> hours in a row</strong> in that window. A shorter dip to freezing doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
       <li>The <strong>4-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">4</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
-      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
+      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 4-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
       <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
     </ul>
@@ -329,7 +329,9 @@
 
 <div class="tooltip" id="tooltip" role="tooltip"></div>
 
-<script src="winter-core.js"></script>
+<!-- ?v= changes whenever winter-core.js changes what it exports (with sw.js SHELL), so a
+     browser that cached the old file for its 10 minutes can't pair it with this page -->
+<script src="winter-core.js?v=10"></script>
 <script>
 const C = window.WinterCore;
 
@@ -368,7 +370,7 @@ let plan = C.shipPlan(today);
 let dayKeys = [...new Set(plan.map(n => n.delivKey))];
 let night = C.defaultNight(plan, today, benchNow().hour);
 let dataVersion = '';         // which checkpoint list the saved forecast belongs to
-let lows = [];                // per point: undefined = not yet, null = failed, else [low per dayKeys]
+let lows = [];                // per point: undefined = not yet, null = failed, else [4-hour low per dayKeys]
 let asOf = null;              // when the forecast on screen was fetched
 let load = { running: false, background: false, done: 0, gaveUp: false, failed: false };
 let lastAttemptAt = 0, failedUpdates = 0;  // after a failed update, wait 10, 20, then 30 min between automatic tries
@@ -471,7 +473,7 @@ async function lookUpPoint(lat, lon, priority) {
   if (!r || r.notFound) return null;
   try { return r.body.properties.forecastHourly || null; } catch (e) { return null; }
 }
-// One place's window lows for the delivery days on screen, or null.
+// One place's 4-hour lows for the delivery days on screen, or null.
 async function fetchLows(p, keys, priority) {
   let r = await nwsFetch(hourlyUrl(p), priority);
   if (r && r.notFound) {
@@ -921,7 +923,7 @@ function stateForZip(zip3, at) {
   POINTS.forEach(p => { if (p.zip3 !== zip3) return; const d = (p.lat - at[0]) ** 2 + (p.lon - at[1]) ** 2; if (d < bd) { bd = d; best = p.state; } });
   return best;
 }
-// This exact ZIP's own 11am-6pm low on `day`. Two requests, at the front of
+// This exact ZIP's own 4-hour low on `day`. Two requests, at the front of
 // the queue so they don't wait behind a full load. Resolves to
 // {value} | {unknownZip: true} | {failed: true}; a failure is retried after a minute.
 function exactLow(zip, day) {
@@ -963,7 +965,7 @@ function zipMessage(zip, ex) {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
         : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours.${reading}`
-        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
+        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
     big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours (4-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
@@ -1000,11 +1002,15 @@ document.getElementById('zip-in').addEventListener('input', checkZip);
 document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
 
 // ---- start ----------------------------------------------------------------------------------
+// A cached older winter-core.js can't run this page: say "reload" and make no
+// weather requests, instead of failing every one and blaming the weather service.
+const CORE_OK = !!C && typeof C.coldSpells === 'function' && typeof C.coldSpell === 'function' && C.COLD_HOURS > 0;
 // the How-this-is-decided text takes its numbers from winter-core.js
-document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
-document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
-document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
+if (CORE_OK) document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
+if (CORE_OK) document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
+if (CORE_OK) document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
 async function start() {
+  if (!CORE_OK) { dataError = true; render(); return; }
   render();
   const mapPromise = fetch('data/us-states.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(s => { SHAPES = s; if (lastCalls.length) renderMap(lastCalls, plan[night]); })

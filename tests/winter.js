@@ -103,6 +103,8 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
   ok('Celsius values are converted (0°C = 32°F)', W.coldSpell(qv, K) === 32);
   ok('a null temperature is missing, not 0°F', W.coldSpell(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
   ok('a non-number temperature is missing, not a reading', W.coldSpell(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
+  ok('a warmer duplicate hour does not hide a cold stretch',
+     W.coldSpell(periods(K, '-06:00', at([12, 13, 14, 15], 30)).concat([{ startTime: K + 'T13:00:00-06:00', temperature: 60, temperatureUnit: 'F' }]), K) === 30);
   // the stretch length is one constant; every window has 5 possible 4-hour stretches
   ok('the rule is 4 hours in a row', W.COLD_HOURS === 4);
   ok('a stretch can never be longer than the window', W.spellTemp([30, 30, 30], 4) === null);
@@ -149,6 +151,14 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('a state with a checkpoint not fetched yet is pending, not standard', loading.call === 'pending');
   const earlyWhole = callFor(['WI'], [pt('WI', '530'), pt('WI', '531'), pt('WI', '545')], [20, 22, undefined])[0];
   ok('already more than half cold while loading: whole state straight away', earlyWhole.call === 'whole');
+
+  // the page's own path: NWS periods → coldSpells (one 4-hour low per delivery day) → stateCalls
+  const K2 = '2026-12-09', K3 = '2026-12-10';
+  const two = periods(K, '-06:00', h => h === 14 ? 20 : 50).concat(periods(K2, '-06:00', h => h >= 12 && h <= 15 ? 30 : 50));
+  const spells = W.coldSpells(two, [K, K2, K3]);
+  ok('coldSpells gives each delivery day its 4-hour low (null for a day with no forecast)', JSON.stringify(spells) === '[50,30,null]', JSON.stringify(spells));
+  ok('page path: a 1-hour dip to 20°F is standard, 4 hours at 30°F is a winter pack',
+     W.stateCalls(['CA'], [pt('CA', '960')], [spells], 0)[0].call === 'standard' && W.stateCalls(['CA'], [pt('CA', '960')], [spells], 1)[0].call === 'whole');
 }
 
 // ---- a state that could still turn out "whole state" ----------------------------------
@@ -295,9 +305,16 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('no state at all (outside the 50 states): ask, or pack if it reads cold', W.zipVerdict(null, '006', null).verdict === 'ask' && W.zipVerdict(null, '006', 20).verdict === 'pack');
 }
 
-// ---- the checkpoint file the page loads ------------------------------------------------------
+// ---- the files the page loads ------------------------------------------------------
 {
   const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'winter-pack.html'), 'utf8');
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+  const v = (html.match(/<script src="winter-core\.js\?v=(\d+)"><\/script>/) || [])[1];
+  ok('the page loads winter-core.js by version, and the service worker caches that same version',
+     !!v && sw.includes(`'./winter-core.js?v=${v}'`), `page v=${v}`);
+  ok('the page checks it got a winter-core.js that has what it calls', /typeof C\.coldSpells === 'function'/.test(html) && typeof W.coldSpells === 'function');
+
   const d = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'winter-checkpoints.json'), 'utf8'));
   const cols = d.columns.join();
   ok('checkpoint file columns are what the page reads', cols === 'state,zip3,lat,lon,elev_ft,gridpoint,x,y', cols);

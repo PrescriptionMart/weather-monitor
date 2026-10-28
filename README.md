@@ -48,7 +48,8 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   and shows no all-clear and no copy button. A ZIP area where a checkpoint
   didn't answer reads **Not checked — ask a pharmacist** unless the rest of the
   area is already cold (then it's winter pack anyway) or clearly warm (every
-  other checkpoint above 52°F and the missing one no more than 1,000 ft higher).
+  other checkpoint's 4-hour low above 52°F and the missing one no more than
+  1,000 ft higher).
   If the areas still loading or not checked could push a state past half cold,
   none of that state is called standard until they're in. If nothing answers
   at all, the page says the weather service is down. The ZIP box follows the

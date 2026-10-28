@@ -261,7 +261,7 @@
 
   // One ZIP typed into the check box. The box can add a winter pack (this exact
   // spot reads colder than our checkpoints) but never overrule the list.
-  //   area: the state's call entry; exactLow: this ZIP's own window low or null
+  //   area: the state's call entry; exactLow: this ZIP's own 4-hour low or null
   //   → {verdict: 'pack'|'standard'|'ask'|'wait', why}
   function zipVerdict(area, zip3, exactLow) {
     const exactCold = exactLow !== null && exactLow !== undefined && exactLow <= WINTER_PACK_F;
