@@ -1,10 +1,13 @@
 // Winter Pack decision rules, shared by winter-pack.html and tests/winter.js.
-// Pure functions only: no DOM, no network, no clock (callers pass dates in).
+// Pure functions only: no DOM, no network, no clock (callers pass dates in),
+// apart from the version check at the bottom when a page loads this file.
 //
 // THE RULE (one sentence the whole page hangs on):
-//   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it is 35°F or
-//   colder at any hour from 11am to 6pm, local time, on the delivery day.
-//   When more than half of a state's ZIP areas need one, the whole state does.
+//   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
+//   32°F (freezing) or colder for longer than 4 hours (5 hourly readings in a
+//   row) between 11am and 6pm, local time, on the delivery day. A freeze of 4
+//   hours or less doesn't count. When more than half of a state's ZIP areas
+//   need one, the whole state does.
 //
 // Why 11am-6pm: next-day air lands late morning to mid-afternoon (11am-3pm)
 // and we account for about 3 hours on the porch after that.
@@ -15,15 +18,16 @@
   const DELIVERY_END_HOUR = 15;
   const DWELL_HOURS = 3;
   const WINDOW_END_HOUR = DELIVERY_END_HOUR + DWELL_HOURS;           // 18:00
-  const WINDOW_HOURS = WINDOW_END_HOUR - DELIVERY_START_HOUR + 1;     // 8 hourly readings
-  const WINTER_PACK_F = 35;   // 32°F is freezing; 3°F of room for forecast error and a shaded porch
+  const WINTER_PACK_F = 32;   // actual freezing (the team's call; no extra cushion for forecast error)
+  const COLD_HOURS = 5;       // ...for this many hourly readings in a row: longer than 4 hours (the team's call)
   // A ZIP area with a checkpoint that didn't answer is still called "checked"
-  // when every checkpoint that did answer is above 55°F AND the missing one is
-  // no more than 1,000 ft higher than the highest one that answered: at about
-  // the same elevation, a missing point in the same 3-digit ZIP area is not
-  // 20°F+ colder than all of its neighbours. A missing mountain checkpoint
+  // when every checkpoint that did answer is above 52°F (32°F + the 20°F
+  // margin) AND the missing one is no more than 1,000 ft higher than the
+  // highest one that answered: at about the same elevation, a missing point
+  // in the same 3-digit ZIP area is not 20°F+ colder than all of its
+  // neighbours. A missing mountain checkpoint
   // (Mammoth next to Bishop) is never covered this way; its area reads NOT
-  // CHECKED, and so does any area at 55°F or below with a gap.
+  // CHECKED, and so does any area at 52°F or below with a gap.
   const CHECK_MARGIN_F = 20;
   const CHECK_MARGIN_CLIMB_FT = 1000;
   const WHOLE_STATE_SHARE = 0.5;   // more than half the ZIP areas cold → whole state
@@ -112,29 +116,49 @@
     return null;
   }
 
-  // Coldest reading 11:00-18:00 on `key`, local to the forecast point (the
-  // startTime carries the point's own UTC offset, so the first 10 characters are
-  // its local date and characters 11-12 its local hour). Null unless all 8
-  // hours are present: half a window is not a check.
-  function windowLow(periods, key) {
-    let n = 0, low = null;
+  // The 11:00-18:00 readings on `key`, hour by hour, local to the forecast
+  // point (the startTime carries the point's own UTC offset, so the first 10
+  // characters are its local date and characters 11-12 its local hour). Null
+  // unless all 8 hours are present: half a window is not a check.
+  function windowTemps(periods, key) {
+    const byHour = {};
     for (const p of periods || []) {
       if (!p || typeof p.startTime !== 'string' || p.startTime.slice(0, 10) !== key) continue;
       const h = parseInt(p.startTime.slice(11, 13), 10);
       if (!(h >= DELIVERY_START_HOUR && h <= WINDOW_END_HOUR)) continue;
       const t = toF(p.temperature, p.temperatureUnit);
       if (t === null) continue;
-      n++;
-      if (low === null || t < low) low = t;
+      byHour[h] = byHour[h] === undefined ? t : Math.min(byHour[h], t);
     }
-    return n >= WINDOW_HOURS ? low : null;
+    const out = [];
+    for (let h = DELIVERY_START_HOUR; h <= WINDOW_END_HOUR; h++) {
+      if (byHour[h] === undefined) return null;
+      out.push(byHour[h]);
+    }
+    return out;
   }
-  function windowLows(periods, keys) { return keys.map(k => windowLow(periods, k)); }
+  // The "5-hour low": the warmest reading during the coldest COLD_HOURS hours
+  // in a row. At or below 32°F means the place stayed freezing for 5 hours
+  // straight; a freeze of 4 hours or less leaves it above. Every comparison the
+  // page makes (ZIP areas, whole states, the missing-checkpoint margin) uses
+  // this one number per place per day.
+  function spellTemp(temps, hours) {
+    hours = hours || COLD_HOURS;
+    if (!temps || temps.length < hours) return null;
+    let best = null;
+    for (let i = 0; i + hours <= temps.length; i++) {
+      const top = Math.max.apply(null, temps.slice(i, i + hours));
+      if (best === null || top < best) best = top;
+    }
+    return best;
+  }
+  function coldSpell(periods, key) { return spellTemp(windowTemps(periods, key)); }
+  function coldSpells(periods, keys) { return keys.map(k => coldSpell(periods, k)); }
 
   // ---- the call ----------------------------------------------------------------------
   // points:  [{state, zip3, elev (ft, optional)}]
   // lows:    per point: undefined = not fetched yet, null = fetch failed,
-  //          otherwise {key: lowF|null} (null for a day = window incomplete)
+  //          otherwise {key: 5-hour low °F | null} (null = window incomplete)
   // Returns one entry per state (in `states` order):
   //   {state, call, coldest, coldZips, uncheckedZips, pendingZips, areas}
   //   call: 'pending' | 'whole' | 'part' | 'standard' | 'unchecked'
@@ -238,7 +262,7 @@
 
   // One ZIP typed into the check box. The box can add a winter pack (this exact
   // spot reads colder than our checkpoints) but never overrule the list.
-  //   area: the state's call entry; exactLow: this ZIP's own window low or null
+  //   area: the state's call entry; exactLow: this ZIP's own 5-hour low or null
   //   → {verdict: 'pack'|'standard'|'ask'|'wait', why}
   function zipVerdict(area, zip3, exactLow) {
     const exactCold = exactLow !== null && exactLow !== undefined && exactLow <= WINTER_PACK_F;
@@ -253,12 +277,49 @@
     return { verdict: 'standard', why: 'area' };
   }
 
+  // The page asks for this file as winter-core.js?v=VERSION. For about 10
+  // minutes after a release a browser can pair a cached copy of the previous
+  // page (which asks for plain winter-core.js) with this file, and that page
+  // must not run on rules it wasn't written for. Bump VERSION, the page's
+  // ?v= and PAGE_VERSION, and sw.js SHELL together; tests/winter.js checks.
+  const VERSION = 10;
+
   const api = {
-    DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR, WINDOW_HOURS,
+    VERSION, DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR,
     WINTER_PACK_F, CHECK_MARGIN_F, CHECK_MARGIN_CLIMB_FT, WHOLE_STATE_SHARE, PICKUP_HOUR, LAST_DELIVERY_OFFSET, NO_SERVICE_DATES, HOLIDAY_NAMES,
     dateKey, addDays, daysBetween, deliveryFor, shipPlan, defaultNight,
-    toF, windowLow, windowLows, stateCalls, summarize, zipRanges, zipVerdict,
+    COLD_HOURS, toF, windowTemps, spellTemp, coldSpell, coldSpells, stateCalls, summarize, zipRanges, zipVerdict,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else root.WinterCore = api;
+  else if (pageMatches()) root.WinterCore = api;
+
+  // Loaded by a page that asked for another version: give it no rules (it
+  // stops before any weather request) and reload, which fetches the current
+  // page. At most 3 tries per tab, in case the host is mid-deploy; after that
+  // (or with storage blocked, where tries can't be counted) the page says
+  // "Reload the page" instead of sitting on "Loading…".
+  function pageMatches() {
+    const src = (document.currentScript && document.currentScript.src) || '';
+    const key = 'winter-core-reloads';
+    if (new RegExp('[?&]v=' + VERSION + '(&|$)').test(src)) {
+      try { sessionStorage.removeItem(key); } catch (e) {}
+      return true;
+    }
+    let reloading = false;
+    try {
+      const n = +sessionStorage.getItem(key) || 0;
+      if (n < 3) { sessionStorage.setItem(key, String(n + 1)); location.reload(); reloading = true; }
+    } catch (e) {}
+    if (!reloading) document.addEventListener('DOMContentLoaded', () => {
+      const a = document.getElementById('answer'), t = document.getElementById('as-of');
+      if (a) { a.className = 'answer down'; a.innerHTML = '<div class="answer-big">Page data didn\'t load</div><div class="answer-sub">Reload the page. If it keeps happening, ask a pharmacist before packing cold boxes.</div>'; }
+      if (t) t.textContent = '';
+      const z = document.getElementById('zip-out'), m = document.getElementById('map-wrap');
+      if (z) z.textContent = 'Page data didn’t load. Reload the page.';
+      if (m) m.innerHTML = '<div class="map-note">Page data didn’t load. Reload the page.</div>';
+      const i = document.getElementById('zip-in');
+      if (i) i.disabled = true;   // that page's ZIP box can't answer any more
+    });
+    return false;
+  }
 })(typeof window !== 'undefined' ? window : this);

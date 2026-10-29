@@ -2,12 +2,18 @@
 //
 //   data/winter-checkpoints.json  where the page checks the weather: one row per
 //                                 checkpoint [state, zip3, lat, lon, elev ft, gridpoint, x, y]
-//   data/us-states.json           state outlines, already projected for the map
+//   data/us-states.json           state outlines, already projected for the map, with
+//                                 where each state's abbreviation goes:
+//                                 [code, path, [labelX, labelY], [lineFromX, lineFromY] | null]
 //   data/zip-centroids.txt        every US ZIP's centre (public Census data), for
 //                                 the "check a ZIP" box
 //
 // The page then needs no map library and no /points lookups: each checkpoint
 // carries its NWS gridpoint and its map position.
+//
+// After changing the shape of us-states.json (or anything the page reads
+// from winter-core.js), bump the version: winter-core.js VERSION, the page's
+// ?v= and PAGE_VERSION, and the sw.js SHELL URLs (tests/winter.js checks).
 //
 // Inputs (none of them are committed):
 //   --points <file>   JSON [{state, zip3, lat, lon, elev, g}] — the checkpoint list.
@@ -58,9 +64,34 @@ const CODES = new Set(Object.values(STATES).map(s => s[0]));
 const round = (s) => s.replace(/-?\d+\.\d+/g, (n) => (+n).toFixed(1).replace(/\.0$/, ''));
 const shapes = topojson.feature(atlas, atlas.objects.states).features
   .filter(f => STATES[String(f.id).padStart(2, '0')])
-  .map(f => { const [code, name] = STATES[String(f.id).padStart(2, '0')]; return { code, name, d: round(d3.geoPath()(f)) }; })
+  .map(f => {
+    const [code, name] = STATES[String(f.id).padStart(2, '0')];
+    const c = d3.geoPath().centroid(f).map(v => +v.toFixed(1));
+    return { code, name, d: round(d3.geoPath()(f)), centroid: c };
+  })
   .sort((a, b) => a.name.localeCompare(b.name));
 if (shapes.length !== 51) throw new Error('expected 51 state shapes, got ' + shapes.length);
+
+// Labels sit on each state's centroid, except where the centroid falls in a
+// lake or crowds a neighbour (LABEL_AT), and for states too small to hold
+// their abbreviation, which get it out in the Atlantic with a short line
+// back to the state (CALLOUT). The MA/RI/CT column sits east of Cape Cod and
+// Nantucket (land ends at x 933), so no label covers a Massachusetts cold spot.
+// The line starts at the centroid, or at LINE_FROM where a line from the
+// centroid would cross another state or pass over another state's checkpoint
+// (where a cold-spot dot can appear): MD's starts on its Eastern Shore, RI's
+// on its south coast, CT's at its east end, DE's in the south and NJ's in the
+// southeast. No route out of CT misses Block Island (RI 028), and DC's line
+// has to cross Maryland past Arlington (VA); a cold-spot dot there is drawn
+// over the line, so it still shows.
+// Coordinates are in the 975x610 map frame.
+const LABEL_AT = { MI: [694, 198], FL: [790, 532], LA: [566, 470], HI: [300, 586], ID: [196, 160], VT: [872, 128], NH: [894, 146], KY: [700, 318] };
+const CALLOUT = { MA: [938, 170], RI: [938, 198], CT: [938, 216], NJ: [904, 236], DE: [904, 256], MD: [904, 274], DC: [904, 292] };
+const LINE_FROM = { MD: [861, 273], RI: [907, 190], CT: [899, 192], DE: [861, 268], NJ: [871, 236] };
+for (const s of shapes) {
+  if (CALLOUT[s.code]) { s.label = CALLOUT[s.code]; s.from = LINE_FROM[s.code] || s.centroid; }
+  else { s.label = LABEL_AT[s.code] || s.centroid; s.from = null; }
+}
 
 // ---- each 3-digit ZIP area's state ----------------------------------------------------------
 // A ZIP's state is the one holding most of its land; a ZIP area's state is the
@@ -109,7 +140,7 @@ const version = crypto.createHash('sha1').update(JSON.stringify(rows)).digest('h
 fs.writeFileSync(path.join(ROOT, 'data', 'winter-checkpoints.json'),
   '{"version":"' + version + '",\n"columns":["state","zip3","lat","lon","elev_ft","gridpoint","x","y"],\n"states":' + JSON.stringify(states) + ',\n"points":[\n' +
   rows.map(r => JSON.stringify(r)).join(',\n') + '\n]}\n');
-fs.writeFileSync(path.join(ROOT, 'data', 'us-states.json'), JSON.stringify(shapes.map(s => [s.code, s.d])) + '\n');
+fs.writeFileSync(path.join(ROOT, 'data', 'us-states.json'), JSON.stringify(shapes.map(s => [s.code, s.d, s.label, s.from])) + '\n');
 
 // ---- ZIP centres for the check box ----------------------------------------------------------
 // Census ZCTA internal points, two decimals (~1 km). Territories are left out.

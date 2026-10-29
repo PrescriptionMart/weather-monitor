@@ -7,6 +7,8 @@
 //
 //   node tests/winter.js
 const W = require('../winter-core.js');
+const F = W.WINTER_PACK_F;                       // the trigger temperature (32°F)
+const M = W.WINTER_PACK_F + W.CHECK_MARGIN_F;    // "clearly warm" for the missing-checkpoint margin
 
 let failed = 0, passed = 0;
 const ok = (name, cond, extra = '') => {
@@ -68,25 +70,49 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
 }
 {
   const K = '2026-12-08';
+  const at = (hours, cold, warm = 50) => (h) => hours.includes(h) ? cold : warm;   // tempAt for a few cold hours
+  const spell = (tempAt, offset = '-06:00') => W.coldSpell(periods(K, offset, tempAt), K);
   const cold = (h) => (h < 11 || h > 18) ? 10 : 40;
-  ok('only 11am-6pm counts: 10°F at 10am and 7pm is ignored', W.windowLow(periods(K, '-06:00', cold), K) === 40);
-  ok('6pm counts', W.windowLow(periods(K, '-06:00', h => h === 18 ? 33 : 50), K) === 33);
-  ok('11am counts', W.windowLow(periods(K, '-06:00', h => h === 11 ? 34 : 50), K) === 34);
-  ok('7pm does not', W.windowLow(periods(K, '-06:00', h => h === 19 ? 20 : 50), K) === 50);
+  ok('only 11am-6pm counts: 10°F before 11am and after 6pm is ignored', spell(cold) === 40);
+  // longer than 4 hours: a freeze of 4 hours or less doesn't make a winter pack
+  ok('a 1-hour dip to 20°F does not count (5-hour low stays 50°F)', spell(at([14], 20)) === 50);
+  ok('a 3-hour stretch at 30°F does not count', spell(at([12, 13, 14], 30)) === 50);
+  ok('4 hours in a row at 30°F does not count (the rule is longer than 4 hours)', spell(at([12, 13, 14, 15], 30)) === 50);
+  ok('5 hours in a row at 30°F counts (5-hour low 30°F)', spell(at([12, 13, 14, 15, 16], 30)) === 30);
+  ok('5 cold hours that are not in a row do not count', spell(at([11, 12, 13, 17, 18], 30)) === 50);
+  ok('the 5-hour low is the warmest reading of the coldest 5 hours in a row',
+     spell(h => ({ 11: 28, 12: 31, 13: 34, 14: 35, 15: 36, 16: 40, 17: 41, 18: 42 })[h]) === 36);
+  ok('freezing from 11am to 3pm, then 37°F, does not count (4 hours)',
+     spell(h => ({ 11: 29, 12: 31, 13: 32, 14: 32, 15: 37, 16: 41, 17: 40, 18: 38 })[h]) === 37);
+  ok(`${F}°F for exactly 5 hours counts; ${F + 1}°F does not`,
+     spell(at([14, 15, 16, 17, 18], F)) <= F && spell(at([14, 15, 16, 17, 18], F + 1)) > F);
+  ok(`${F}°F for exactly 4 hours does not count`, spell(at([15, 16, 17, 18], F)) > F && spell(at([11, 12, 13, 14], F)) > F);
+  ok('the trigger is actual freezing, 32°F', F === 32);
+  ok('33°F for the whole window is not a winter pack', spell(() => 33) > F);
+  ok('11am-3pm is the first 5-hour stretch, 2pm-6pm the last',
+     spell(at([11, 12, 13, 14, 15], 33)) === 33 && spell(at([14, 15, 16, 17, 18], 33)) === 33);
+  ok('cold hours outside the window do not help a stretch inside it (8am-12pm cold → no)', spell(at([8, 9, 10, 11, 12], 30)) === 50);
+  ok('a 6pm reading is the last one: cold from 3pm to 7pm is only 4 hours in the window', spell(at([15, 16, 17, 18, 19], 30)) === 50);
   ok('a missing hour makes the window incomplete (null), never a guess',
-     W.windowLow(periods(K, '-06:00', () => 50).filter(p => !p.startTime.includes('T15')), K) === null);
-  ok('a window cut off by the end of the forecast is incomplete', W.windowLow(periods(K, '-10:00', () => 50, 0, 15), K) === null);
-  ok('local hours are read from each point\'s own offset (Pacific)',
-     W.windowLow(periods(K, '-08:00', h => h === 11 ? 30 : 50), K) === 30);
-  ok('other dates are ignored', W.windowLow(periods('2026-12-09', '-06:00', () => 0), K) === null);
+     W.coldSpell(periods(K, '-06:00', () => 50).filter(p => !p.startTime.includes('T15')), K) === null);
+  ok('a window cut off by the end of the forecast is incomplete', W.coldSpell(periods(K, '-10:00', () => 50, 0, 15), K) === null);
+  ok('local hours are read from each point\'s own offset (Pacific)', spell(at([11, 12, 13, 14, 15], 30), '-08:00') === 30);
+  ok('other dates are ignored', W.coldSpell(periods('2026-12-09', '-06:00', () => 0), K) === null);
   // Nov 1 2026: clocks fall back at 2am; 1am appears twice, the window is untouched
   const dst = periods('2026-11-01', '-05:00', () => 45, 0, 1).concat(periods('2026-11-01', '-06:00', () => 45, 1, 23));
-  ok('the fall-back day still has a complete window', W.windowLow(dst, '2026-11-01') === 45);
+  ok('the fall-back day still has a complete window', W.coldSpell(dst, '2026-11-01') === 45);
   // temperatures in the announced {value, unitCode} form, and junk
-  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: p.startTime.includes('T13') ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
-  ok('Celsius values are converted (0°C = 32°F)', W.windowLow(qv, K) === 32);
-  ok('a null temperature is missing, not 0°F', W.windowLow(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
-  ok('a non-number temperature is missing, not a reading', W.windowLow(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
+  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: /T1[2-6]/.test(p.startTime) ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
+  ok('Celsius values are converted (0°C = 32°F)', W.coldSpell(qv, K) === 32);
+  ok('a null temperature is missing, not 0°F', W.coldSpell(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
+  ok('a non-number temperature is missing, not a reading', W.coldSpell(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
+  ok('a warmer duplicate hour does not hide a cold stretch',
+     W.coldSpell(periods(K, '-06:00', at([12, 13, 14, 15, 16], 30)).concat([{ startTime: K + 'T13:00:00-06:00', temperature: 60, temperatureUnit: 'F' }]), K) === 30);
+  // the stretch length is one constant; every window has 4 possible 5-hour stretches
+  ok('the rule is longer than 4 hours: 5 hourly readings in a row', W.COLD_HOURS === 5);
+  ok('the missing-checkpoint margin is 52°F', M === 52);
+  ok('spellTemp takes the stretch length (3 hours here)', W.spellTemp([30, 30, 30, 50], 3) === 30 && W.spellTemp([30, 30, 30, 50], 4) === 50);
+  ok('a stretch can never be longer than the window', W.spellTemp([30, 30, 30], 4) === null);
   ok('NaN is missing', W.toF(NaN) === null && W.toF({ value: NaN, unitCode: 'wmoUnit:degF' }) === null);
 }
 
@@ -101,23 +127,23 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const [ca] = callFor(['CA'], pts, [31, 44, 60, 62, 65]);
   ok('one cold checkpoint makes its ZIP area winter pack, not the whole state', ca.call === 'part' && ca.coldZips.join() === '960', JSON.stringify(ca));
   ok('  coldest reading reported', ca.coldest === 31);
-  ok('35°F exactly is winter pack', callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [35, 60])[0].coldZips.join() === '960');
-  ok('36°F is not', callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [36, 60])[0].call === 'standard');
+  ok(`${F}°F exactly is winter pack`, callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [F, 60])[0].coldZips.join() === '960');
+  ok(`${F + 1}°F is not`, callFor(['CA'], [pt('CA', '960'), pt('CA', '900')], [F + 1, 60])[0].call === 'standard');
 
   const mn = callFor(['MN'], [pt('MN', '550'), pt('MN', '551'), pt('MN', '556')], [20, 30, 33])[0];
   ok('every ZIP area cold: whole state', mn.call === 'whole');
-  const tx = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770')], [30, 34, 60])[0];
+  const tx = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770')], [30, 31, 60])[0];
   ok('more than half the ZIP areas cold: whole state', tx.call === 'whole');
-  const half = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770'), pt('TX', '787')], [30, 34, 60, 61])[0];
+  const half = callFor(['TX'], [pt('TX', '790'), pt('TX', '791'), pt('TX', '770'), pt('TX', '787')], [30, 31, 60, 61])[0];
   ok('exactly half: only those ZIP areas', half.call === 'part' && half.coldZips.join() === '790,791');
 
   // missing checkpoints
   const warmGap = callFor(['FL'], [pt('FL', '331'), pt('FL', '331')], [null, 72])[0];
-  ok('a missing checkpoint in a warm area (all others above 55°F) is still checked', warmGap.call === 'standard');
+  ok(`a missing checkpoint in a warm area (all others above ${M}°F) is still checked`, warmGap.call === 'standard');
   const coolGap = callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 45])[0];
-  ok('a missing checkpoint where the others are 55°F or below: NOT CHECKED', coolGap.call === 'unchecked' && coolGap.uncheckedZips.join() === '305');
-  ok('  55°F exactly is not enough margin', callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 55])[0].call === 'unchecked');
-  ok('  56°F is', callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, 56])[0].call === 'standard');
+  ok(`a missing checkpoint where the others are ${M}°F or below: NOT CHECKED`, coolGap.call === 'unchecked' && coolGap.uncheckedZips.join() === '305');
+  ok(`  ${M}°F exactly is not enough margin`, callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, M])[0].call === 'unchecked');
+  ok(`  ${M + 1}°F is`, callFor(['GA'], [pt('GA', '305'), pt('GA', '305')], [null, M + 1])[0].call === 'standard');
   const allGone = callFor(['ND'], [pt('ND', '580'), pt('ND', '581')], [null, null])[0];
   ok('nothing answered: NOT CHECKED, the whole state', allGone.call === 'unchecked' && allGone.allUnchecked && allGone.coldest === null);
   const coldGap = callFor(['MT'], [pt('MT', '590'), pt('MT', '590'), pt('MT', '591')], [null, 30, 60])[0];
@@ -130,6 +156,14 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('a state with a checkpoint not fetched yet is pending, not standard', loading.call === 'pending');
   const earlyWhole = callFor(['WI'], [pt('WI', '530'), pt('WI', '531'), pt('WI', '545')], [20, 22, undefined])[0];
   ok('already more than half cold while loading: whole state straight away', earlyWhole.call === 'whole');
+
+  // the page's own path: NWS periods → coldSpells (one 5-hour low per delivery day) → stateCalls
+  const K2 = '2026-12-09', K3 = '2026-12-10';
+  const two = periods(K, '-06:00', h => h >= 12 && h <= 15 ? 20 : 50).concat(periods(K2, '-06:00', h => h >= 12 && h <= 16 ? 30 : 50));
+  const spells = W.coldSpells(two, [K, K2, K3]);
+  ok('coldSpells gives each delivery day its 5-hour low (null for a day with no forecast)', JSON.stringify(spells) === '[50,30,null]', JSON.stringify(spells));
+  ok('page path: 4 hours at 20°F is standard, 5 hours at 30°F is a winter pack',
+     W.stateCalls(['CA'], [pt('CA', '960')], [spells], 0)[0].call === 'standard' && W.stateCalls(['CA'], [pt('CA', '960')], [spells], 1)[0].call === 'whole');
 }
 
 // ---- a state that could still turn out "whole state" ----------------------------------
@@ -187,7 +221,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
 }
 
 // Random loads: whatever arrives, fails or is still pending, "complete" is only
-// said when the checkpoints still loading can't change any call, a checkpoint at or below 35°F always makes a winter
+// said when the checkpoints still loading can't change any call, a checkpoint at or below the trigger always makes a winter
 // pack, and losing an answer never turns a winter pack into standard.
 // Temperatures are realistic: checkpoints in one ZIP area sit within ±9°F of
 // each other (the 20°F margin rule assumes no more than that).
@@ -217,7 +251,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
       });
     }
     calls.forEach(c => {
-      if (c.call === 'standard' && pts.some((p, i) => p.state === c.state && typeof vals[i] === 'number' && vals[i] <= 35)) standardWithCold++;
+      if (c.call === 'standard' && pts.some((p, i) => p.state === c.state && typeof vals[i] === 'number' && vals[i] <= F)) standardWithCold++;
     });
     // knock out one more answer: no state may go from a pack to standard
     const j = Math.floor(rnd() * vals.length);
@@ -249,7 +283,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
     ok('3000 random loads: a ZIP called standard is still standard once every checkpoint is known', wrong === 0, String(wrong));
   }
   ok('3000 random loads: "complete" is final — the checkpoints still loading cannot change it', badComplete === 0, String(badComplete));
-  ok('3000 random loads: a state with a checkpoint at 35°F or below is never standard', standardWithCold === 0, String(standardWithCold));
+  ok(`3000 random loads: a state with a checkpoint at ${F}°F or below is never standard`, standardWithCold === 0, String(standardWithCold));
   ok('3000 random loads: losing an answer never turns a winter pack into standard', flipped === 0, String(flipped));
 }
 
@@ -263,7 +297,7 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const [ca] = callFor(['CA'], pts, [31, 60, 61, 62]);
   ok('ZIP in a cold area: winter pack', W.zipVerdict(ca, '960', 45).verdict === 'pack');
   ok('ZIP in a warm area: standard', W.zipVerdict(ca, '900', 58).verdict === 'standard');
-  ok('ZIP in a warm area that reads 35°F itself: winter pack (the box can add a pack)', W.zipVerdict(ca, '900', 35).verdict === 'pack');
+  ok(`ZIP in a warm area that reads ${F}°F itself: winter pack (the box can add a pack)`, W.zipVerdict(ca, '900', F).verdict === 'pack');
   ok('ZIP in a cold area that reads warm itself: still winter pack (the box never overrules the list)', W.zipVerdict(ca, '960', 50).verdict === 'pack');
   const [mn] = callFor(['MN'], [pt('MN', '550'), pt('MN', '551'), pt('MN', '556')], [20, 30, 50]);
   ok('ZIP in a whole-state winter pack: winter pack even if its own area is warm', W.zipVerdict(mn, '556', 50).verdict === 'pack');
@@ -276,9 +310,50 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('no state at all (outside the 50 states): ask, or pack if it reads cold', W.zipVerdict(null, '006', null).verdict === 'ask' && W.zipVerdict(null, '006', 20).verdict === 'pack');
 }
 
-// ---- the checkpoint file the page loads ------------------------------------------------------
+// ---- the files the page loads ------------------------------------------------------
 {
   const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'winter-pack.html'), 'utf8');
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+  const v = (html.match(/<script src="winter-core\.js\?v=(\d+)"><\/script>/) || [])[1];
+  const pv = (html.match(/const PAGE_VERSION = (\d+);/) || [])[1];
+  ok('page, core and service worker agree on one version (core ?v=, PAGE_VERSION, VERSION, SHELL)',
+     !!v && v === pv && +v === W.VERSION && sw.includes(`'./winter-core.js?v=${v}'`) && sw.includes(`'./data/us-states.json?v=${v}'`),
+     `script ?v=${v}, PAGE_VERSION ${pv}, core ${W.VERSION}`);
+  ok('the service worker installs from the network, not the 10-minute HTTP cache', /new Request\(u, \{ cache: 'reload' \}\)/.test(sw));
+  const shell = JSON.parse((sw.match(/const SHELL = (\[[^\]]*\])/) || [])[1].replace(/'/g, '"'));
+  const notThere = shell.filter(u => u !== './').map(u => u.replace(/^\.\//, '').replace(/\?.*$/, '')).filter(f => !fs.existsSync(path.join(__dirname, '..', f)));
+  ok('every file the service worker saves for offline exists', shell.length > 10 && notThere.length === 0, notThere.join());
+  ok('the saved forecast is kept per core version', html.includes("const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;"));
+  ok('reloads to fetch a fixed core are capped per tab', html.includes('if (n < 3) { history.replaceState({ coreRefetch: n + 1 }'));
+  // the core's in-page version check: a page that asked for this version gets the rules; any other page
+  // gets none and one reload
+  const vm = require('vm'), coreSrc = fs.readFileSync(path.join(__dirname, '..', 'winter-core.js'), 'utf8');
+  const inPage = (src) => {
+    const store = {}, box = { reloads: 0 };
+    box.window = box;
+    box.document = { currentScript: { src }, addEventListener() {}, getElementById() { return null; } };
+    box.sessionStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; } };
+    box.location = { reload() { box.reloads++; } };
+    vm.runInNewContext(coreSrc, box);
+    return box;
+  };
+  const right = inPage(`https://x/winter-core.js?v=${W.VERSION}`), wrong = inPage('https://x/winter-core.js');
+  ok('in a page: the matching version gets the rules; another page gets none and reloads once',
+     !!right.WinterCore && right.reloads === 0 && !wrong.WinterCore && wrong.reloads === 1);
+  const pl = html.match(/const PRINT_LABEL = ([\d.]+), PRINT_DOT = ([\d.]+);/) || [];
+  ok('paper label layout uses the print sizes', !!pl[1] && html.includes(`font-size: ${pl[1]}px; stroke-width: 3px; transform: translate(var(--pdx`) && html.includes(`.dot { r: ${pl[2]}px;`));
+  ok('ZIP lists use markup, not invisible characters, to stay in one piece', !html.includes('\\u2060') && html.includes('class="nw"'));
+  ok('the page stops on a missing or mismatched core, and loads the map file by version',
+     html.includes('if (!C || C.VERSION !== PAGE_VERSION)') && html.includes("fetch('data/us-states.json?v=' + PAGE_VERSION)"));
+  // the page's fixed wording matches the constants it describes
+  const hourWords = [...html.matchAll(/(\d+)-hour low/g)].map(m => +m[1]);
+  ok(`every "N-hour low" on the page says ${W.COLD_HOURS}`, hourWords.length > 0 && hourWords.every(n => n === W.COLD_HOURS), hourWords.join());
+  ok('the How text starts from the right numbers before the script fills them',
+     html.includes(`<span class="v-pack">${W.WINTER_PACK_F}</span>`) && html.includes(`<span class="v-hours">${W.COLD_HOURS}</span>`)
+     && html.includes(`<span class="v-dip">${W.COLD_HOURS - 1}</span>`) && html.includes(`<span class="v-margin">${M}</span>`));
+  ok('"freezing" is only said while the trigger is 32°F', W.WINTER_PACK_F === 32 || !/\(freezing\)|dip to freezing/.test(html));
+
   const d = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'winter-checkpoints.json'), 'utf8'));
   const cols = d.columns.join();
   ok('checkpoint file columns are what the page reads', cols === 'state,zip3,lat,lon,elev_ft,gridpoint,x,y', cols);
@@ -302,6 +377,18 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
     const [, a, b] = l.split(',').map(Number); const k = Math.round(a * 10) + ',' + Math.round(b * 10); (zc[k] ||= []).push([a, b]);
   });
   const onZip = (la, lo) => { for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const [a, b] of zc[(Math.round(la * 10) + i) + ',' + (Math.round(lo * 10) + j)] || []) if (Math.abs(a - la) <= 0.0071 && Math.abs(b - lo) <= 0.0071) return true; return false; };
+  // the Atlantic labels (13 map units on paper) sit clear of every checkpoint, so none covers a cold spot
+  const shapes = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'us-states.json'), 'utf8'));
+  const callouts = shapes.filter(s => s[3]);
+  const crowded = callouts.filter(([code, , [lx, ly]]) => d.points.some(r => r[6] !== null && r[6] > lx - 6 && r[6] < lx + 26 && Math.abs(r[7] - ly) < 11)).map(s => s[0]);
+  ok('the 7 Atlantic labels sit clear of every checkpoint', callouts.length === 7 && crowded.length === 0, crowded.join());
+  // and their lines pass no other state's checkpoint (where a dot can sit), except where no route can
+  const segDist = (px, py, [x1, y1], [x2, y2]) => { const dx = x2 - x1, dy = y2 - y1, t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy))); return Math.hypot(px - x1 - t * dx, py - y1 - t * dy); };
+  // no route out of CT misses Block Island; DC's line has to cross Maryland past Arlington (see the build script)
+  const UNAVOIDABLE = { CT: ['BOX/64,44'] };
+  const linesNear = callouts.filter(([code]) => code !== 'DC').filter(([code, , [lx, ly], from]) => d.points.some(r => r[6] !== null && r[0] !== code
+    && !(UNAVOIDABLE[code] || []).includes(r[5]) && segDist(r[6], r[7], from, [lx - 3, ly]) < 4.2)).map(s => s[0]);
+  ok('the Atlantic labels\' lines pass no other state\'s checkpoint', linesNear.length === 0, linesNear.join());
   const share = d.points.filter(r => onZip(r[2], r[3])).length / d.points.length;
   ok(`checkpoints don't sit on ZIP centres (${(100 * share).toFixed(1)}% near one; chance is ~2%)`, share < 0.04);
 }

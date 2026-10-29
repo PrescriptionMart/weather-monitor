@@ -35,6 +35,7 @@
          standard a pale green (lightest), not checked striped grey */
       --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #bcc2c7;
       --map-nodata: #c9ced2; --map-nodata-line: #8a9096; --map-dot: #6e0b1d; --map-stroke: #ffffff;
+      --map-label: #16191c; --map-label-halo: rgba(255,255,255,.85);
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -48,6 +49,7 @@
         --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349;
         --map-whole: #ef7088; --map-part: #8c3a4b; --map-standard: #1d4a3a; --map-pending: #4e575e;
         --map-nodata: #4a525a; --map-nodata-line: #6b737b; --map-dot: #ffd6de; --map-stroke: #121517;
+        --map-label: #f1f3f5; --map-label-halo: rgba(18,21,23,.85);
       }
     }
     :root[data-theme="dark"] {
@@ -61,6 +63,7 @@
       --low-bg: #10302a;  --low-fg: #7fd9b8;  --low-bd: #245349;
       --map-whole: #ef7088; --map-part: #8c3a4b; --map-standard: #1d4a3a; --map-pending: #4e575e;
       --map-nodata: #4a525a; --map-nodata-line: #6b737b; --map-dot: #ffd6de; --map-stroke: #121517;
+      --map-label: #f1f3f5; --map-label-halo: rgba(18,21,23,.85);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -134,9 +137,13 @@
     .row .t { font-size: 13px; opacity: .85; white-space: nowrap; }
     .row .sep { opacity: .5; margin: 0 2px; }
     .row .item { white-space: nowrap; }
+    .row .item.long { white-space: normal; }   /* a long ZIP list may wrap, but only between ranges */
+    .row .nw { white-space: nowrap; }
+    @media screen and (max-width: 385px) { .row .item.two { white-space: normal; } }   /* only where one doesn't fit the column */
     .row .zips { font-weight: 700; font-variant-numeric: tabular-nums; }
     .row .note { grid-column: 2; font-size: 13px; opacity: .9; }
     .define { font-size: 14px; margin-top: 12px; color: var(--text-muted); }
+    .rule-line { display: none; }   /* the screen has "How this is decided"; paper gets this line */
     .answer-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
     .copy-status { font-size: 13px; color: var(--low-fg); }
     .copy-status.warn { color: var(--med-fg); font-weight: 600; }
@@ -165,6 +172,16 @@
     .st.unchecked { fill: url(#nodata-hatch); }
     .st:hover, .st.sel { stroke: var(--text); stroke-width: 1.5; }
     .dot { fill: var(--map-dot); stroke: var(--map-stroke); pointer-events: none; }
+    /* state abbreviations: dark text with a light halo (light mode) reads on
+       every fill; the halo flips in dark mode. --lbl (map units) is set from the
+       drawn map's width so labels stay about 10 screen px wherever they fit. */
+    .st-label { font: 600 var(--lbl, 12px) var(--font-sans); fill: var(--map-label); stroke: var(--map-label-halo);
+      stroke-width: calc(var(--lbl, 12px) / 4); paint-order: stroke; stroke-linejoin: round; text-anchor: middle;
+      dominant-baseline: central; pointer-events: none; }
+    /* the Atlantic labels stand in for states too small to tap */
+    .st-label.out { text-anchor: start; pointer-events: auto; cursor: pointer; }
+    .st-hit { fill: transparent; pointer-events: all; cursor: pointer; }
+    .st-callout { stroke: var(--text-muted); stroke-width: .8; pointer-events: none; }
     .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
     .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--border); }
     .sw.whole { background: var(--map-whole); } .sw.part { background: var(--map-part); } .sw.standard { background: var(--map-standard); }
@@ -193,6 +210,54 @@
       .night { min-width: 0; flex: 1 1 calc(50% - 8px); }
     }
     @media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+
+    /* ---- printing: the team prints the answer and the labelled map ------
+       One letter-size page: the ship night, the answer, the lists and the
+       map, always in the light palette (even from a dark-mode screen) and
+       with background colours kept, so the map prints as it looks. Buttons,
+       tabs, the ZIP box and the explanations are left off the paper. */
+    @media print {
+      @page { size: letter portrait; margin: 0.45in; }
+      :root:not(#print) {
+        --bg: #ffffff; --surface: #ffffff; --surface-2: #f1f3f3; --border: #c9cdd1;
+        --text: #16191c; --text-muted: #4a4f54; --text-faint: #5b6065;
+        --high-bg: #ffe9ed; --high-fg: #9e0f2b; --high-bd: #f9aab7;
+        --med-bg: #fff4d6;  --med-fg: #6b4700;  --med-bd: #ffd766;
+        --low-bg: #e4f6ef;  --low-fg: #0b5c43;  --low-bd: #9ad9c2;
+        --map-whole: #d6455e; --map-part: #f4a7b5; --map-standard: #bfe6cf; --map-pending: #eceef0;
+        --map-nodata: #c9ced2; --map-nodata-line: #8a9096; --map-dot: #6e0b1d; --map-stroke: #ffffff;
+        --map-label: #000000; --map-label-halo: rgba(255,255,255,.9);
+      }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { background: #fff; min-height: 0; }
+      .tabs, .theme-toggle, .nights, .answer-foot, #copy-fallback, section[aria-label="Check one label"],
+      details.how, .foot, .jump, .row .note button, .tooltip, .progress { display: none !important; }
+      .header { background: none; color: #000; border-radius: 0; padding: 0 0 6px; border-bottom: 2px solid #000; }
+      .header .sub, .header .updated { color: #000; }
+      .container { max-width: none; padding: 8px 0 0; }
+      .card { border: none; border-radius: 0; padding: 0; margin: 0 0 8px; }
+      .answer { padding: 8px 12px; border-radius: 10px; }
+      .answer-big { font-size: 22px; }
+      .answer-sub { font-size: 12px; }
+      .rows { gap: 4px; margin-top: 8px; }
+      .row { grid-template-columns: 160px 1fr; padding: 5px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
+      .row-label { font-size: 11px; }
+      .define { font-size: 11px; margin-top: 6px; }
+      .rule-line { display: block; margin-top: 2px; }
+      section[aria-label="Map"] { break-inside: avoid; page-break-inside: avoid; }
+      .map-head { margin-bottom: 4px; }
+      .legend { font-size: 10px; gap: 2px 12px; }
+      .map-wrap { padding: 0; background: none; }
+      .map-wrap svg { max-height: 4.3in; }
+      .long-lists .map-wrap svg { max-height: 3.7in; }   /* long lists: keep the map on page 1 */
+      /* still checking prints with level lines: in black and white a plain grey
+         would read as an answer, dots mean cold spots and the slant hatch means not checked */
+      .st.pending { fill: url(#pending-print); }
+      .sw.pending { background: repeating-linear-gradient(0deg, #6b737b 0 1px, var(--map-pending) 1px 4px); }
+      /* = PRINT_LABEL and PRINT_DOT in the script, which lay the labels out for paper */
+      .st-label { font-size: 13px; stroke-width: 3px; transform: translate(var(--pdx, 0px), var(--pdy, 0px)); }
+      .dot { r: 3.2px; stroke-width: 1.07px; }
+    }
   </style>
   <script>
     (function(){ try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
@@ -262,8 +327,9 @@
     <ul>
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
       <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
-      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them is <strong>35°F or colder</strong> in that window. When more than half of a state's 3-digit groups need one, the whole state does.</li>
-      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group is well above freezing (over 55°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
+      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">5</span> hours in a row</strong> in that window. A freeze of <span class="v-dip">4</span> hours or less doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>The <strong>5-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">5</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
+      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 5-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
       <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
     </ul>
@@ -277,13 +343,42 @@
 
 <div class="tooltip" id="tooltip" role="tooltip"></div>
 
-<script src="winter-core.js"></script>
+<!-- ?v= is winter-core.js's VERSION (see the note there): a browser that cached an
+     older core for its 10 minutes can't pair it with this page -->
+<script src="winter-core.js?v=10"></script>
 <script>
 const C = window.WinterCore;
+const PAGE_VERSION = 10;      // = the ?v= above, WinterCore.VERSION and sw.js SHELL
+// A missing or mismatched winter-core.js: say "reload" and stop here, before
+// any weather request (instead of failing them all and blaming the weather service).
+if (!C || C.VERSION !== PAGE_VERSION) {
+  document.getElementById('answer').className = 'answer down';
+  document.getElementById('answer').innerHTML = '<div class="answer-big">Page data didn\'t load</div><div class="answer-sub">Reload the page. If it keeps happening, ask a pharmacist before packing cold boxes.</div>';
+  document.getElementById('as-of').textContent = '';
+  document.getElementById('zip-out').textContent = 'Page data didn’t load. Reload the page.';
+  document.getElementById('map-wrap').innerHTML = '<div class="map-note">Page data didn’t load. Reload the page.</div>';
+  document.getElementById('refresh-btn').hidden = true;   // nothing below this runs, so it couldn't work
+  // The browser keeps a wrong copy for 10 minutes, so F5 alone can't fix it:
+  // fetch the file past the cache every 15 s and reload once the right one arrives.
+  // At most 3 reloads per tab (counted in history.state, which survives a reload
+  // and works with site storage blocked), in case the right file arrives but fails to run.
+  (function refetchCore() {
+    fetch('winter-core.js?v=' + PAGE_VERSION, { cache: 'no-cache' }).then(r => r.ok ? r.text() : '')
+      .then(t => {
+        let go = false;
+        if (t.includes('const VERSION = ' + PAGE_VERSION + ';')) try {
+          const n = (history.state && history.state.coreRefetch) || 0;
+          if (n < 3) { history.replaceState({ coreRefetch: n + 1 }, ''); go = true; }
+        } catch (e) {}
+        if (go) location.reload(); else setTimeout(refetchCore, 15000);
+      }, () => setTimeout(refetchCore, 15000));
+  })();
+  throw new Error('winter-core.js is missing or not version ' + PAGE_VERSION);
+}
+if (history.state && history.state.coreRefetch) history.replaceState(null, '');
 
 // ---- settings --------------------------------------------------------------------
-const CACHE_KEY = 'winter-pack-v9';                     // v9: ZIP areas, baked gridpoints
-const OLD_CACHE_KEYS = ['winter-pack-forecast-cache-v8'];
+const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;       // saved lows were worked out by this core's rule; a new core starts fresh
 const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has moved since the build
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
 const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
@@ -316,7 +411,7 @@ let plan = C.shipPlan(today);
 let dayKeys = [...new Set(plan.map(n => n.delivKey))];
 let night = C.defaultNight(plan, today, benchNow().hour);
 let dataVersion = '';         // which checkpoint list the saved forecast belongs to
-let lows = [];                // per point: undefined = not yet, null = failed, else [low per dayKeys]
+let lows = [];                // per point: undefined = not yet, null = failed, else [5-hour low per dayKeys]
 let asOf = null;              // when the forecast on screen was fetched
 let load = { running: false, background: false, done: 0, gaveUp: false, failed: false };
 let lastAttemptAt = 0, failedUpdates = 0;  // after a failed update, wait 10, 20, then 30 min between automatic tries
@@ -419,7 +514,7 @@ async function lookUpPoint(lat, lon, priority) {
   if (!r || r.notFound) return null;
   try { return r.body.properties.forecastHourly || null; } catch (e) { return null; }
 }
-// One place's window lows for the delivery days on screen, or null.
+// One place's 5-hour lows for the delivery days on screen, or null.
 async function fetchLows(p, keys, priority) {
   let r = await nwsFetch(hourlyUrl(p), priority);
   if (r && r.notFound) {
@@ -431,13 +526,13 @@ async function fetchLows(p, keys, priority) {
     r = await nwsFetch(url, priority);
   }
   if (!r || r.notFound) return null;
-  try { return C.windowLows(r.body.properties.periods, keys); } catch (e) { return null; }
+  try { return C.coldSpells(r.body.properties.periods, keys); } catch (e) { return null; }
 }
 
 // ---- loading ------------------------------------------------------------------------------
 function readCache() {
   try {
-    OLD_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => /^winter-pack-(v\d+|forecast-cache-v\d+)$/.test(k) && k !== CACHE_KEY).forEach(k => localStorage.removeItem(k));
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
     if (!c || c.version !== dataVersion || c.dayKey !== C.dateKey(today) || c.keys.join() !== dayKeys.join() || !Array.isArray(c.lows) || c.lows.length !== POINTS.length) return null;
     return c;
@@ -596,10 +691,16 @@ function renderNights() {
 
 function stateLine(c, withZips) {
   const name = esc(STATE_NAME[c.state]);
-  const zips = withZips ? ` <span class="zips">${C.zipRanges(withZips)}</span>` : '';
-  return `<span class="item">${name}${zips}</span>`;
+  if (!withZips) return `<span class="item">${name}</span>`;
+  // keep the state name with its first range and each range in one piece, so
+  // a long list wraps only at the commas (and never pushes a phone screen wider)
+  const [first, ...rest] = C.zipRanges(withZips).split(', ');
+  const cls = rest.length > 1 ? 'item long' : rest.length ? 'item two' : 'item';
+  return `<span class="${cls}"><span class="nw">${name} <span class="zips">${first}</span></span>`
+    + (rest.length ? `<span class="zips">${rest.map(r => `, <span class="nw">${r}</span>`).join('')}</span>` : '') + '</span>';
 }
-function joinItems(items) { return items.join(' <span class="sep" aria-hidden="true">·</span> '); }
+// the dot stays at the end of a line, never starts the next one
+function joinItems(items) { return items.join('\u00a0<span class="sep" aria-hidden="true">·</span> '); }
 
 function render() {
   if (!plan.length) return;
@@ -660,8 +761,8 @@ function render() {
     if (s.whole.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, whole state</div><div>${joinItems(s.whole.sort(byName).map(c => stateLine(c)))}</div></div>`;
     if (s.part.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, only ZIPs starting with</div><div>${joinItems(s.part.sort(byName).map(c => stateLine(c, c.coldZips)))}</div></div>`;
     if (s.status !== 'loading' && s.unchecked.length) {
-      const items = s.unchecked.sort(byName).map(c => c.allUnchecked ? `<span class="item">${esc(STATE_NAME[c.state])} <span class="zips">(all ZIPs)</span></span>`
-        : c.restUnchecked ? `<span class="item">${esc(STATE_NAME[c.state])} <span class="zips">(rest of the state)</span></span>` : stateLine(c, c.uncheckedZips));
+      const whole = (c, what) => `<span class="item two"><span class="nw">${esc(STATE_NAME[c.state])}</span> <span class="zips nw">(${what})</span></span>`;
+      const items = s.unchecked.sort(byName).map(c => c.allUnchecked ? whole(c, 'all ZIPs') : c.restUnchecked ? whole(c, 'rest of the state') : stateLine(c, c.uncheckedZips));
       const why = load.gaveUp ? 'The weather service stopped answering partway. ' : '';
       r += `<div class="row warn"><div class="row-label">Not checked — ask a pharmacist (ZIPs starting with)</div><div>${joinItems(items)}</div>
         <div class="note">${why}<button class="btn btn-small" onclick="retryUnchecked()" ${load.running ? 'disabled' : ''}>Try these again</button>${retryNote && !load.running ? ` <strong>${retryNote}</strong>` : ''}</div></div>`;
@@ -669,8 +770,14 @@ function render() {
     if (s.status === 'complete' && s.packCount) r += `<div class="row std"><div class="row-label">Everything else</div><div>Standard</div></div>`;
     if (s.status === 'incomplete') r += `<div class="row std"><div class="row-label">Everything else checked</div><div>Standard</div></div>`;
     if (s.packCount && s.status !== 'loading') r += define;
+    if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours or more in a row, 11am–6pm local time on the delivery day.</div>`;
   }
   rows.innerHTML = r;
+  // long lists on paper: a smaller map keeps it on page 1. Calibrated by printing
+  // real forecasts with failed checks: up to ~1,250 characters of #rows text
+  // (template whitespace and button text included) fit beside the full-size
+  // map, ~1,300 don't. A markup change to the rows moves these numbers.
+  document.body.classList.toggle('long-lists', !dataError && s.status !== 'loading' && s.status !== 'down' && rows.textContent.length > 1200);
   document.getElementById('copy-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete' || s.status === 'down') || dataError;
   if (!document.getElementById('copy-fallback').hidden && s.status === 'loading') document.getElementById('copy-fallback').hidden = true;
 
@@ -740,7 +847,9 @@ function buildMap() {
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'Map of the answer above, by state');
   svg.innerHTML = '<defs><pattern id="nodata-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
-    + '<rect width="6" height="6" style="fill:var(--map-nodata)"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--map-nodata-line);stroke-width:2"/></pattern></defs>';
+    + '<rect width="6" height="6" style="fill:var(--map-nodata)"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--map-nodata-line);stroke-width:2"/></pattern>'
+    + '<pattern id="pending-print" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--map-pending)"/>'
+    + '<line x1="0" y1="0.5" x2="8" y2="0.5" style="stroke:#6b737b;stroke-width:1"/></pattern></defs>';
   const g = document.createElementNS(SVGNS, 'g');
   SHAPES.forEach(([code, d]) => {
     const p = document.createElementNS(SVGNS, 'path');
@@ -748,6 +857,35 @@ function buildMap() {
     g.appendChild(p);
   });
   svg.appendChild(g);
+  // state abbreviations; small East Coast states get theirs in the Atlantic
+  // with a short line back to the state, and the label (with some padding)
+  // answers taps for that state
+  const labels = document.createElementNS(SVGNS, 'g');
+  labels.setAttribute('aria-hidden', 'true');
+  SHAPES.forEach(([code, d, at, from]) => {
+    if (!at) return;
+    if (from) {
+      const ln = document.createElementNS(SVGNS, 'line');
+      ln.setAttribute('class', 'st-callout');
+      ln.setAttribute('x1', from[0]); ln.setAttribute('y1', from[1]);
+      ln.setAttribute('x2', at[0] - 3); ln.setAttribute('y2', at[1]);
+      ln.dataset.for = code;
+      labels.appendChild(ln);
+      const hit = document.createElementNS(SVGNS, 'rect');
+      hit.setAttribute('class', 'st-hit'); hit.dataset.code = code;
+      hit.setAttribute('x', at[0] - 2); hit.setAttribute('y', at[1] - 9); hit.setAttribute('width', 36); hit.setAttribute('height', 18);
+      labels.appendChild(hit);
+    }
+    const t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('class', 'st-label' + (from ? ' out' : ''));
+    t.setAttribute('x', at[0]); t.setAttribute('y', at[1]);
+    t.dataset.x = at[0]; t.dataset.y = at[1];   // home position; layoutLabels moves from here
+    if (from) t.dataset.code = code;
+    t.textContent = code;
+    labels.appendChild(t);
+  });
+  svg.appendChild(labels);
+  // the cold-spot dots go on top: a label must never hide one
   const dots = document.createElementNS(SVGNS, 'g'); dots.id = 'dots';
   svg.appendChild(dots);
   wrap.innerHTML = ''; wrap.appendChild(svg);
@@ -776,17 +914,97 @@ function renderMap(calls, n) {
   const r = Math.max(2.5, 3.5 * 975 / Math.max(300, wrap.clientWidth || 975));
   const part = new Set(calls.filter(c => c.call === 'part').map(c => c.state));
   let dots = '';
+  const spots = [];
   POINTS.forEach((p, i) => {
     if (!part.has(p.state) || p.x === null || !lows[i] || lows[i][k] === null || lows[i][k] > C.WINTER_PACK_F) return;
     dots += `<circle class="dot" cx="${p.x}" cy="${p.y}" r="${r.toFixed(1)}" stroke-width="${(r / 3).toFixed(2)}"/>`;
+    spots.push({ state: p.state, x: p.x, y: p.y, r: r * 7 / 6 });
   });
   document.getElementById('dots').innerHTML = dots;
+  layoutLabels(wrap.querySelector('svg'), spots, r);
+}
+// Label size follows the drawn map (about 10 screen px, between 12 and 19 map
+// units), and the stacked Atlantic labels spread apart when they're big. A
+// label that would cover a cold-spot dot (any state's: the dots are drawn on
+// top and matter more) moves to the nearest clear spot inside its state.
+// Paper gets its own placement for its own sizes (the @media print rules),
+// kept as a print-only offset, so a printout from a phone is laid out like
+// one from a desktop.
+const PRINT_LABEL = 13, PRINT_DOT = 3.2;
+// nearest first, straight down first; sideways steps a little longer, labels being wider than tall
+const LABEL_MOVES = [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5].flatMap(k => Array.from({ length: 12 }, (_, i) => {
+  const a = Math.PI / 2 + i * Math.PI / 6;
+  return [k * 1.3 * Math.cos(a), k * Math.sin(a)];
+}));
+function layoutLabels(svg, spots, dotR) {
+  const w = svg.getBoundingClientRect().width;
+  if (!w) return;   // not on screen; the next render places them
+  const fs = Math.min(19, Math.max(12, 10 * 975 / w));
+  svg.style.setProperty('--lbl', fs.toFixed(1) + 'px');
+  const all = [...svg.querySelectorAll('.st-label')];
+  all.forEach(t => { t.setAttribute('x', t.dataset.x); t.setAttribute('y', t.dataset.y); t.style.removeProperty('--pdx'); t.style.removeProperty('--pdy'); });
+  // Atlantic stacks: rows stay at least one label apart
+  const spread = Math.max(1, fs * 1.05 / 18), cols = {};
+  all.filter(t => t.classList.contains('out')).forEach(t => { (cols[t.dataset.x] ||= []).push(t); });
+  Object.values(cols).forEach(col => {
+    const ys = col.map(t => +t.dataset.y), mid = (Math.min(...ys) + Math.max(...ys)) / 2;
+    col.forEach(t => {
+      const y = mid + (t.dataset.y - mid) * spread;
+      t.setAttribute('y', y.toFixed(1));
+      svg.querySelector(`.st-callout[data-for="${t.textContent}"]`).setAttribute('y2', y.toFixed(1));
+      svg.querySelector(`.st-hit[data-code="${t.textContent}"]`).setAttribute('y', (y - 9).toFixed(1));
+    });
+  });
+  // label width per unit of font size: on screen, what this screen draws; for
+  // paper, the font's own widths (a screen's rounding of small text would make
+  // the printout depend on the device it was printed from)
+  const screenW = new Map(all.map(t => [t, t.getBBox().width / fs]));
+  const ctx = (layoutLabels.ctx ||= document.createElement('canvas').getContext('2d'));
+  ctx.font = `600 1000px ${getComputedStyle(all[0]).fontFamily}`;
+  const paperW = new Map(all.map(t => [t, ctx.measureText(t.textContent).width / 1000]));
+  const screen = placeLabels(svg, all, screenW, spots, dotR * 7 / 6, fs);
+  screen.forEach(([x, y], t) => { t.setAttribute('x', x.toFixed(1)); t.setAttribute('y', y.toFixed(1)); });
+  placeLabels(svg, all, paperW, spots, PRINT_DOT * 7 / 6, PRINT_LABEL).forEach(([x, y], t) => {
+    const [sx, sy] = screen.get(t);
+    if (x !== sx || y !== sy) { t.style.setProperty('--pdx', (x - sx).toFixed(1) + 'px'); t.style.setProperty('--pdy', (y - sy).toFixed(1) + 'px'); }
+  });
+}
+// Where each label goes for one label size and dot radius (map units).
+function placeLabels(svg, all, unitW, spots, spotR, size) {
+  const pos = new Map(all.map(t => [t, t.classList.contains('out') ? [+t.getAttribute('x'), +t.getAttribute('y')] : [+t.dataset.x, +t.dataset.y]]));
+  // the label's ink plus a small gap (print fonts run a touch wider than the screen measurement)
+  const boxAt = (t, x, y) => { const hw = unitW.get(t) * size / 2 + 0.1 * size, hh = 0.45 * size; return { l: x - hw, r: x + hw, t: y - hh, b: y + hh }; };
+  const hitsSpot = (b, s) => { const dx = Math.max(b.l - s.x, 0, s.x - b.r), dy = Math.max(b.t - s.y, 0, s.y - b.b); return dx * dx + dy * dy < spotR * spotR; };
+  const overlaps = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+  const pt = svg.createSVGPoint();
+  all.filter(t => !t.classList.contains('out')).forEach(t => {
+    const [x0, y0] = pos.get(t);
+    const near = spots.filter(s => Math.abs(s.x - x0) < 5 * size + spotR && Math.abs(s.y - y0) < 4 * size + spotR);
+    if (!near.some(s => hitsSpot(boxAt(t, x0, y0), s))) return;
+    const shape = svg.querySelector(`.st[data-code="${t.textContent}"]`);
+    const inside = (x, y) => { pt.x = x; pt.y = y; return shape.isPointInFill(pt); };
+    // how much of the label's ink (13x5 samples) lies outside its state: a move
+    // may not put more of it outside than home does (counting stops past that)
+    const inkW = unitW.get(t) * size, inkH = 0.72 * size;
+    const outside = (x, y, max) => { let n = 0;
+      for (let i = 0; i <= 12; i++) for (let j = 0; j <= 4; j++) if (!inside(x - inkW / 2 + inkW * i / 12, y - inkH / 2 + inkH * j / 4) && ++n > max) return n;
+      return n; };
+    const homeOut = outside(x0, y0, Infinity);
+    const others = all.filter(o => o !== t).map(o => boxAt(o, ...pos.get(o)));
+    for (const [dx, dy] of LABEL_MOVES) {
+      const x = x0 + dx * size, y = y0 + dy * size, b = boxAt(t, x, y);
+      if (near.some(s => hitsSpot(b, s)) || !inside(x, y) || outside(x, y, homeOut) > homeOut || others.some(o => overlaps(b, o))) continue;
+      pos.set(t, [x, y]);
+      return;
+    }
+  });
+  return pos;
 }
 function stateTip(code) {
   const c = lastCalls.find(x => x.state === code);
   const name = STATE_NAME[code] || code;
   if (!c) return name;
-  const cold = c.coldest !== null ? ` · coldest ${deg(c.coldest)}` : '';
+  const cold = c.coldest !== null ? ` · ${C.COLD_HOURS}-hour low ${deg(c.coldest)}` : '';
   switch (c.call) {
     case 'whole': return `${name}: winter pack, whole state${cold}`;
     case 'part': return `${name}: winter pack only for ZIPs starting with ${C.zipRanges(c.coldZips)}${cold}` + (c.uncheckedZips.length ? ` · not checked: ZIPs starting with ${C.zipRanges(c.uncheckedZips)}` : '');
@@ -806,15 +1024,20 @@ function wireTooltip(svg) {
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
   };
   const show = (code, x, y) => { tip.textContent = stateTip(code); tip.style.display = 'block'; place(x, y); };
+  // the state shape under the pointer, or the one an Atlantic label stands for
+  const stateAt = (target) => {
+    const hit = target.closest('[data-code]');
+    return !hit ? null : hit.classList.contains('st') ? hit : svg.querySelector(`.st[data-code="${hit.dataset.code}"]`);
+  };
   const hide = () => { tip.style.display = 'none'; if (pinned) { pinned.classList.remove('sel'); pinned = null; } };
   svg.addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse' || pinned) return;
-    const t = e.target.closest('.st');
+    const t = stateAt(e.target);
     if (t) show(t.dataset.code, e.clientX, e.clientY); else tip.style.display = 'none';
   });
   svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !pinned) tip.style.display = 'none'; });
   svg.addEventListener('click', e => {
-    const t = e.target.closest('.st');
+    const t = stateAt(e.target);
     if (!t) return hide();
     if (pinned) pinned.classList.remove('sel');
     pinned = t; t.classList.add('sel');
@@ -823,6 +1046,10 @@ function wireTooltip(svg) {
   });
   document.addEventListener('click', hide);
   addEventListener('scroll', () => { if (pinned) hide(); }, { passive: true });
+  // Chrome snaps a finger tap only to elements with a listener of their own;
+  // without one, a tap on a small Atlantic label lands on the map background.
+  // The svg handler above does the work.
+  svg.querySelectorAll('.st-hit, .st-label.out').forEach(el => el.addEventListener('click', () => {}));
 }
 
 // ---- the ZIP box ---------------------------------------------------------------------------
@@ -846,7 +1073,7 @@ function stateForZip(zip3, at) {
   POINTS.forEach(p => { if (p.zip3 !== zip3) return; const d = (p.lat - at[0]) ** 2 + (p.lon - at[1]) ** 2; if (d < bd) { bd = d; best = p.state; } });
   return best;
 }
-// This exact ZIP's own 11am-6pm low on `day`. Two requests, at the front of
+// This exact ZIP's own 5-hour low on `day`. Two requests, at the front of
 // the queue so they don't wait behind a full load. Resolves to
 // {value} | {unknownZip: true} | {failed: true}; a failure is retried after a minute.
 function exactLow(zip, day) {
@@ -861,7 +1088,7 @@ function exactLow(zip, day) {
     const url = await lookUpPoint(at[0].toFixed(4), at[1].toFixed(4), true);
     const r = url ? await nwsFetch(url, true) : null;
     let v = null;
-    if (r && r.ok) { try { v = C.windowLow(r.body.properties.periods, day); } catch (e) { v = null; } }
+    if (r && r.ok) { try { v = C.coldSpell(r.body.properties.periods, day); } catch (e) { v = null; } }
     return v === null ? { failed: true, at: Date.now() } : { value: v };
   })().then(res => { exact[key] = res; return res; });
   exact[key] = job;
@@ -878,7 +1105,7 @@ function zipMessage(zip, ex) {
   const v = C.zipVerdict(call, zip3, low);
   const area = call && call.areas.find(x => x.zip3 === zip3);
   const where = `ZIPs starting with ${zip3}` + (st ? ` (${STATE_NAME[st]})` : '');
-  const reading = low !== null ? ` This ZIP: ${deg(low)} at its coldest, 11am–6pm.`
+  const reading = low !== null ? ` This ZIP's ${C.COLD_HOURS}-hour low: ${deg(low)}.`
     : ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
     : ex && ex.failed ? ` (This exact ZIP couldn’t be checked; this is the answer for all ${where}.)` : '';
   // never show a green Standard while this ZIP's own check could still add a pack
@@ -887,10 +1114,10 @@ function zipMessage(zip, ex) {
   if (v.verdict === 'pack') {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
-        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group reach ${deg(area && area.low)}.${reading}`
-        : `This ZIP's own forecast reaches ${deg(low)}, colder than the rest of its group (which the list calls standard). Pack this box as winter.`;
+        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`
+        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours in a row${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} stay above 35°F (coldest ${deg(area && area.low)}).${reading}`;
+    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (${C.COLD_HOURS}-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
@@ -925,9 +1152,14 @@ document.getElementById('zip-in').addEventListener('input', checkZip);
 document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
 
 // ---- start ----------------------------------------------------------------------------------
+// the How-this-is-decided text takes its numbers from winter-core.js
+document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
+document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
+document.querySelectorAll('.v-dip').forEach(e => { e.textContent = C.COLD_HOURS - 1; });
+document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
 async function start() {
   render();
-  const mapPromise = fetch('data/us-states.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  const mapPromise = fetch('data/us-states.json?v=' + PAGE_VERSION).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(s => { SHAPES = s; if (lastCalls.length) renderMap(lastCalls, plan[night]); })
     .catch(() => { mapFailed = true; mapUnavailable(); });
   try {
@@ -969,6 +1201,7 @@ document.addEventListener('visibilitychange', () => {
   if (dueForUpdate()) runLoad(answered(lows));
 });
 let resizeTimer = null;
+if (document.fonts) document.fonts.ready.then(() => { if (lastCalls.length && plan.length) renderMap(lastCalls, plan[night]); });
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (lastCalls.length && plan.length) renderMap(lastCalls, plan[night]); }, 200); });
 
 // ---- light/dark theme toggle ----

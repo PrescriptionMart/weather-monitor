@@ -5,12 +5,15 @@
 // page and the latest FAA data file; the cache is only a fallback for when the
 // device is offline. Cross-origin requests (OpenWeatherMap, NWS, the map CDN)
 // are left untouched and go straight to the network.
-const CACHE = 'pm-weather-v9';
-const SHELL = ['./', './index.html', './winter-pack.html', './winter-core.js', './data/winter-checkpoints.json', './data/us-states.json', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './characters.js', './battle.js', './manifest.json', './icon.svg'];
+const CACHE = 'pm-weather-v10';
+const SHELL = ['./', './index.html', './winter-pack.html', './winter-core.js?v=10', './data/winter-checkpoints.json', './data/us-states.json?v=10', './excursion.html', './excursion-basis.html', './delay-guide.html', './retro.css', './retro.js', './characters.js', './battle.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
+  // cache: 'reload' skips the browser's 10-minute HTTP cache, so a fresh
+  // install never stores the previous release's files; one file at a time, so
+  // a single failed download doesn't leave the new cache empty
+  event.waitUntil(caches.open(CACHE).then((c) => Promise.allSettled(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' }))))));
 });
 
 self.addEventListener('activate', (event) => {
@@ -38,7 +41,9 @@ self.addEventListener('fetch', (event) => {
     } catch (err) {
       const cached = await caches.match(req);
       if (cached) return cached;
-      return caches.match('./index.html');
+      // offline and not saved: a page falls back to the dashboard; a script
+      // or data file fails plainly (an HTML page in its place would only break it)
+      return req.mode === 'navigate' ? caches.match('./index.html') : Response.error();
     }
   })());
 });
