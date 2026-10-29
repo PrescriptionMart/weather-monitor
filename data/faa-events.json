@@ -1,1 +1,1 @@
-[]
+[{"airportId":"EWR","departureDelay":null,"groundDelay":{"avgDelay":65.0,"endTime":"2026-10-29T03:59:00Z","impactingCondition":"other","maxDelay":121,"startTime":"2026-10-28T22:06:00Z"},"groundStop":null},{"airportId":"LAS","departureDelay":{"averageDelay":"15","reason":"WX:Wind","trend":"increasing"},"groundDelay":null,"groundStop":null}]
