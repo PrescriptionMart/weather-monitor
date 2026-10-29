@@ -74,39 +74,42 @@ function periods(key, offset, tempAt, from = 0, to = 23) {
   const spell = (tempAt, offset = '-06:00') => W.coldSpell(periods(K, offset, tempAt), K);
   const cold = (h) => (h < 11 || h > 18) ? 10 : 40;
   ok('only 11am-6pm counts: 10°F before 11am and after 6pm is ignored', spell(cold) === 40);
-  // the 4-hour rule: a brief dip doesn't make a winter pack
-  ok('a 1-hour dip to 20°F does not count (4-hour low stays 50°F)', spell(at([14], 20)) === 50);
+  // longer than 4 hours: a freeze of 4 hours or less doesn't make a winter pack
+  ok('a 1-hour dip to 20°F does not count (5-hour low stays 50°F)', spell(at([14], 20)) === 50);
   ok('a 3-hour stretch at 30°F does not count', spell(at([12, 13, 14], 30)) === 50);
-  ok('4 hours in a row at 30°F counts (4-hour low 30°F)', spell(at([12, 13, 14, 15], 30)) === 30);
-  ok('4 cold hours that are not in a row do not count', spell(at([11, 12, 17, 18], 30)) === 50);
-  ok('the 4-hour low is the warmest reading of the coldest 4 hours in a row',
-     spell(h => ({ 11: 28, 12: 31, 13: 34, 14: 35, 15: 38, 16: 40, 17: 41, 18: 42 })[h]) === 35);
-  ok('a cold morning that warms up by 2pm does not count',
-     spell(h => ({ 11: 29, 12: 32, 13: 34, 14: 37, 15: 40, 16: 41, 17: 40, 18: 38 })[h]) === 37);
-  ok(`${F}°F for exactly 4 hours counts; ${F + 1}°F does not`,
-     spell(at([15, 16, 17, 18], F)) <= F && spell(at([15, 16, 17, 18], F + 1)) > F);
+  ok('4 hours in a row at 30°F does not count (the rule is longer than 4 hours)', spell(at([12, 13, 14, 15], 30)) === 50);
+  ok('5 hours in a row at 30°F counts (5-hour low 30°F)', spell(at([12, 13, 14, 15, 16], 30)) === 30);
+  ok('5 cold hours that are not in a row do not count', spell(at([11, 12, 13, 17, 18], 30)) === 50);
+  ok('the 5-hour low is the warmest reading of the coldest 5 hours in a row',
+     spell(h => ({ 11: 28, 12: 31, 13: 34, 14: 35, 15: 36, 16: 40, 17: 41, 18: 42 })[h]) === 36);
+  ok('freezing from 11am to 3pm, then 37°F, does not count (4 hours)',
+     spell(h => ({ 11: 29, 12: 31, 13: 32, 14: 32, 15: 37, 16: 41, 17: 40, 18: 38 })[h]) === 37);
+  ok(`${F}°F for exactly 5 hours counts; ${F + 1}°F does not`,
+     spell(at([14, 15, 16, 17, 18], F)) <= F && spell(at([14, 15, 16, 17, 18], F + 1)) > F);
+  ok(`${F}°F for exactly 4 hours does not count`, spell(at([15, 16, 17, 18], F)) > F && spell(at([11, 12, 13, 14], F)) > F);
   ok('the trigger is actual freezing, 32°F', F === 32);
   ok('33°F for the whole window is not a winter pack', spell(() => 33) > F);
-  ok('11am-2pm is the first 4-hour stretch, 3pm-6pm the last',
-     spell(at([11, 12, 13, 14], 33)) === 33 && spell(at([15, 16, 17, 18], 33)) === 33);
-  ok('cold hours outside the window do not help a stretch inside it (9am-12pm cold → no)', spell(at([9, 10, 11, 12], 30)) === 50);
+  ok('11am-3pm is the first 5-hour stretch, 2pm-6pm the last',
+     spell(at([11, 12, 13, 14, 15], 33)) === 33 && spell(at([14, 15, 16, 17, 18], 33)) === 33);
+  ok('cold hours outside the window do not help a stretch inside it (8am-12pm cold → no)', spell(at([8, 9, 10, 11, 12], 30)) === 50);
+  ok('a 6pm reading is the last one: cold from 3pm to 7pm is only 4 hours in the window', spell(at([15, 16, 17, 18, 19], 30)) === 50);
   ok('a missing hour makes the window incomplete (null), never a guess',
      W.coldSpell(periods(K, '-06:00', () => 50).filter(p => !p.startTime.includes('T15')), K) === null);
   ok('a window cut off by the end of the forecast is incomplete', W.coldSpell(periods(K, '-10:00', () => 50, 0, 15), K) === null);
-  ok('local hours are read from each point\'s own offset (Pacific)', spell(at([11, 12, 13, 14], 30), '-08:00') === 30);
+  ok('local hours are read from each point\'s own offset (Pacific)', spell(at([11, 12, 13, 14, 15], 30), '-08:00') === 30);
   ok('other dates are ignored', W.coldSpell(periods('2026-12-09', '-06:00', () => 0), K) === null);
   // Nov 1 2026: clocks fall back at 2am; 1am appears twice, the window is untouched
   const dst = periods('2026-11-01', '-05:00', () => 45, 0, 1).concat(periods('2026-11-01', '-06:00', () => 45, 1, 23));
   ok('the fall-back day still has a complete window', W.coldSpell(dst, '2026-11-01') === 45);
   // temperatures in the announced {value, unitCode} form, and junk
-  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: /T1[3-6]/.test(p.startTime) ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
+  const qv = periods(K, '-06:00', () => 50).map(p => ({ ...p, temperature: { value: /T1[2-6]/.test(p.startTime) ? 0 : 10, unitCode: 'wmoUnit:degC' } }));
   ok('Celsius values are converted (0°C = 32°F)', W.coldSpell(qv, K) === 32);
   ok('a null temperature is missing, not 0°F', W.coldSpell(periods(K, '-06:00', h => h === 14 ? null : 50), K) === null);
   ok('a non-number temperature is missing, not a reading', W.coldSpell(periods(K, '-06:00', h => h === 14 ? 'cold' : 50), K) === null);
   ok('a warmer duplicate hour does not hide a cold stretch',
-     W.coldSpell(periods(K, '-06:00', at([12, 13, 14, 15], 30)).concat([{ startTime: K + 'T13:00:00-06:00', temperature: 60, temperatureUnit: 'F' }]), K) === 30);
-  // the stretch length is one constant; every window has 5 possible 4-hour stretches
-  ok('the rule is 4 hours in a row', W.COLD_HOURS === 4);
+     W.coldSpell(periods(K, '-06:00', at([12, 13, 14, 15, 16], 30)).concat([{ startTime: K + 'T13:00:00-06:00', temperature: 60, temperatureUnit: 'F' }]), K) === 30);
+  // the stretch length is one constant; every window has 4 possible 5-hour stretches
+  ok('the rule is longer than 4 hours: 5 hourly readings in a row', W.COLD_HOURS === 5);
   ok('the missing-checkpoint margin is 52°F', M === 52);
   ok('spellTemp takes the stretch length (3 hours here)', W.spellTemp([30, 30, 30, 50], 3) === 30 && W.spellTemp([30, 30, 30, 50], 4) === 50);
   ok('a stretch can never be longer than the window', W.spellTemp([30, 30, 30], 4) === null);
@@ -154,12 +157,12 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const earlyWhole = callFor(['WI'], [pt('WI', '530'), pt('WI', '531'), pt('WI', '545')], [20, 22, undefined])[0];
   ok('already more than half cold while loading: whole state straight away', earlyWhole.call === 'whole');
 
-  // the page's own path: NWS periods → coldSpells (one 4-hour low per delivery day) → stateCalls
+  // the page's own path: NWS periods → coldSpells (one 5-hour low per delivery day) → stateCalls
   const K2 = '2026-12-09', K3 = '2026-12-10';
-  const two = periods(K, '-06:00', h => h === 14 ? 20 : 50).concat(periods(K2, '-06:00', h => h >= 12 && h <= 15 ? 30 : 50));
+  const two = periods(K, '-06:00', h => h >= 12 && h <= 15 ? 20 : 50).concat(periods(K2, '-06:00', h => h >= 12 && h <= 16 ? 30 : 50));
   const spells = W.coldSpells(two, [K, K2, K3]);
-  ok('coldSpells gives each delivery day its 4-hour low (null for a day with no forecast)', JSON.stringify(spells) === '[50,30,null]', JSON.stringify(spells));
-  ok('page path: a 1-hour dip to 20°F is standard, 4 hours at 30°F is a winter pack',
+  ok('coldSpells gives each delivery day its 5-hour low (null for a day with no forecast)', JSON.stringify(spells) === '[50,30,null]', JSON.stringify(spells));
+  ok('page path: 4 hours at 20°F is standard, 5 hours at 30°F is a winter pack',
      W.stateCalls(['CA'], [pt('CA', '960')], [spells], 0)[0].call === 'standard' && W.stateCalls(['CA'], [pt('CA', '960')], [spells], 1)[0].call === 'whole');
 }
 
@@ -347,7 +350,8 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const hourWords = [...html.matchAll(/(\d+)-hour low/g)].map(m => +m[1]);
   ok(`every "N-hour low" on the page says ${W.COLD_HOURS}`, hourWords.length > 0 && hourWords.every(n => n === W.COLD_HOURS), hourWords.join());
   ok('the How text starts from the right numbers before the script fills them',
-     html.includes(`<span class="v-pack">${W.WINTER_PACK_F}</span>`) && html.includes(`<span class="v-hours">${W.COLD_HOURS}</span>`) && html.includes(`<span class="v-margin">${M}</span>`));
+     html.includes(`<span class="v-pack">${W.WINTER_PACK_F}</span>`) && html.includes(`<span class="v-hours">${W.COLD_HOURS}</span>`)
+     && html.includes(`<span class="v-dip">${W.COLD_HOURS - 1}</span>`) && html.includes(`<span class="v-margin">${M}</span>`));
   ok('"freezing" is only said while the trigger is 32°F', W.WINTER_PACK_F === 32 || !/\(freezing\)|dip to freezing/.test(html));
 
   const d = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'winter-checkpoints.json'), 'utf8'));

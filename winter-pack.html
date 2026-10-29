@@ -327,9 +327,9 @@
     <ul>
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
       <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
-      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">4</span> hours in a row</strong> in that window. A shorter dip to freezing doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
-      <li>The <strong>4-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">4</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
-      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 4-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
+      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">5</span> hours in a row</strong> in that window. A freeze of <span class="v-dip">4</span> hours or less doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>The <strong>5-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">5</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
+      <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 5-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
       <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
     </ul>
@@ -411,7 +411,7 @@ let plan = C.shipPlan(today);
 let dayKeys = [...new Set(plan.map(n => n.delivKey))];
 let night = C.defaultNight(plan, today, benchNow().hour);
 let dataVersion = '';         // which checkpoint list the saved forecast belongs to
-let lows = [];                // per point: undefined = not yet, null = failed, else [4-hour low per dayKeys]
+let lows = [];                // per point: undefined = not yet, null = failed, else [5-hour low per dayKeys]
 let asOf = null;              // when the forecast on screen was fetched
 let load = { running: false, background: false, done: 0, gaveUp: false, failed: false };
 let lastAttemptAt = 0, failedUpdates = 0;  // after a failed update, wait 10, 20, then 30 min between automatic tries
@@ -514,7 +514,7 @@ async function lookUpPoint(lat, lon, priority) {
   if (!r || r.notFound) return null;
   try { return r.body.properties.forecastHourly || null; } catch (e) { return null; }
 }
-// One place's 4-hour lows for the delivery days on screen, or null.
+// One place's 5-hour lows for the delivery days on screen, or null.
 async function fetchLows(p, keys, priority) {
   let r = await nwsFetch(hourlyUrl(p), priority);
   if (r && r.notFound) {
@@ -770,7 +770,7 @@ function render() {
     if (s.status === 'complete' && s.packCount) r += `<div class="row std"><div class="row-label">Everything else</div><div>Standard</div></div>`;
     if (s.status === 'incomplete') r += `<div class="row std"><div class="row-label">Everything else checked</div><div>Standard</div></div>`;
     if (s.packCount && s.status !== 'loading') r += define;
-    if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row, 11am–6pm local time on the delivery day.</div>`;
+    if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours or more in a row, 11am–6pm local time on the delivery day.</div>`;
   }
   rows.innerHTML = r;
   // long lists on paper: a smaller map keeps it on page 1. Calibrated by printing
@@ -1004,7 +1004,7 @@ function stateTip(code) {
   const c = lastCalls.find(x => x.state === code);
   const name = STATE_NAME[code] || code;
   if (!c) return name;
-  const cold = c.coldest !== null ? ` · 4-hour low ${deg(c.coldest)}` : '';
+  const cold = c.coldest !== null ? ` · ${C.COLD_HOURS}-hour low ${deg(c.coldest)}` : '';
   switch (c.call) {
     case 'whole': return `${name}: winter pack, whole state${cold}`;
     case 'part': return `${name}: winter pack only for ZIPs starting with ${C.zipRanges(c.coldZips)}${cold}` + (c.uncheckedZips.length ? ` · not checked: ZIPs starting with ${C.zipRanges(c.uncheckedZips)}` : '');
@@ -1073,7 +1073,7 @@ function stateForZip(zip3, at) {
   POINTS.forEach(p => { if (p.zip3 !== zip3) return; const d = (p.lat - at[0]) ** 2 + (p.lon - at[1]) ** 2; if (d < bd) { bd = d; best = p.state; } });
   return best;
 }
-// This exact ZIP's own 4-hour low on `day`. Two requests, at the front of
+// This exact ZIP's own 5-hour low on `day`. Two requests, at the front of
 // the queue so they don't wait behind a full load. Resolves to
 // {value} | {unknownZip: true} | {failed: true}; a failure is retried after a minute.
 function exactLow(zip, day) {
@@ -1105,7 +1105,7 @@ function zipMessage(zip, ex) {
   const v = C.zipVerdict(call, zip3, low);
   const area = call && call.areas.find(x => x.zip3 === zip3);
   const where = `ZIPs starting with ${zip3}` + (st ? ` (${STATE_NAME[st]})` : '');
-  const reading = low !== null ? ` This ZIP's 4-hour low: ${deg(low)}.`
+  const reading = low !== null ? ` This ZIP's ${C.COLD_HOURS}-hour low: ${deg(low)}.`
     : ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
     : ex && ex.failed ? ` (This exact ZIP couldn’t be checked; this is the answer for all ${where}.)` : '';
   // never show a green Standard while this ZIP's own check could still add a pack
@@ -1117,7 +1117,7 @@ function zipMessage(zip, ex) {
         : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`
         : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours in a row${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (4-hour low ${deg(area && area.low)}).${reading}`;
+    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (${C.COLD_HOURS}-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
@@ -1155,6 +1155,7 @@ document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); 
 // the How-this-is-decided text takes its numbers from winter-core.js
 document.querySelectorAll('.v-pack').forEach(e => { e.textContent = C.WINTER_PACK_F; });
 document.querySelectorAll('.v-hours').forEach(e => { e.textContent = C.COLD_HOURS; });
+document.querySelectorAll('.v-dip').forEach(e => { e.textContent = C.COLD_HOURS - 1; });
 document.querySelectorAll('.v-margin').forEach(e => { e.textContent = C.WINTER_PACK_F + C.CHECK_MARGIN_F; });
 async function start() {
   render();

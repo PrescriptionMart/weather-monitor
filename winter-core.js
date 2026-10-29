@@ -4,9 +4,10 @@
 //
 // THE RULE (one sentence the whole page hangs on):
 //   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
-//   32°F (freezing) or colder for 4 hours in a row between 11am and 6pm, local
-//   time, on the delivery day. A shorter dip to freezing doesn't count. When
-//   more than half of a state's ZIP areas need one, the whole state does.
+//   32°F (freezing) or colder for longer than 4 hours (5 hourly readings in a
+//   row) between 11am and 6pm, local time, on the delivery day. A freeze of 4
+//   hours or less doesn't count. When more than half of a state's ZIP areas
+//   need one, the whole state does.
 //
 // Why 11am-6pm: next-day air lands late morning to mid-afternoon (11am-3pm)
 // and we account for about 3 hours on the porch after that.
@@ -18,7 +19,7 @@
   const DWELL_HOURS = 3;
   const WINDOW_END_HOUR = DELIVERY_END_HOUR + DWELL_HOURS;           // 18:00
   const WINTER_PACK_F = 32;   // actual freezing (the team's call; no extra cushion for forecast error)
-  const COLD_HOURS = 4;       // ...for this many hours in a row; a 1-3 hour dip doesn't trigger a pack
+  const COLD_HOURS = 5;       // ...for this many hourly readings in a row: longer than 4 hours (the team's call)
   // A ZIP area with a checkpoint that didn't answer is still called "checked"
   // when every checkpoint that did answer is above 52°F (32°F + the 20°F
   // margin) AND the missing one is no more than 1,000 ft higher than the
@@ -136,9 +137,9 @@
     }
     return out;
   }
-  // The "4-hour low": the warmest reading during the coldest COLD_HOURS hours
-  // in a row. At or below 32°F means the place stayed freezing for 4 hours
-  // straight; a 1-3 hour dip to freezing leaves it above. Every comparison the
+  // The "5-hour low": the warmest reading during the coldest COLD_HOURS hours
+  // in a row. At or below 32°F means the place stayed freezing for 5 hours
+  // straight; a freeze of 4 hours or less leaves it above. Every comparison the
   // page makes (ZIP areas, whole states, the missing-checkpoint margin) uses
   // this one number per place per day.
   function spellTemp(temps, hours) {
@@ -157,7 +158,7 @@
   // ---- the call ----------------------------------------------------------------------
   // points:  [{state, zip3, elev (ft, optional)}]
   // lows:    per point: undefined = not fetched yet, null = fetch failed,
-  //          otherwise {key: 4-hour low °F | null} (null = window incomplete)
+  //          otherwise {key: 5-hour low °F | null} (null = window incomplete)
   // Returns one entry per state (in `states` order):
   //   {state, call, coldest, coldZips, uncheckedZips, pendingZips, areas}
   //   call: 'pending' | 'whole' | 'part' | 'standard' | 'unchecked'
@@ -261,7 +262,7 @@
 
   // One ZIP typed into the check box. The box can add a winter pack (this exact
   // spot reads colder than our checkpoints) but never overrule the list.
-  //   area: the state's call entry; exactLow: this ZIP's own 4-hour low or null
+  //   area: the state's call entry; exactLow: this ZIP's own 5-hour low or null
   //   → {verdict: 'pack'|'standard'|'ask'|'wait', why}
   function zipVerdict(area, zip3, exactLow) {
     const exactCold = exactLow !== null && exactLow !== undefined && exactLow <= WINTER_PACK_F;

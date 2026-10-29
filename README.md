@@ -28,11 +28,12 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
 
 **Winter Pack (`winter-pack.html`)**
 - **The rule.** A 3-digit ZIP area gets a **winter pack** when any checkpoint in
-  it **stays at 32°F (freezing) or colder for 4 hours in a row between 11am
+  it **stays at 32°F (freezing) or colder for 5 hours in a row between 11am
   and 6pm**, local time, on the delivery day (next-day air lands 11am–3pm, plus
-  about 3 hours on the porch; NWS hourly forecast). A 1–3 hour dip to freezing
-  doesn't count. Each place's **4-hour low** (the warmest reading during its
-  coldest 4 hours in a row) is the one number the page compares (`COLD_HOURS` in
+  about 3 hours on the porch; NWS hourly forecast): longer than 4 hours, the
+  team's call, so a freeze of 4 hours or less doesn't count. Each place's
+  **5-hour low** (the warmest reading during its coldest 5 hours in a row) is
+  the one number the page compares (`COLD_HOURS` in
   `winter-core.js`). When more than half of a state's ZIP areas need one,
   the whole state does. The line is actual freezing (`WINTER_PACK_F = 32`),
   the team's choice, with no extra cushion for forecast error. Winter pack =
@@ -48,7 +49,7 @@ Both pages are a **PWA** — open the site on a phone and "Add to Home Screen" f
   and shows no all-clear and no copy button. A ZIP area where a checkpoint
   didn't answer reads **Not checked — ask a pharmacist** unless the rest of the
   area is already cold (then it's winter pack anyway) or clearly warm (every
-  other checkpoint's 4-hour low above 52°F and the missing one no more than
+  other checkpoint's 5-hour low above 52°F and the missing one no more than
   1,000 ft higher).
   If the areas still loading or not checked could push a state past half cold,
   none of that state is called standard until they're in. If nothing answers
