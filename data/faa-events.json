@@ -1,1 +1,1 @@
-[]
+[{"airportId":"SAN","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":{"avgDelay":28.0,"endTime":"2026-10-29T21:59:00Z","impactingCondition":"airport volume","maxDelay":64,"startTime":"2026-10-29T16:30:00Z"},"groundStop":null},{"airportId":"SEA","departureDelay":{"averageDelay":"15","reason":"RWY:Construction","trend":"increasing"},"groundDelay":null,"groundStop":null}]
