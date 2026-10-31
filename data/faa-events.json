@@ -1,1 +1,1 @@
-[]
+[{"airportId":"EWR","departureDelay":{"averageDelay":"15","reason":"VOL:Compacted Demand","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"LGA","departureDelay":{"averageDelay":"15","reason":"RWY:13/31CLSD_MAINTENANCE","trend":"increasing"},"groundDelay":null,"groundStop":null}]
