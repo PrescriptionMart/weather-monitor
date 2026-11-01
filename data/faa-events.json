@@ -1,1 +1,1 @@
-[]
+[{"airportId":"DFW","departureDelay":{"averageDelay":"60","reason":"WX:Low Visibility","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"FLL","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"MIA","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null}]
