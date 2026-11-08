@@ -1,1 +1,1 @@
-[{"airportId":"LGA","departureDelay":{"averageDelay":"15","reason":"RWY:Maintenance","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SEA","departureDelay":null,"groundDelay":null,"groundStop":{"endTime":"2026-11-08T00:00:00Z","impactingCondition":"wind","startTime":"2026-11-07T22:40:00Z"}}]
+[{"airportId":"SEA","departureDelay":null,"groundDelay":{"avgDelay":34.0,"endTime":"2026-11-08T06:59:00Z","impactingCondition":"wind","maxDelay":173,"startTime":"2026-11-08T00:00:00Z"},"groundStop":null}]
