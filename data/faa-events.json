@@ -1,1 +1,1 @@
-[{"airportId":"EWR","departureDelay":{"averageDelay":"45","reason":"STAFF:Staffing","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":26.0,"endTime":"2026-11-09T05:59:00Z","impactingCondition":"airport volume","maxDelay":88,"startTime":"2026-11-08T16:00:00Z"},"groundStop":null},{"airportId":"SEA","departureDelay":null,"groundDelay":{"avgDelay":31.0,"endTime":"2026-11-09T06:59:00Z","impactingCondition":"other","maxDelay":86,"startTime":"2026-11-09T02:30:00Z"},"groundStop":null}]
+[]
