@@ -1,1 +1,1 @@
-[{"airportId":"FLL","departureDelay":{"averageDelay":"15","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"MIA","departureDelay":{"averageDelay":"30","reason":"TM Initiatives:MIT:WX","trend":"decreasing"},"groundDelay":null,"groundStop":null},{"airportId":"SEA","departureDelay":null,"groundDelay":{"avgDelay":32.0,"endTime":"2026-11-12T05:59:00Z","impactingCondition":"other","maxDelay":82,"startTime":"2026-11-12T02:00:00Z"},"groundStop":null}]
+[]
