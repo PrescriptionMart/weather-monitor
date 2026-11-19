@@ -21,8 +21,9 @@ server-side, and the page reads one file:
            written for a day only when every one of them has its full window,
            so the page can let an area's ZIPs decide (see winter-core.js).
 
-The page uses this file only while it is under 2 hours old and matches its own
-data; otherwise it loads live from api.weather.gov as before.
+The page uses this file only while it is under 12 hours old (GitHub can run the
+hourly build late; it warns after 6) and matches its own data; otherwise it
+loads live from api.weather.gov as before.
 
   pip install -r scripts/winter-forecast-requirements.txt
   python3 scripts/build-winter-forecast.py --out data/winter-forecast.json

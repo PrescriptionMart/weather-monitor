@@ -2,8 +2,9 @@ name: Build the Winter Pack forecast
 
 # Once an hour: builds data/winter-forecast.json (scripts/build-winter-forecast.py),
 # hands it to the Pages deploy through the Actions cache, and starts the deploy.
-# The page uses a file for up to 2 hours, then loads live from the weather
-# service, so a late or failed build only costs speed, never an answer.
+# GitHub can run schedules hours late, so the page uses a file for up to 12
+# hours (with a warning after 6), then loads live from the weather service:
+# a late or failed build costs speed and ZIP-by-ZIP detail, never an answer.
 on:
   schedule:
     # The NWS national forecast grid for the half hour is out by about :45.
