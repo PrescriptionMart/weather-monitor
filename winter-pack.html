@@ -141,7 +141,18 @@
     .row .nw { white-space: nowrap; }
     @media screen and (max-width: 385px) { .row .item.two { white-space: normal; } }   /* only where one doesn't fit the column */
     .row .zips { font-weight: 700; font-variant-numeric: tabular-nums; }
-    .row .zip-state + .zip-state { margin-top: 4px; }
+    /* single ZIPs: one line per state (folded when long), then one line per first-3-digits group */
+    .zips-row .row-hint { display: block; font-weight: 400; font-size: 12px; opacity: .85; margin-top: 2px; }
+    .zip-state + .zip-state { margin-top: 6px; }
+    .zs-head { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; border-radius: 8px; }
+    .zs-head:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    .zs-head::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform .15s; }
+    .zip-state.open .zs-head::before { transform: rotate(90deg); }
+    .zs-name { font-weight: 700; }
+    .zs-body { display: none; margin: 2px 0 4px 1.1em; }
+    .zip-state.open .zs-body { display: block; }
+    .zg { display: grid; grid-template-columns: 2.6em 1fr; gap: 0 8px; }
+    .zg-key { font-weight: 700; font-variant-numeric: tabular-nums; opacity: .7; }
     .row .note { grid-column: 2; font-size: 13px; opacity: .9; }
     .define { font-size: 14px; margin-top: 12px; color: var(--text-muted); }
     .rule-line { display: none; }   /* the screen has "How this is decided"; paper gets this line */
@@ -161,6 +172,15 @@
     .zip-out.pack { background: var(--high-bg); color: var(--high-fg); }
     .zip-out.standard { background: var(--low-bg); color: var(--low-fg); }
     .zip-out.ask { background: var(--med-bg); color: var(--med-fg); }
+    .zip-low { font-size: 15px; margin-top: 2px; }
+    .zip-low strong { font-size: 18px; }
+    .zip-low .muted-note { opacity: .8; font-size: 13px; }
+    .zip-hours { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; }
+    .zip-hours span { display: grid; text-align: center; min-width: 2.7em; padding: 2px 4px; border-radius: 8px; background: rgba(127,127,127,.12);
+      font-size: 13px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+    .zip-hours span i { font-style: normal; font-size: 11px; opacity: .75; }
+    .zip-hours span.freeze { background: var(--high-fg); color: #fff; }
+    .zip-why { font-size: 14px; }
 
     /* ---- map ---- */
     .map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 20px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -245,6 +265,13 @@
       .row-label { font-size: 11px; }
       .define { font-size: 11px; margin-top: 6px; }
       .rule-line { display: block; margin-top: 2px; }
+      .zips-row .row-hint, .zs-head::before { display: none; }
+      .zs-body { display: block !important; margin: 0 0 2px; }
+      .zips-row { grid-template-columns: 1fr; }
+      .zips-row > div:last-child { columns: 3; column-gap: 14px; font-size: 10.5px; line-height: 1.35; }
+      .zip-state + .zip-state { margin-top: 3px; }
+      .zs-head { break-after: avoid; }
+      .zg { grid-template-columns: 2.3em 1fr; break-inside: avoid; }
       section[aria-label="Map"] { break-inside: avoid; page-break-inside: avoid; }
       .map-head { margin-bottom: 4px; }
       .legend { font-size: 10px; gap: 2px 12px; }
@@ -295,6 +322,7 @@
     <div class="rows" id="rows"></div>
     <div class="answer-foot">
       <button class="btn btn-cta" id="copy-btn" onclick="copyNote()" hidden>Copy pack-out note</button>
+      <button class="btn" id="print-btn" onclick="window.print()" hidden>Print for the fridge</button>
       <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
     </div>
     <textarea id="copy-fallback" rows="6" readonly hidden aria-label="Pack-out note"></textarea>
@@ -767,6 +795,30 @@ function piecesLine(name, pieces) {
   return `<span class="${cls}"><span class="nw">${name} <span class="zips">${first}</span></span>`
     + (rest.length ? `<span class="zips">${rest.map(r => `, <span class="nw">${r}</span>`).join('')}</span>` : '') + '</span>';
 }
+// ZIPs by their first 3 digits: [['935', ['93529', '93541']], ...]
+function byGroup(zips) {
+  const by = {};
+  zips.forEach(z => (by[z.slice(0, 3)] || (by[z.slice(0, 3)] = [])).push(z));
+  return Object.keys(by).sort().map(g => [g, by[g]]);
+}
+const FOLD_OVER = 6;            // a state with more single ZIPs than this starts folded on screen
+const foldChoice = {};          // state → open (true) / closed (false), as the packer left it
+function zipStateLine(c) {
+  const groups = byGroup(c.zips);
+  const open = c.state in foldChoice ? foldChoice[c.state] : c.zips.length <= FOLD_OVER;
+  const head = `<span class="zs-name">${esc(STATE_NAME[c.state])}</span> · ${c.zips.length} ZIP${c.zips.length === 1 ? '' : 's'}, `
+    + `starting with <span class="zips">${C.zipRanges(groups.map(g => g[0]))}</span>`;
+  const body = groups.map(([g, zs]) => `<div class="zg"><span class="zg-key">${g}</span><span class="zips">${zs.join(', ')}</span></div>`).join('');
+  return `<div class="zip-state${open ? ' open' : ''}" data-state="${c.state}"><button type="button" class="zs-head" aria-expanded="${open}" onclick="toggleZipState('${c.state}')">${head}</button><div class="zs-body">${body}</div></div>`;
+}
+function toggleZipState(code) {
+  const el = document.querySelector(`.zip-state[data-state="${code}"]`);
+  if (!el) return;
+  const open = !el.classList.contains('open');
+  el.classList.toggle('open', open);
+  el.querySelector('.zs-head').setAttribute('aria-expanded', String(open));
+  foldChoice[code] = open;
+}
 // the dot stays at the end of a line, never starts the next one
 function joinItems(items) { return items.join('\u00a0<span class="sep" aria-hidden="true">·</span> '); }
 
@@ -829,8 +881,10 @@ function render() {
     if (s.whole.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, whole state</div><div>${joinItems(s.whole.sort(byName).map(c => stateLine(c)))}</div></div>`;
     const areaStates = s.part.filter(c => c.coldZips.length).sort(byName), zipStates = s.part.filter(c => c.zips.length).sort(byName);
     if (areaStates.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, all ZIPs starting with</div><div>${joinItems(areaStates.map(c => stateLine(c, c.coldZips)))}</div></div>`;
-    // one state per line: these lists run long, and a packer looks up one state at a time
-    if (zipStates.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, these ZIPs</div><div>${zipStates.map(c => `<div class="zip-state">${piecesLine(esc(STATE_NAME[c.state]), c.zips)}</div>`).join('')}</div></div>`;
+    // Single ZIPs: one line per state saying which 3-digit groups they're in, so a
+    // packer only opens a state when the label starts with one of those; inside,
+    // one line per group. Long states start folded on screen; paper shows them all.
+    if (zipStates.length) r += `<div class="row pack zips-row"><div class="row-label">${so}inter pack, only these ZIPs<span class="row-hint">Tap a state to see its ZIPs, or check a label below.</span></div><div>${zipStates.map(zipStateLine).join('')}</div></div>`;
     if (s.status !== 'loading' && s.unchecked.length) {
       const whole = (c, what) => `<span class="item two"><span class="nw">${esc(STATE_NAME[c.state])}</span> <span class="zips nw">(${what})</span></span>`;
       const items = s.unchecked.sort(byName).map(c => c.allUnchecked ? whole(c, 'all ZIPs') : c.restUnchecked ? whole(c, 'rest of the state') : stateLine(c, c.uncheckedZips));
@@ -857,6 +911,7 @@ function render() {
   // map, ~1,300 don't. A markup change to the rows moves these numbers.
   document.body.classList.toggle('long-lists', !dataError && s.status !== 'loading' && s.status !== 'down' && rows.textContent.length > 1200);
   document.getElementById('copy-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete' || s.status === 'down') || dataError;
+  document.getElementById('print-btn').hidden = !(s.status === 'complete' || s.status === 'incomplete') || dataError;
   if (!document.getElementById('copy-fallback').hidden && s.status === 'loading') document.getElementById('copy-fallback').hidden = true;
 
   renderMap(calls, n);
@@ -898,7 +953,7 @@ function noteText() {
   if (s.whole.length) lines.push(`Winter pack, whole state: ${s.whole.sort(byName).map(nm).join(', ')}`);
   const areaStates = s.part.filter(c => c.coldZips.length).sort(byName), zipStates = s.part.filter(c => c.zips.length).sort(byName);
   if (areaStates.length) lines.push(`Winter pack, all ZIPs starting with: ${areaStates.map(c => `${nm(c)} ${C.zipRanges(c.coldZips)}`).join('; ')}`);
-  if (zipStates.length) lines.push(`Winter pack, these ZIPs:\n${zipStates.map(c => `  ${nm(c)}: ${c.zips.join(', ')}`).join('\n')}`);
+  if (zipStates.length) lines.push(`Winter pack, only these ZIPs:\n${zipStates.map(c => `  ${nm(c)}: ${byGroup(c.zips).map(g => g[1].join(', ')).join(' · ')}`).join('\n')}`);
   if (s.unchecked.length) lines.push(`NOT CHECKED — ask a pharmacist: ${s.unchecked.sort(byName).map(c => c.allUnchecked ? `${nm(c)} (all ZIPs)` : c.restUnchecked ? `${nm(c)} (rest of the state)` : `${nm(c)} ${C.zipRanges(c.uncheckedZips)}`).join('; ')}`);
   if (s.status === 'complete') lines.push(s.packCount ? 'Everything else: standard.' : 'No winter packs. Standard packing everywhere.');
   else lines.push(s.packCount ? 'Everything else that was checked: standard.' : 'No winter packs found in the areas that were checked.');
@@ -1141,7 +1196,7 @@ function wireTooltip(svg) {
 
 // ---- the ZIP box ---------------------------------------------------------------------------
 let ZIPS = null, zipsLoading = null;
-const exact = {};   // 'zip|day' → {value} once known, or a pending promise
+const exact = {};   // 'zip|day' → that ZIP's hourly forecast once known (see zipDetail), or a pending promise
 function loadZips() {
   if (!zipsLoading) zipsLoading = fetch('data/zip-centroids.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
     const m = new Map();
@@ -1160,12 +1215,11 @@ function stateForZip(zip3, at) {
   POINTS.forEach(p => { if (p.zip3 !== zip3) return; const d = (p.lat - at[0]) ** 2 + (p.lon - at[1]) ** 2; if (d < bd) { bd = d; best = p.state; } });
   return best;
 }
-// This exact ZIP's own 5-hour low on `day`. Two requests, at the front of
-// the queue so they don't wait behind a full load. Resolves to
-// {value} | {unknownZip: true} | {failed: true}; a failure is retried after a minute.
-function exactLow(zip, day) {
-  const zl = zipLowsFor(day);
-  if (zl && typeof zl[zip] === 'number') return Promise.resolve({ value: zl[zip] });
+// This ZIP's delivery-window forecast from the weather service, for the box to
+// show: {hours: [11am..6pm, °F]} | {unknownZip: true} |
+// {failed: true}. Two requests, at the front of the queue so they don't wait
+// behind a full load; a failure is retried after a minute.
+function zipDetail(zip, day) {
   const key = zip + '|' + day;
   const known = exact[key];
   if (known && !(known.failed && Date.now() - known.at > 60000)) return known.then ? known : Promise.resolve(known);
@@ -1174,16 +1228,27 @@ function exactLow(zip, day) {
     if (!zips) return { failed: true, at: Date.now() };
     const at = zips.get(zip);
     if (!at) return { unknownZip: true };
-    const url = await lookUpPoint(at[0].toFixed(4), at[1].toFixed(4), true);
+    const pt = await nwsFetch(`https://api.weather.gov/points/${at[0].toFixed(4)},${at[1].toFixed(4)}`, true);
+    let url = null, hours = null;
+    try { url = pt.body.properties.forecastHourly || null; } catch (e) {}
     const r = url ? await nwsFetch(url, true) : null;
-    let v = null;
-    if (r && r.ok) { try { v = C.coldSpell(r.body.properties.periods, day); } catch (e) { v = null; } }
-    return v === null ? { failed: true, at: Date.now() } : { value: v };
+    if (r && r.ok) { try { hours = C.windowTemps(r.body.properties.periods, day); } catch (e) { hours = null; } }
+    return hours ? { hours } : { failed: true, at: Date.now() };
   })().then(res => { exact[key] = res; return res; });
   exact[key] = job;
   return job;
 }
+// This exact ZIP's own 5-hour low on `day`: the hourly file's reading when it
+// has one (instant, and the one the list goes by), else from zipDetail.
+//   → {value} | {unknownZip: true} | {failed: true}
+function exactLow(zip, day) {
+  const zl = zipLowsFor(day);
+  if (zl && typeof zl[zip] === 'number') return Promise.resolve({ value: zl[zip] });
+  return zipDetail(zip, day).then(d => d.hours ? { value: C.spellTemp(d.hours) } : d.unknownZip ? { unknownZip: true } : { failed: true, at: d.at });
+}
 // What the box says. `ex` is undefined while this ZIP's own check is running.
+//   → {cls, big, why, low, lowOf}: low is this ZIP's 5-hour low (lowOf 'zip'),
+//     or the coldest checkpoint of its group when that's all there is
 function zipMessage(zip, ex) {
   const zip3 = zip.slice(0, 3);
   const at = ZIPS && ZIPS.get(zip);
@@ -1194,36 +1259,48 @@ function zipMessage(zip, ex) {
   const v = C.zipVerdict(call, zip3, low, zip);
   const area = call && call.areas.find(x => x.zip3 === zip3);
   const where = `ZIPs starting with ${zip3}` + (st ? ` (${STATE_NAME[st]})` : '');
-  const reading = low !== null ? ` This ZIP's ${C.COLD_HOURS}-hour low: ${deg(low)}.`
-    : ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
+  const shown = low !== null ? { low, lowOf: 'zip' }
+    : area && area.low !== null && !area.byZip ? { low: area.low, lowOf: `Coldest spot in ${where}` } : { low: null };
+  const noOwn = ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
     : ex && ex.failed ? ` (This exact ZIP couldn’t be checked; this is the answer for all ${where}.)` : '';
   // never show a green Standard (or an "ask") while this ZIP's own reading could still settle it
-  if (looking && (v.verdict === 'standard' || v.why === 'zip-unknown')) return { cls: '', big: 'Checking…', why: `Checking this exact ZIP in ${where}.` };
+  if (looking && (v.verdict === 'standard' || v.why === 'zip-unknown')) return { cls: '', big: 'Checking…', why: `Checking this exact ZIP in ${where}.`, low: null };
   const freeze = `${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row`;
   let big, why;
   if (v.verdict === 'pack') {
     big = 'Winter pack';
-    why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
+    why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${noOwn}`
         : v.why === 'area' ? (area && area.byZip
-            ? `Every one of the ${where} gets one: most of that group's ZIPs stay at ${freeze}.${reading}`
-            : `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`)
-        : `This ZIP itself stays at ${low !== null ? deg(low) : C.WINTER_PACK_F + '°F'} or colder for ${C.COLD_HOURS} hours in a row`
-          + (area && area.status === 'ok' && !area.byZip ? ', colder than the rest of its group (which the list calls standard)' : '') + '. Pack this box as winter.';
+            ? `Most ${where} stay at ${freeze}, so all of them get one.${noOwn}`
+            : `Part of the ${where} stays at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row, so all of them get one.${noOwn}`)
+        : `This ZIP stays at ${freeze}${area && area.status === 'ok' && !area.byZip ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
   } else if (v.verdict === 'standard') {
     big = 'Standard';
     why = v.why === 'zip' && low !== null
-        ? `This ZIP doesn't stay at ${freeze} (its own ${C.COLD_HOURS}-hour low: ${deg(low)}).${area && area.zips.length ? ` Some other ${where} do; they're listed above.` : ''}`
-        : v.why === 'zip' ? `None of the ${where} stay at ${freeze}.${reading}`
-        : `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (${C.COLD_HOURS}-hour low ${deg(area && area.low)}).${reading}`;
+        ? `This ZIP doesn't stay at ${freeze}.${area && area.zips.length ? ` Some other ${where} do; they're listed above.` : ''}`
+        : v.why === 'zip' ? `None of the ${where} stay at ${freeze}.${noOwn}`
+        : `The ${where} don't stay at ${freeze}.${noOwn}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
     big = 'Ask a pharmacist';
-    why = v.why === 'unchecked' ? (area && area.low === null ? `The ${where} didn't load.${reading}` : `Part of the ${where} didn't load.${reading}`)
-        : v.why === 'zip-unknown' ? `We have no reading for ${zip}${ex && ex.unknownZip ? ' (it isn\u2019t in our ZIP list)' : ''}, and some other ${where} need a winter pack (listed above).`
-        : `We have no forecast for ${where}.${reading}`;
+    why = v.why === 'unchecked' ? (area && area.low === null ? `The ${where} didn't load.${noOwn}` : `Part of the ${where} didn't load.${noOwn}`)
+        : v.why === 'zip-unknown' ? `We have no reading for ${zip}${ex && ex.unknownZip ? ' (it isn’t in our ZIP list)' : ''}, and some other ${where} need a winter pack (listed above).`
+        : `We have no forecast for ${where}.${noOwn}`;
   }
-  return { cls: v.verdict === 'pack' ? 'pack' : v.verdict === 'standard' ? 'standard' : v.verdict === 'ask' ? 'ask' : '', big, why };
+  return { cls: v.verdict === 'pack' ? 'pack' : v.verdict === 'standard' ? 'standard' : v.verdict === 'ask' ? 'ask' : '', big, why, ...shown };
+}
+// The numbers under the answer: the 5-hour low, and the hours it comes from
+// (the hours are the weather service's latest, so they can differ from the
+// hourly file's low by a degree).
+function zipTemps(m, d) {
+  const low = m.low === null || m.low === undefined ? ''
+    : `<div class="zip-low">${m.lowOf === 'zip' ? 'This ZIP' : esc(m.lowOf)}: ${C.COLD_HOURS}-hour low <strong>${m.low}°F</strong>`
+      + ` <span class="muted-note">(winter pack at ${C.WINTER_PACK_F}°F or colder)</span></div>`;
+  const hour = h => h === 12 ? '12p' : h > 12 ? `${h - 12}p` : `${h}a`;
+  const hours = d && d.hours ? `<div class="zip-hours" aria-label="Hourly forecast, 11am to 6pm">`
+    + d.hours.map((t, i) => `<span class="${t <= C.WINTER_PACK_F ? 'freeze' : ''}"><i>${hour(C.DELIVERY_START_HOUR + i)}</i>${t}°</span>`).join('') + '</div>' : '';
+  return low + hours;
 }
 let zipSeq = 0;
 function checkZip() {
@@ -1232,7 +1309,6 @@ function checkZip() {
   const zip = input.value.replace(/\D/g, '').slice(0, 5);
   if (input.value !== zip) input.value = zip;
   const seq = ++zipSeq;
-  const put = (m) => { if (seq !== zipSeq) return; out.className = 'zip-out ' + m.cls; out.innerHTML = `<b>${m.big}</b>${esc(m.why)}`; };
   if (zip.length !== 5) {
     out.className = 'zip-out';
     out.textContent = zip.length ? 'Keep typing: 5 digits.' : 'The answer for that ZIP shows here, for the ship night picked above.';
@@ -1241,12 +1317,18 @@ function checkZip() {
   if (dataError) { out.className = 'zip-out ask'; out.textContent = 'Page data didn’t load. Reload the page.'; return; }
   if (!plan.length || !POINTS.length) { out.className = 'zip-out'; out.textContent = 'Still loading the page…'; return; }
   const day = plan[night].delivKey;
+  let ex, d;   // this ZIP's own 5-hour low, and its hour-by-hour forecast (undefined while loading)
+  const put = () => {
+    if (seq !== zipSeq) return;
+    const m = zipMessage(zip, ex);
+    out.className = 'zip-out ' + m.cls;
+    out.innerHTML = `<b>${esc(m.big)}</b>${zipTemps(m, d)}<div class="zip-why">${esc(m.why)}</div>`;
+  };
   const zl = zipLowsFor(day);
-  if (zl && typeof zl[zip] === 'number') return put(zipMessage(zip, { value: zl[zip] }));   // the file's, before an older live one
-  const known = exact[zip + '|' + day];
-  if (known && !known.then && !(known.failed && Date.now() - known.at > 60000)) return put(zipMessage(zip, known));
-  put(zipMessage(zip, undefined));
-  exactLow(zip, day).then(res => put(zipMessage(zip, res)));
+  if (zl && typeof zl[zip] === 'number') ex = { value: zl[zip] };   // the file's, before any older live one
+  put();
+  if (!ex) exactLow(zip, day).then(res => { ex = res; put(); });
+  zipDetail(zip, day).then(res => { d = res; put(); });
 }
 document.getElementById('zip-in').addEventListener('input', checkZip);
 document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
