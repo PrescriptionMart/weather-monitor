@@ -3,11 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # also started by the FAA refresh and, once an hour, by the Winter Pack
+  # forecast build (winter-forecast.yml)
   workflow_dispatch:
-  schedule:
-    # Hourly, for the Winter Pack forecast (data/winter-forecast.json): the NWS
-    # national forecast grid updates around a quarter past each hour.
-    - cron: '31 * * * *'
 
 permissions:
   contents: read
@@ -30,33 +28,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The Winter Pack forecast is built here, not committed (it changes every
-      # hour). The FAA job deploys often, so a build under 50 minutes old is
-      # reused from the cache. If the build fails the deploy goes ahead and the
-      # page loads live from the weather service, as it always has.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: scripts/winter-forecast-requirements.txt
-      - name: Restore the last Winter Pack forecast
+      # The Winter Pack forecast (data/winter-forecast.json, never committed) is
+      # built once an hour by winter-forecast.yml and handed over through the
+      # Actions cache. A deploy only picks up the newest one, so it never waits
+      # on the weather service; without one the page loads live, as it always has.
+      - name: Pick up the newest Winter Pack forecast
+        continue-on-error: true
         uses: actions/cache/restore@v4
         with:
           path: data/winter-forecast.json
           key: winter-forecast-${{ github.run_id }}
           restore-keys: winter-forecast-
-      - name: Build the Winter Pack forecast
-        continue-on-error: true
-        timeout-minutes: 12
-        run: |
-          pip install -r scripts/winter-forecast-requirements.txt
-          python scripts/build-winter-forecast.py --out data/winter-forecast.json --reuse data/winter-forecast.json
-      - name: Keep it for the next deploy
-        if: hashFiles('data/winter-forecast.json') != ''
-        uses: actions/cache/save@v4
-        with:
-          path: data/winter-forecast.json
-          key: winter-forecast-${{ github.run_id }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -406,11 +406,20 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('every file the service worker saves for offline exists', shell.length > 10 && notThere.length === 0, notThere.join());
   ok('the saved forecast is kept per core version', html.includes("const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;"));
   // the hourly forecast file (scripts/build-winter-forecast.py): built at deploy, read first, live as the fallback
-  const wf = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'deploy-pages.yml'), 'utf8');
-  ok('the deploy builds the forecast hourly, and a failed build never blocks a deploy',
-     /cron: '\d+ \* \* \* \*'/.test(wf) && wf.includes('build-winter-forecast.py') && /Build the Winter Pack forecast\n\s+continue-on-error: true/.test(wf));
-  ok('the page reads the forecast file first and loads live when it is old or missing',
-     html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('if (await loadFile() === \'new\')') && /FILE_FRESH_MS = 2 \* 60 \* 60 \* 1000/.test(html));
+  const wfPath = f => path.join(__dirname, '..', '.github', 'workflows', f);
+  const dep = fs.readFileSync(wfPath('deploy-pages.yml'), 'utf8'), fc = fs.readFileSync(wfPath('winter-forecast.yml'), 'utf8');
+  ok('the forecast is built hourly in a workflow of its own, which then starts the deploy',
+     /cron: '\d+ \* \* \* \*'/.test(fc) && fc.includes('python scripts/build-winter-forecast.py --out data/winter-forecast.json')
+     && fc.includes('gh workflow run deploy-pages.yml') && /group: winter-forecast\n\s+cancel-in-progress: false/.test(fc));
+  ok('  a deploy never builds it or waits on the weather service, and a missing one never blocks a deploy',
+     !dep.includes('build-winter-forecast') && !dep.includes('setup-python') && !/schedule:/.test(dep)
+     && /Pick up the newest Winter Pack forecast\n\s+continue-on-error: true/.test(dep) && dep.includes('restore-keys: winter-forecast-'));
+  ok('  the deploy picks up what the build saves', /key: winter-forecast-\$\{\{ github\.run_id \}\}/.test(fc)
+     && (fc.match(/path: data\/winter-forecast\.json/g) || []).length === 1 && (dep.match(/path: data\/winter-forecast\.json/g) || []).length === 1);
+  ok('the page reads the forecast file first (giving up after 10 s) and loads live when it is old or missing',
+     html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('const got = await loadFile();') && /FILE_FRESH_MS = 2 \* 60 \* 60 \* 1000/.test(html)
+     && /FILE_TIMEOUT_MS = 10 \* 1000/.test(html) && html.includes('setTimeout(() => ctl.abort(), FILE_TIMEOUT_MS)'));
+  ok('  the ZIP box takes the file\'s reading before an older live one', /const zl = zipLowsFor\(day\);\n\s+if \(zl && typeof zl\[zip\] === 'number'\) return put/.test(html));
   ok('the built forecast is never committed', fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8').includes('data/winter-forecast.json'));
   ok('the page decides with every ZIP\'s own reading while the file is fresh, and keeps them through a live Refresh',
      html.includes('C.stateCalls(STATES, POINTS, lows, dayKeys.indexOf(day), zipLowsFor(day))')

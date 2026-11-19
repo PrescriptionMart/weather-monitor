@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Builds data/winter-forecast.json, the Winter Pack page's forecast, at deploy time.
+"""Builds data/winter-forecast.json, the Winter Pack page's forecast, once an hour
+(.github/workflows/winter-forecast.yml, which then starts the Pages deploy).
 
 Without it the page fetches the NWS hourly forecast for each of its 2,737
 checkpoint gridpoints itself: about 2 minutes and some 450 MB of JSON per load,
@@ -21,7 +22,7 @@ The page uses this file only while it is under 2 hours old and matches its own
 data; otherwise it loads live from api.weather.gov as before.
 
   pip install -r scripts/winter-forecast-requirements.txt
-  python3 scripts/build-winter-forecast.py --out data/winter-forecast.json [--reuse previous.json]
+  python3 scripts/build-winter-forecast.py --out data/winter-forecast.json
 """
 import argparse, concurrent.futures as cf, datetime as dt, gzip, http.client, json, math, os, re, ssl, sys, tempfile, threading, time
 import urllib.parse, urllib.request
@@ -34,7 +35,8 @@ NDFD_URLS = [   # the same file, from the NWS and from its AWS mirror
     'https://tgftp.nws.noaa.gov/SL.us008001/ST.opnl/DF.gr2/DC.ndfd/AR.conus/VP.001-003/ds.temp.bin',
     'https://noaa-ndfd-pds.s3.amazonaws.com/opnl/AR.conus/VP.001-003/ds.temp.bin',
 ]
-REUSE_MINUTES = 50     # a deploy within this long of the last build reuses it (the FAA job deploys often)
+API_MINUTES = 6        # the api.weather.gov pass stops after this long (a slow or throttled day): the
+                       # grid still gets read, and the page fetches whatever is missing itself
 MAX_STEP_HOURS = 3     # an hour between two grid times at most this far apart is read in between them
 # Checked against api.weather.gov's own hourly forecast at the checkpoints: a
 # day read partly through 3-hour steps had its 5-hour lows within 2°F 99.8% of
@@ -105,11 +107,19 @@ def _connection(host):
     return conns[host]
 
 
+_deadline = [float('inf')]   # time.time() after which fetch gives up at once (see API_MINUTES)
+
+
 def fetch(url, tries=3):
-    """JSON from api.weather.gov (gzip), 404 for a retired gridpoint, or None after retries."""
+    """JSON from api.weather.gov (gzip), 404 for a retired gridpoint, or None after retries
+    (or once the API pass is out of time)."""
     u = urllib.parse.urlsplit(url)
     path = u.path + ('?' + u.query if u.query else '')
     for a in range(tries):
+        if time.time() > _deadline[0]:
+            return None
+        if a:
+            time.sleep(3 * a)
         c = _connection(u.hostname)
         try:
             c.request('GET', path, headers={'User-Agent': UA, 'Accept': 'application/geo+json', 'Accept-Encoding': 'gzip'})
@@ -122,8 +132,12 @@ def fetch(url, tries=3):
         except Exception:
             c.close()
             _local.conns.pop(u.hostname, None)
-        time.sleep(3 * (a + 1))
     return None
+
+
+def coord(v):
+    """A coordinate for /points without trailing zeros (NWS redirects 38.0440 to 38.044)."""
+    return ('%.4f' % v).rstrip('0').rstrip('.')
 
 
 def checkpoint_lows(points, days, k, workers):
@@ -136,7 +150,7 @@ def checkpoint_lows(points, days, k, workers):
     def lows_for(g, lat, lon):
         body = fetch('https://api.weather.gov/gridpoints/%s/forecast/hourly' % g)
         if body == 404:   # NWS retired the gridpoint: look the place up again, as the page does
-            pt = fetch('https://api.weather.gov/points/%.4f,%.4f' % (lat, lon))
+            pt = fetch('https://api.weather.gov/points/%s,%s' % (coord(lat), coord(lon)))
             url = pt.get('properties', {}).get('forecastHourly') if isinstance(pt, dict) else None
             body = fetch(url) if url else None
         if not isinstance(body, dict):
@@ -248,7 +262,7 @@ def zip_readings(zips, inside, vals, days):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--out', required=True)
-    ap.add_argument('--reuse', help='a previous build: reused as is if under %d minutes old and built for the same data' % REUSE_MINUTES)
+    ap.add_argument('--api-minutes', type=float, default=API_MINUTES, help='time allowed for the api.weather.gov pass')
     ap.add_argument('--grib', help='a local NDFD ds.temp.bin instead of downloading one')
     ap.add_argument('--workers', type=int, default=8)
     a = ap.parse_args()
@@ -258,42 +272,27 @@ def main():
     now = dt.datetime.now(dt.timezone.utc)
     today = now.astimezone(BENCH_TZ).date()
     days = [(today + dt.timedelta(days=i)).isoformat() for i in range(1, k['days_ahead'] + 1)]   # delivery days: tomorrow on
-    if a.reuse and os.path.exists(a.reuse):
-        try:
-            old = json.load(open(a.reuse))
-            age = (now - dt.datetime.fromisoformat(old['built'])).total_seconds() / 60
-            if (old.get('core') == k['version'] and old.get('checkpoints') == ck['version'] and old.get('days') == days
-                    and age < REUSE_MINUTES):
-                if os.path.abspath(a.reuse) != os.path.abspath(a.out):
-                    open(a.out, 'w').write(open(a.reuse).read())
-                print('reused the build from %.0f minutes ago' % age)
-                return 0
-        except Exception as e:
-            print('  previous build unusable (%s); building afresh' % e, file=sys.stderr)
     points = [{'g': r[col['gridpoint']], 'lat': r[col['lat']], 'lon': r[col['lon']]} for r in ck['points']]
     t0 = time.time()
+    _deadline[0] = t0 + 60 * a.api_minutes
     lows = checkpoint_lows(points, days, k, a.workers)
     api_ok = sum(1 for v in lows if v is not None)
     print('api.weather.gov: %d of %d checkpoints in %.0fs' % (api_ok, len(points), time.time() - t0))
-    # the grid: every ZIP's centre, plus the checkpoints the API didn't answer for
+    # A checkpoint the API missed stays null, so the page fetches it live. (The grid
+    # could fill its next day or two, but there the area's ZIPs decide anyway, and a
+    # half-filled checkpoint would leave the later days unread.)
     zips = [l.strip().split(',') for l in open(os.path.join(ROOT, 'data', 'zip-centroids.txt')) if l.strip()]
-    grib, tmp, zip_lows, issued, filled = a.grib, None, {}, None, 0
+    grib, tmp, zip_lows, issued = a.grib, None, {}, None
     if not grib:
         tmp = tempfile.NamedTemporaryFile(suffix='.grib2', delete=False).name
         grib = tmp if download(NDFD_URLS, tmp) else None
     if grib:
         try:
             t1 = time.time()
-            places = [(float(z[1]), float(z[2])) for z in zips] + [(p['lat'], p['lon']) for p in points]
-            vals, issued, inside = grid_lows(places, days, k, grib)
-            zvals, pvals = vals[:len(zips)], vals[len(zips):]
-            zip_lows = zip_readings([z[0] for z in zips], inside[:len(zips)], zvals, days)
-            for i, v in enumerate(pvals):
-                if lows[i] is None and any(x is not None for x in v):
-                    lows[i] = v; filled += 1
-            print('NDFD grid (issued %s): %d ZIPs on the grid; ZIP readings by day %s; %d checkpoints filled in, %.0fs'
-                  % (issued.isoformat() if issued else '?', int(inside[:len(zips)].sum()),
-                     {d: len(v) for d, v in zip_lows.items()}, filled, time.time() - t1))
+            vals, issued, inside = grid_lows([(float(z[1]), float(z[2])) for z in zips], days, k, grib)
+            zip_lows = zip_readings([z[0] for z in zips], inside, vals, days)
+            print('NDFD grid (issued %s): %d ZIPs on the grid; ZIP readings by day %s; %.0fs'
+                  % (issued.isoformat() if issued else '?', int(inside.sum()), {d: len(v) for d, v in zip_lows.items()}, time.time() - t1))
         except Exception as e:
             print('  NDFD grid unusable: %s' % e, file=sys.stderr)
         finally:
@@ -304,7 +303,7 @@ def main():
         return 1
     doc = {'built': now.replace(microsecond=0).isoformat(), 'core': k['version'], 'checkpoints': ck['version'],
            'grid': issued.replace(microsecond=0).isoformat() if issued else None,
-           'sources': {'api': api_ok, 'grid': filled, 'missing': sum(1 for v in lows if v is None)},
+           'sources': {'api': api_ok, 'missing': len(lows) - api_ok},
            'days': days, 'lows': lows, 'zipLows': zip_lows}
     tmp_out = a.out + '.tmp'
     with open(tmp_out, 'w') as f:

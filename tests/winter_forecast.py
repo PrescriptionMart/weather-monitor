@@ -47,6 +47,19 @@ class Rule(unittest.TestCase):
         self.assertEqual(json.loads(out), [[self.low(p, d) for d in days] for p in cases])
 
 
+class Requests(unittest.TestCase):
+    def test_points_coordinates_have_no_trailing_zeros(self):
+        self.assertEqual((bwf.coord(38.044), bwf.coord(-119.26), bwf.coord(40.0), bwf.coord(35.12346)), ('38.044', '-119.26', '40', '35.1235'))
+
+    def test_out_of_time_means_no_request(self):
+        old = bwf._deadline[0]
+        try:
+            bwf._deadline[0] = 0           # the API pass is over: no connection is even opened
+            self.assertIsNone(bwf.fetch('https://api.weather.gov/gridpoints/XXX/1,1/forecast/hourly'))
+        finally:
+            bwf._deadline[0] = old
+
+
 class Grid(unittest.TestCase):
     def test_hours_inside_a_3_hour_step_are_read_in_between(self):
         import datetime as dt
