@@ -6,6 +6,9 @@ tests/_core.generated.js
 # built at deploy by scripts/build-winter-forecast.py, never committed
 data/winter-forecast.json
 data/winter-forecast.json.tmp
+# where each ZIP's residents live: made on the build server, never published (scripts/build-zip-points.py)
+data/zip-points.txt
+data/zip-points.txt.tmp
 
 # Python bytecode from running the builder tests
 __pycache__/

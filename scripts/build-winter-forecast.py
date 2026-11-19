@@ -10,9 +10,12 @@ server-side, and the page reads one file:
   lows     each checkpoint's 5-hour low for each delivery day, from the same
            api.weather.gov hourly forecast the page reads live, worked out with
            the page's own rule (winter-core.js), so the page's calls don't change
-  zipLows  each ZIP's 5-hour low, read at the ZIP's centre from the NWS national
-           forecast grid (NDFD, 2.5 km, the grid api.weather.gov serves), lower
-           48: ~33,000 readings a day instead of ~2,700. The grid is hourly for
+  zipLows  each ZIP's 5-hour low from the NWS national forecast grid (NDFD,
+           2.5 km, the grid api.weather.gov serves), read where most of the
+           ZIP's residents live (data/zip-points.txt, from the 2020 Census, made
+           on the build server by scripts/build-zip-points.py), lower 48:
+           ~33,000 readings a day instead of ~2,700.
+  zipHours the 11am-6pm readings behind each of those lows, for the ZIP box. The grid is hourly for
            about 36 hours, then 3-hourly; hours inside a 3-hour step are read
            in a straight line between its ends. A 3-digit area's ZIPs are
            written for a day only when every one of them has its full window,
@@ -194,9 +197,10 @@ def grid_reader(grids, max_step_hours=MAX_STEP_HOURS):
     return at
 
 
-def grid_lows(places, days, k, grib_path):
+def grid_lows(places, days, k, grib_path, want_hours=False):
     """5-hour lows per day at each (lat, lon) from the NDFD temperature grid; None where the
-    grid has no full window (past its 3-hourly part, or outside the lower 48)."""
+    grid has no full window (past its 3-hourly part, or outside the lower 48). With
+    want_hours, also each place's window readings per day (start..end hour, °F)."""
     import numpy as np, pygrib
     from scipy.spatial import cKDTree
     from timezonefinder import TimezoneFinder
@@ -220,6 +224,7 @@ def grid_lows(places, days, k, grib_path):
     tz = [tf.timezone_at(lat=a, lng=b) or tf.closest_timezone_at(lat=a, lng=b) for a, b in zip(lat, lon)]
     hours = list(range(k['start'], k['end'] + 1))
     out = [[None] * len(days) for _ in places]
+    hrs = [[None] * len(days) for _ in places]
     for zone in set(tz):
         sel = np.array([i for i, t in enumerate(tz) if t == zone and inside[i]], dtype=int)
         if not len(sel):
@@ -238,10 +243,12 @@ def grid_lows(places, days, k, grib_path):
             t = np.stack(cols, axis=1)                                  # places x hours
             runs = np.stack([t[:, i:i + k['cold_hours']].max(axis=1) for i in range(len(hours) - k['cold_hours'] + 1)], axis=1)
             low = runs.min(axis=1)
-            for i, v in zip(sel, low):
+            for j, (i, v) in enumerate(zip(sel, low)):
                 if not np.isnan(v):
                     out[i][di] = int(v)
-    return out, issued, inside
+                    if want_hours:
+                        hrs[i][di] = [int(x) for x in t[j]]
+    return (out, issued, inside, hrs) if want_hours else (out, issued, inside)
 
 
 def zip_readings(zips, inside, vals, days):
@@ -281,16 +288,24 @@ def main():
     # A checkpoint the API missed stays null, so the page fetches it live. (The grid
     # could fill its next day or two, but there the area's ZIPs decide anyway, and a
     # half-filled checkpoint would leave the later days unread.)
-    zips = [l.strip().split(',') for l in open(os.path.join(ROOT, 'data', 'zip-centroids.txt')) if l.strip()]
-    grib, tmp, zip_lows, issued = a.grib, None, {}, None
+    # where to read each ZIP: where its residents live (data/zip-points.txt, worked out on
+    # the build server and never published: those points sit on towns, and so do the
+    # checkpoints, so publishing them would let the checkpoints be matched to ZIPs), or
+    # failing that its geographic centre
+    pts = os.path.join(ROOT, 'data', 'zip-points.txt')
+    zips = [l.strip().split(',') for l in open(pts if os.path.exists(pts) else os.path.join(ROOT, 'data', 'zip-centroids.txt')) if l.strip()]
+    print('ZIP points: %s' % ('where residents live' if os.path.exists(pts) else 'geographic centres (no data/zip-points.txt)'))
+    grib, tmp, zip_lows, zip_hours, issued = a.grib, None, {}, {}, None
     if not grib:
         tmp = tempfile.NamedTemporaryFile(suffix='.grib2', delete=False).name
         grib = tmp if download(NDFD_URLS, tmp) else None
     if grib:
         try:
             t1 = time.time()
-            vals, issued, inside = grid_lows([(float(z[1]), float(z[2])) for z in zips], days, k, grib)
+            vals, issued, inside, hrs = grid_lows([(float(z[1]), float(z[2])) for z in zips], days, k, grib, want_hours=True)
             zip_lows = zip_readings([z[0] for z in zips], inside, vals, days)
+            row = {z[0]: i for i, z in enumerate(zips)}
+            zip_hours = {d: {z: hrs[row[z]][days.index(d)] for z in got} for d, got in zip_lows.items()}   # for the ZIP box
             print('NDFD grid (issued %s): %d ZIPs on the grid; ZIP readings by day %s; %.0fs'
                   % (issued.isoformat() if issued else '?', int(inside.sum()), {d: len(v) for d, v in zip_lows.items()}, time.time() - t1))
         except Exception as e:
@@ -304,7 +319,7 @@ def main():
     doc = {'built': now.replace(microsecond=0).isoformat(), 'core': k['version'], 'checkpoints': ck['version'],
            'grid': issued.replace(microsecond=0).isoformat() if issued else None,
            'sources': {'api': api_ok, 'missing': len(lows) - api_ok},
-           'days': days, 'lows': lows, 'zipLows': zip_lows}
+           'days': days, 'lows': lows, 'zipLows': zip_lows, 'zipHours': zip_hours}
     tmp_out = a.out + '.tmp'
     with open(tmp_out, 'w') as f:
         json.dump(doc, f, separators=(',', ':'))

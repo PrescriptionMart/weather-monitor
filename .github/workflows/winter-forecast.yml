@@ -32,6 +32,28 @@ jobs:
           cache: pip
           cache-dependency-path: scripts/winter-forecast-requirements.txt
       - run: pip install -r scripts/winter-forecast-requirements.txt
+      # Where each ZIP's residents live (2020 Census), to read its forecast there
+      # rather than at its middle. Kept in the Actions cache, never published: the
+      # points sit on towns, like the checkpoints. Worked out again (2-3 minutes)
+      # only when the script or the ZIP list changes; without them the build
+      # reads each ZIP at its geographic centre, as before.
+      - name: Pick up where each ZIP's residents live
+        id: points
+        uses: actions/cache/restore@v4
+        with:
+          path: data/zip-points.txt
+          key: zip-points-${{ hashFiles('scripts/build-zip-points.py', 'data/zip-centroids.txt') }}
+      - name: Work them out from the 2020 Census
+        if: steps.points.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python scripts/build-zip-points.py
+      - name: Keep them for the next builds
+        if: steps.points.outputs.cache-hit != 'true' && hashFiles('data/zip-points.txt') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/zip-points.txt
+          key: zip-points-${{ hashFiles('scripts/build-zip-points.py', 'data/zip-centroids.txt') }}
       - name: Build data/winter-forecast.json
         run: python scripts/build-winter-forecast.py --out data/winter-forecast.json
       - name: Hand it to the deploy

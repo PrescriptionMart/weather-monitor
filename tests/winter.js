@@ -419,7 +419,15 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('the page reads the forecast file first (giving up after 10 s) and loads live when it is old or missing',
      html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('const got = await loadFile();') && /FILE_FRESH_MS = 2 \* 60 \* 60 \* 1000/.test(html)
      && /FILE_TIMEOUT_MS = 10 \* 1000/.test(html) && html.includes('setTimeout(() => ctl.abort(), FILE_TIMEOUT_MS)'));
-  ok('  the ZIP box takes the file\'s reading before an older live one', /const zl = zipLowsFor\(day\);\n\s+if \(zl && typeof zl\[zip\] === 'number'\) ex = \{ value: zl\[zip\] \};/.test(html));
+  ok('  the ZIP box takes the file\'s reading (and the hours behind it) before an older live one',
+     /const zl = zipLowsFor\(day\), zh = zipHoursFor\(day\);\n\s+if \(zl && typeof zl\[zip\] === 'number'\) ex = \{ value: zl\[zip\] \};.*\n\s+if \(ex && zh && Array\.isArray\(zh\[zip\]\)\) d = \{ hours: zh\[zip\] \};/.test(html));
+  // Privacy: where each ZIP's residents live is worked out on the build server and never
+  // published (those points sit on towns, like the checkpoints, so they'd let the
+  // checkpoints be matched to ZIPs); the page only ever loads the geographic ZIP list.
+  ok('ZIP points where residents live: built on the server, ignored by git, never loaded by the page',
+     fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8').includes('data/zip-points.txt') && !html.includes('zip-points') && html.includes("fetch('data/zip-centroids.txt')"));
+  ok('  the forecast build works them out (cached) before building', /build-zip-points\.py/.test(fc) && /path: data\/zip-points\.txt/.test(fc)
+     && fc.indexOf('build-zip-points.py') < fc.indexOf('python scripts/build-winter-forecast.py'));
   ok('  and shows the ZIP\'s own 5-hour low and its 11am–6pm hours, not just the verdict',
      html.includes('${C.COLD_HOURS}-hour low <strong>${m.low}°F</strong>') && html.includes('C.windowTemps(r.body.properties.periods, day)') && html.includes('class="zip-hours"'));
   ok('single ZIPs: one line per state naming their 3-digit groups, folded on screen when long, all on paper',
