@@ -481,6 +481,14 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const zips = new Set(fs.readFileSync(path.join(__dirname, '..', 'data', 'zip-centroids.txt'), 'utf8').split('\n').filter(Boolean).map(l => l.slice(0, 3)));
   const missing = [...zips].filter(z => !(z in areaState));
   ok('every ZIP area in the ZIP list has a checkpoint', missing.length === 0, missing.join(','));
+  // the label check's city names (GeoNames, CC BY 4.0): one per ZIP, plain text, every ZIP we read named
+  const nameLines = fs.readFileSync(path.join(__dirname, '..', 'data', 'zip-names.txt'), 'utf8').split('\n').filter(Boolean);
+  const named = new Set(nameLines.map(l => l.slice(0, 5)));
+  const ourZips = fs.readFileSync(path.join(__dirname, '..', 'data', 'zip-centroids.txt'), 'utf8').split('\n').filter(Boolean).map(l => l.slice(0, 5));
+  ok('every ZIP name line is ZIP,city,ST with no markup characters', nameLines.length > 30000 && nameLines.every(l => /^\d{5},[^,<>"&]+,[A-Z]{2}$/.test(l)));
+  ok('  and every ZIP we read has a name', ourZips.every(z => named.has(z)), ourZips.filter(z => !named.has(z)).slice(0, 5).join());
+  ok('  the page shows it escaped, loads it only for the label check, and credits GeoNames',
+     html.includes("fetch('data/zip-names.txt')") && html.includes('<div class="zip-place">${esc(place)}</div>') && html.includes('https://www.geonames.org/') && html.includes('CC BY 4.0'));
   // Privacy: checkpoints sit on town centres, never on ZIP centres, so the
   // published file can't be joined with the public ZIP list to recover where
   // we ship. Allow chance coincidences only (a 0.05° shift of the same points
