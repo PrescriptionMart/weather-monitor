@@ -172,6 +172,7 @@
     .zip-out.pack { background: var(--high-bg); color: var(--high-fg); }
     .zip-out.standard { background: var(--low-bg); color: var(--low-fg); }
     .zip-out.ask { background: var(--med-bg); color: var(--med-fg); }
+    .zip-place { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
     .zip-low { font-size: 15px; margin-top: 2px; }
     .zip-low strong { font-size: 18px; }
     .zip-low .muted-note { opacity: .8; font-size: 13px; }
@@ -357,6 +358,7 @@
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
       <li>For the next delivery day, and the one after it in much of the country, we read every ZIP code's own forecast: about 33,000 ZIPs in the lower 48, each read where most of its residents live (2020 Census), not at the middle of the ZIP, which in the mountains can be an empty ridge.</li>
       <li>A ZIP needs a winter pack when it stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">5</span> hours in a row</strong> in that window. A freeze of <span class="v-dip">4</span> hours or less doesn't count. When more than half of the ZIPs starting with the same 3 digits need one, all of them get one; when more than half of a state's 3-digit groups do, the whole state does.</li>
+      <li>The city shown in the label check is the ZIP's post-office city, from <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0).</li>
       <li>A ZIP that isn't in our ZIP list (some PO-box-only and company ZIPs) has no forecast of its own: the label check says <strong>Ask a pharmacist</strong> for it when other ZIPs starting with the same 3 digits need a winter pack.</li>
       <li>Where we don't have each ZIP's own forecast (Alaska, Hawaii, and later deliveries), we check <span id="n-points">2,750</span> places instead: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains. Then all ZIPs starting with the same 3 digits get a winter pack when any place among them stays that cold.</li>
       <li>The <strong>5-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">5</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
@@ -1201,6 +1203,7 @@ function wireTooltip(svg) {
 
 // ---- the ZIP box ---------------------------------------------------------------------------
 let ZIPS = null, zipsLoading = null;
+let ZIP_NAMES = null, namesLoading = null;   // ZIP → 'Atwater, CA': the post-office city, from GeoNames
 const exact = {};   // 'zip|day' → that ZIP's hourly forecast once known (see zipDetail), or a pending promise
 function loadZips() {
   if (!zipsLoading) zipsLoading = fetch('data/zip-centroids.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
@@ -1209,6 +1212,14 @@ function loadZips() {
     ZIPS = m; return m;
   }).catch(() => { zipsLoading = null; return null; });
   return zipsLoading;
+}
+function loadZipNames() {
+  if (!namesLoading) namesLoading = fetch('data/zip-names.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
+    const m = new Map();
+    t.split('\n').forEach(l => { const [z, city, st] = l.split(','); if (z && city && st) m.set(z, `${city}, ${st}`); });
+    ZIP_NAMES = m; return m;
+  }).catch(() => { namesLoading = null; return null; });
+  return namesLoading;
 }
 function stateForZip(zip3, at) {
   const opts = ZIP3_STATES[zip3];
@@ -1328,8 +1339,10 @@ function checkZip() {
     if (seq !== zipSeq) return;
     const m = zipMessage(zip, ex);
     out.className = 'zip-out ' + m.cls;
-    out.innerHTML = `<b>${esc(m.big)}</b>${zipTemps(m, d)}<div class="zip-why">${esc(m.why)}</div>`;
+    const place = ZIP_NAMES && ZIP_NAMES.get(zip);
+    out.innerHTML = (place ? `<div class="zip-place">${esc(place)}</div>` : '') + `<b>${esc(m.big)}</b>${zipTemps(m, d)}<div class="zip-why">${esc(m.why)}</div>`;
   };
+  if (!ZIP_NAMES) loadZipNames().then(() => put());
   const zl = zipLowsFor(day), zh = zipHoursFor(day);
   if (zl && typeof zl[zip] === 'number') ex = { value: zl[zip] };   // the file's, before any older live one
   if (ex && zh && Array.isArray(zh[zip])) d = { hours: zh[zip] };   // and the hours behind it: no request at all
@@ -1338,7 +1351,7 @@ function checkZip() {
   if (!d) zipDetail(zip, day).then(res => { d = res; put(); });
 }
 document.getElementById('zip-in').addEventListener('input', checkZip);
-document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); }, { once: true });
+document.getElementById('zip-in').addEventListener('focus', () => { loadZips(); loadZipNames(); }, { once: true });
 
 // ---- start ----------------------------------------------------------------------------------
 // the How-this-is-decided text takes its numbers from winter-core.js
