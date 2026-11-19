@@ -1,0 +1,45 @@
+name: Build the Winter Pack forecast
+
+# Once an hour: builds data/winter-forecast.json (scripts/build-winter-forecast.py),
+# hands it to the Pages deploy through the Actions cache, and starts the deploy.
+# The page uses a file for up to 2 hours, then loads live from the weather
+# service, so a late or failed build only costs speed, never an answer.
+on:
+  schedule:
+    # The NWS national forecast grid for the half hour is out by about :45.
+    - cron: '47 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write    # to start the Pages deploy that publishes the new file
+
+# A build of its own: deploys (the FAA refresh starts one on every change, and
+# a newer deploy cancels an older one) never wait for it or cancel it.
+concurrency:
+  group: winter-forecast
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/winter-forecast-requirements.txt
+      - run: pip install -r scripts/winter-forecast-requirements.txt
+      - name: Build data/winter-forecast.json
+        run: python scripts/build-winter-forecast.py --out data/winter-forecast.json
+      - name: Hand it to the deploy
+        uses: actions/cache/save@v4
+        with:
+          path: data/winter-forecast.json
+          key: winter-forecast-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Deploy the site with it
+        run: gh workflow run deploy-pages.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

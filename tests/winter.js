@@ -308,6 +308,86 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   ok('ZIP in an area still loading: wait', W.zipVerdict(wait, '305', 60).verdict === 'wait');
   ok('ZIP area we have no checkpoint for: ask', W.zipVerdict(ca, '999', null).verdict === 'ask');
   ok('no state at all (outside the 50 states): ask, or pack if it reads cold', W.zipVerdict(null, '006', null).verdict === 'ask' && W.zipVerdict(null, '006', 20).verdict === 'pack');
+
+}
+
+// ---- every ZIP's own reading (the hourly forecast file) ----------------------------------
+{
+  // 935: a cold pass among warm valley towns; 961: mostly cold; 900: warm but for one ZIP
+  const pts = [pt('CA', '935'), pt('CA', '935'), pt('CA', '961'), pt('CA', '900')];
+  const lows = lowsOf([18, 54, 30, 60]);
+  const zl = { '93501': 50, '93510': 54, '93529': 11, '93546': 21, '93534': 54, '96161': 31, '96145': 30, '96150': 33, '90001': 60, '90002': F };
+  const [old] = W.stateCalls(['CA'], pts, lows, K);
+  const [ca] = W.stateCalls(['CA'], pts, lows, K, zl);
+  ok('checkpoints alone: one cold checkpoint puts its whole 3-digit area on winter pack', old.coldZips.join() === '935,961' && old.zips.length === 0);
+  ok('with every ZIP: an area where at most half the ZIPs freeze lists only those ZIPs', ca.coldZips.join() === '961' && ca.zips.join() === '90002,93529,93546', JSON.stringify(ca.zips));
+  ok('  a valley ZIP next to the cold pass is standard', W.zipVerdict(ca, '935', 54, '93534').verdict === 'standard');
+  ok('  a listed ZIP is a winter pack in the ZIP box too', W.zipVerdict(ca, '935', 11, '93529').verdict === 'pack');
+  ok('  more than half of an area cold: every ZIP in it, the warm one too', W.zipVerdict(ca, '961', 33, '96150').verdict === 'pack');
+  ok(`  a ZIP at ${F}°F in an otherwise warm area is listed`, W.zipVerdict(ca, '900', F, '90002').verdict === 'pack');
+  ok('  the state is "parts of", and its coldest spot counts the ZIP readings', ca.call === 'part' && ca.coldest === 11);
+  ok('  exactly half cold is not more than half: only the cold ZIP', W.stateCalls(['CA'], [pt('CA', '935')], lowsOf([20]), K, { '93501': 30, '93502': 40 })[0].zips.join() === '93501');
+  const pass = W.stateCalls(['CA'], [pt('CA', '935')], lowsOf([18]), K, { '93501': 40, '93502': 44 })[0];
+  ok('  a cold checkpoint but no cold ZIP: standard (the ZIPs decide)', pass.call === 'standard');
+  ok('  a ZIP we have no reading for, where neighbours freeze: ask a pharmacist', W.zipVerdict(ca, '935', null, '93599').verdict === 'ask');
+  ok('  ... where none do: standard', W.zipVerdict(pass, '935', null, '93599').verdict === 'standard');
+  ok('  an area with no ZIP readings still goes by its checkpoints',
+     W.stateCalls(['CA'], pts, lows, K, { '93501': 50, '93529': 11, '93546': 21, '93534': 54, '93510': 54 })[0].coldZips.join() === '961');
+  ok('  readings that are not numbers are ignored', W.stateCalls(['CA'], [pt('CA', '935')], lowsOf([18]), K, { '93501': null, '93502': 'x' })[0].coldZips.join() === '935');
+  // checkpoints that didn't load don't matter where every ZIP has a reading
+  ok('  a missing checkpoint in an area with ZIP readings: checked, not "ask"', W.stateCalls(['GA'], [pt('GA', '305'), pt('GA', '305')], lowsOf([null, 45]), K, { '30501': 44 })[0].call === 'standard');
+  ok('  one still loading there: no wait', W.stateCalls(['GA'], [pt('GA', '305')], lowsOf([undefined]), K, { '30501': 44 })[0].call === 'standard');
+  // the whole state counts whole areas, not areas with one cold ZIP
+  const txPts = [pt('TX', '790'), pt('TX', '791'), pt('TX', '770')], txLows = lowsOf([30, 31, 60]);
+  const txZips = { '79001': 20, '79002': 25, '79101': 30, '79102': 40, '79103': 41, '77001': 60 };
+  ok('checkpoints alone: two of three areas cold, so the whole state', W.stateCalls(['TX'], txPts, txLows, K)[0].call === 'whole');
+  const tx = W.stateCalls(['TX'], txPts, txLows, K, txZips)[0];
+  ok('with every ZIP: one whole area and one ZIP is not more than half the state', tx.call === 'part' && tx.coldZips.join() === '790' && tx.zips.join() === '79101', JSON.stringify(tx));
+  ok('  more than half the areas mostly cold: the whole state, and no single ZIPs listed',
+     W.stateCalls(['TX'], txPts, txLows, K, { ...txZips, '79102': 30 })[0].call === 'whole' && W.stateCalls(['TX'], txPts, txLows, K, { ...txZips, '79102': 30 })[0].zips.length === 0);
+  // a state that could still tip to whole: its ZIP-decided warm areas aren't standard yet
+  const nine = ['050', '051', '052', '053', '054', '055', '056', '057', '058'].map(z => pt('VT', z));
+  const vtZips = { '05001': 20, '05101': 21, '05201': 22, '05601': 40, '05701': 41, '05801': 30, '05802': 42, '05803': 43 };
+  const [vt] = W.stateCalls(['VT'], nine, lowsOf([25, 26, 27, null, null, null, 40, 41, 42]), K, vtZips);
+  ok('3 areas cold by their ZIPs, 3 not checked: the warm ones say "ask", the cold ZIP is still listed',
+     vt.couldBeWhole && W.zipVerdict(vt, '056', 40, '05601').verdict === 'ask' && vt.zips.join() === '05801' && W.zipVerdict(vt, '058', 30, '05801').verdict === 'pack', JSON.stringify(vt));
+  const sm = W.summarize([W.stateCalls(['NV'], [pt('NV', '894'), pt('NV', '891')], lowsOf([28, 60]), K, { '89401': 50, '89402': 30, '89403': 52, '89101': 64 })[0]]);
+  ok('a state whose only winter packs are single ZIPs counts as "parts of" one', sm.packCount === 1 && sm.part.length === 1 && sm.part[0].zips.join() === '89402');
+}
+
+// Random states and ZIPs, every ZIP with a reading: a freezing ZIP is always a
+// winter pack, a warm one only when most of its area (or most of its state's
+// areas) freeze, and a state goes whole exactly when more than half its areas do.
+{
+  let seed = 23;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  let coldMissed = 0, warmPacked = 0, wrongWhole = 0;
+  for (let run = 0; run < 3000; run++) {
+    const states = ['AA', 'BB'], pts = [], vals = [], zl = {}, byArea = {};
+    states.forEach((st, si) => {
+      const n = 1 + Math.floor(rnd() * 5);
+      for (let a = 0; a < n; a++) {
+        const z3 = String(100 + 50 * si + a), base = 10 + rnd() * 45;
+        pts.push(pt(st, z3)); vals.push(rnd() < 0.2 ? null : rnd() < 0.1 ? undefined : Math.round(base + rnd() * 10 - 5));
+        const k = 1 + Math.floor(rnd() * 6);
+        for (let i = 0; i < k; i++) { const z = z3 + String(10 + i); zl[z] = Math.round(base + rnd() * 20 - 10); (byArea[z3] || (byArea[z3] = [])).push(zl[z]); }
+      }
+    });
+    const calls = W.stateCalls(states, pts, lowsOf(vals), K, zl);
+    const mostly = z3 => byArea[z3].filter(v => v <= F).length > byArea[z3].length / 2;
+    calls.forEach(c => {
+      const whole = c.areas.filter(a => mostly(a.zip3)).length > c.areas.length / 2;
+      if ((c.call === 'whole') !== whole) wrongWhole++;
+      c.areas.forEach(a => Object.keys(zl).filter(z => z.startsWith(a.zip3)).forEach(z => {
+        const v = W.zipVerdict(c, a.zip3, zl[z], z).verdict;
+        if (zl[z] <= F && v !== 'pack') coldMissed++;
+        if (zl[z] > F && v === 'pack' && !whole && !mostly(a.zip3)) warmPacked++;
+      }));
+    });
+  }
+  ok('3000 random days with every ZIP read: a ZIP at or below freezing is always a winter pack', coldMissed === 0, String(coldMissed));
+  ok('  a warm ZIP is a winter pack only when most of its area or state is', warmPacked === 0, String(warmPacked));
+  ok('  a state goes whole exactly when more than half of its areas are mostly cold', wrongWhole === 0, String(wrongWhole));
 }
 
 // ---- the files the page loads ------------------------------------------------------
@@ -325,6 +405,26 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
   const notThere = shell.filter(u => u !== './').map(u => u.replace(/^\.\//, '').replace(/\?.*$/, '')).filter(f => !fs.existsSync(path.join(__dirname, '..', f)));
   ok('every file the service worker saves for offline exists', shell.length > 10 && notThere.length === 0, notThere.join());
   ok('the saved forecast is kept per core version', html.includes("const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;"));
+  // the hourly forecast file (scripts/build-winter-forecast.py): built at deploy, read first, live as the fallback
+  const wfPath = f => path.join(__dirname, '..', '.github', 'workflows', f);
+  const dep = fs.readFileSync(wfPath('deploy-pages.yml'), 'utf8'), fc = fs.readFileSync(wfPath('winter-forecast.yml'), 'utf8');
+  ok('the forecast is built hourly in a workflow of its own, which then starts the deploy',
+     /cron: '\d+ \* \* \* \*'/.test(fc) && fc.includes('python scripts/build-winter-forecast.py --out data/winter-forecast.json')
+     && fc.includes('gh workflow run deploy-pages.yml') && /group: winter-forecast\n\s+cancel-in-progress: false/.test(fc));
+  ok('  a deploy never builds it or waits on the weather service, and a missing one never blocks a deploy',
+     !dep.includes('build-winter-forecast') && !dep.includes('setup-python') && !/schedule:/.test(dep)
+     && /Pick up the newest Winter Pack forecast\n\s+continue-on-error: true/.test(dep) && dep.includes('restore-keys: winter-forecast-'));
+  ok('  the deploy picks up what the build saves', /key: winter-forecast-\$\{\{ github\.run_id \}\}/.test(fc)
+     && (fc.match(/path: data\/winter-forecast\.json/g) || []).length === 1 && (dep.match(/path: data\/winter-forecast\.json/g) || []).length === 1);
+  ok('the page reads the forecast file first (giving up after 10 s) and loads live when it is old or missing',
+     html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('const got = await loadFile();') && /FILE_FRESH_MS = 2 \* 60 \* 60 \* 1000/.test(html)
+     && /FILE_TIMEOUT_MS = 10 \* 1000/.test(html) && html.includes('setTimeout(() => ctl.abort(), FILE_TIMEOUT_MS)'));
+  ok('  the ZIP box takes the file\'s reading before an older live one', /const zl = zipLowsFor\(day\);\n\s+if \(zl && typeof zl\[zip\] === 'number'\) return put/.test(html));
+  ok('the built forecast is never committed', fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8').includes('data/winter-forecast.json'));
+  ok('the page decides with every ZIP\'s own reading while the file is fresh, and keeps them through a live Refresh',
+     html.includes('C.stateCalls(STATES, POINTS, lows, dayKeys.indexOf(day), zipLowsFor(day))')
+     && /function zipLowsFor\(day\) \{[\s\S]{0,120}Date\.now\(\) - zipBuilt < FILE_FRESH_MS/.test(html) && !/^\s+zipLows = \{\};/m.test(html));
+  ok('  every call on the page goes through that one place (list, map, ZIP box, retry)', (html.match(/C\.stateCalls\(/g) || []).length === 1);
   ok('reloads to fetch a fixed core are capped per tab', html.includes('if (n < 3) { history.replaceState({ coreRefetch: n + 1 }'));
   // the core's in-page version check: a page that asked for this version gets the rules; any other page
   // gets none and one reload

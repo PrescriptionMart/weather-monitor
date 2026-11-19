@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # also started by the FAA refresh and, once an hour, by the Winter Pack
+  # forecast build (winter-forecast.yml)
   workflow_dispatch:
 
 permissions:
@@ -26,6 +28,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The Winter Pack forecast (data/winter-forecast.json, never committed) is
+      # built once an hour by winter-forecast.yml and handed over through the
+      # Actions cache. A deploy only picks up the newest one, so it never waits
+      # on the weather service; without one the page loads live, as it always has.
+      - name: Pick up the newest Winter Pack forecast
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: data/winter-forecast.json
+          key: winter-forecast-${{ github.run_id }}
+          restore-keys: winter-forecast-
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

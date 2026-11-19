@@ -141,6 +141,7 @@
     .row .nw { white-space: nowrap; }
     @media screen and (max-width: 385px) { .row .item.two { white-space: normal; } }   /* only where one doesn't fit the column */
     .row .zips { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .row .zip-state + .zip-state { margin-top: 4px; }
     .row .note { grid-column: 2; font-size: 13px; opacity: .9; }
     .define { font-size: 14px; margin-top: 12px; color: var(--text-muted); }
     .rule-line { display: none; }   /* the screen has "How this is decided"; paper gets this line */
@@ -326,12 +327,14 @@
     <summary>How this is decided</summary>
     <ul>
       <li>We read the National Weather Service forecast for <strong>11am–6pm on the delivery day</strong>, local time at the address. That's when next-day air arrives, plus about 3 hours on the porch.</li>
-      <li>We check <span id="n-points">2,750</span> places across the US: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains.</li>
-      <li>All ZIPs starting with the same 3 digits need a winter pack when any place among them stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">5</span> hours in a row</strong> in that window. A freeze of <span class="v-dip">4</span> hours or less doesn't count. When more than half of a state's 3-digit groups need one, the whole state does.</li>
+      <li>For the next delivery day, and the one after it in much of the country, we read every ZIP code's own forecast: about 33,000 ZIPs in the lower 48.</li>
+      <li>A ZIP needs a winter pack when it stays <strong><span class="v-pack">32</span>°F (freezing) or colder for <span class="v-hours">5</span> hours in a row</strong> in that window. A freeze of <span class="v-dip">4</span> hours or less doesn't count. When more than half of the ZIPs starting with the same 3 digits need one, all of them get one; when more than half of a state's 3-digit groups do, the whole state does.</li>
+      <li>A ZIP that isn't in our ZIP list (some PO-box-only and company ZIPs) has no forecast of its own: the label check says <strong>Ask a pharmacist</strong> for it when other ZIPs starting with the same 3 digits need a winter pack.</li>
+      <li>Where we don't have each ZIP's own forecast (Alaska, Hawaii, and later deliveries), we check <span id="n-points">2,750</span> places instead: at least one for every group of ZIPs starting with the same 3 digits, and more in the mountains. Then all ZIPs starting with the same 3 digits get a winter pack when any place among them stays that cold.</li>
       <li>The <strong>5-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">5</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
       <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 5-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
-      <li>The forecast is saved on this computer and updates itself every hour. The first load of the day takes two or three minutes; after that it opens instantly.</li>
+      <li>The forecast is put together once an hour on our server, so the page opens in about a second and updates itself. If that hasn't come through for 2 hours, the page reads the forecast itself, which takes two or three minutes.</li>
     </ul>
   </details>
 
@@ -345,10 +348,10 @@
 
 <!-- ?v= is winter-core.js's VERSION (see the note there): a browser that cached an
      older core for its 10 minutes can't pair it with this page -->
-<script src="winter-core.js?v=10"></script>
+<script src="winter-core.js?v=11"></script>
 <script>
 const C = window.WinterCore;
-const PAGE_VERSION = 10;      // = the ?v= above, WinterCore.VERSION and sw.js SHELL
+const PAGE_VERSION = 11;      // = the ?v= above, WinterCore.VERSION and sw.js SHELL
 // A missing or mismatched winter-core.js: say "reload" and stop here, before
 // any weather request (instead of failing them all and blaming the weather service).
 if (!C || C.VERSION !== PAGE_VERSION) {
@@ -379,6 +382,10 @@ if (history.state && history.state.coreRefetch) history.replaceState(null, '');
 
 // ---- settings --------------------------------------------------------------------
 const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;       // saved lows were worked out by this core's rule; a new core starts fresh
+const FORECAST_FILE = 'data/winter-forecast.json';      // built once an hour at deploy (scripts/build-winter-forecast.py)
+const FILE_FRESH_MS = 2 * 60 * 60 * 1000;               // older than this, the page loads live from the weather service
+const FILE_RECHECK_MS = 5 * 60 * 1000;                  // an hourly update waits this long for the next file
+const FILE_TIMEOUT_MS = 10 * 1000;                      // a file that takes longer than this: load live instead
 const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has moved since the build
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
 const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
@@ -413,6 +420,10 @@ let night = C.defaultNight(plan, today, benchNow().hour);
 let dataVersion = '';         // which checkpoint list the saved forecast belongs to
 let lows = [];                // per point: undefined = not yet, null = failed, else [5-hour low per dayKeys]
 let asOf = null;              // when the forecast on screen was fetched
+let zipLows = {};             // delivery day → {ZIP: 5-hour low}: every ZIP's own reading, from the forecast file
+let zipBuilt = 0;             // when the file those came from was built (they're used while it's fresh)
+let fileCheckedAt = 0;        // when the forecast file was last found not yet newer than the one shown
+let fileLoading = false;      // the first look at the file, before anything is on screen
 let load = { running: false, background: false, done: 0, gaveUp: false, failed: false };
 let lastAttemptAt = 0, failedUpdates = 0;  // after a failed update, wait 10, 20, then 30 min between automatic tries
 let dataError = false;
@@ -544,6 +555,59 @@ function saveCache() {
 }
 const answered = (arr) => arr.some(v => v && v.some(x => x !== null));
 
+// The forecast built server-side once an hour: one small request instead of
+// one per checkpoint, plus a reading for every ZIP. Used only while it's fresh
+// and built for this page's data; otherwise the page loads live as before.
+// The ZIP readings are always taken from the newest such file, even when the
+// checkpoints on screen are newer (a live Refresh) or the file's days don't
+// line up with the page's (just after midnight).
+//   → 'new' (its checkpoints now on screen), 'zips' (only its ZIP readings were
+//     newer), 'same' (nothing newer) or false (its checkpoints can't be used)
+async function loadFile() {
+  let f;
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), FILE_TIMEOUT_MS) : null;
+  try {
+    const r = await fetch(FORECAST_FILE, { cache: 'no-cache', signal: ctl ? ctl.signal : undefined });
+    if (!r.ok) return false;
+    f = await r.json();
+  } catch (e) { return false; } finally { if (timer) clearTimeout(timer); }
+  const built = Date.parse(f && f.built);
+  if (!f || f.core !== C.VERSION || f.checkpoints !== dataVersion || !(Date.now() - built < FILE_FRESH_MS)) return false;
+  const zipsNew = built > zipBuilt && !!f.zipLows && typeof f.zipLows === 'object';
+  if (zipsNew) { zipLows = f.zipLows; zipBuilt = built; }
+  const idx = Array.isArray(f.days) ? dayKeys.map(k => f.days.indexOf(k)) : [];
+  if (!Array.isArray(f.lows) || f.lows.length !== POINTS.length || idx.length !== dayKeys.length || idx.some(i => i < 0)) return false;
+  if (asOf && built <= asOf) return zipsNew ? 'zips' : 'same';
+  lows = f.lows.map(v => Array.isArray(v) ? idx.map(i => typeof v[i] === 'number' ? v[i] : null) : null);
+  asOf = built;
+  failedUpdates = 0;
+  saveCache();
+  return 'new';
+}
+// This delivery day's ZIP readings from the file, while it's fresh (a live
+// Refresh keeps them: they're from the same forecast, at most 2 hours old).
+function zipLowsFor(day) {
+  const z = zipLows[day];
+  return z && Date.now() - zipBuilt < FILE_FRESH_MS ? z : null;
+}
+// The few places the server couldn't get: fetch those live.
+function fillGaps() {
+  const gaps = POINTS.map((p, i) => i).filter(i => lows[i] === null);
+  if (gaps.length) refetch(gaps);
+}
+// An update: the server's newer forecast if there is one; a live load only
+// when the file is missing or old (or on Refresh, when it isn't newer).
+async function update(background, force) {
+  if (load.running) return;
+  const got = await loadFile();
+  lastAttemptAt = Date.now();
+  if (got === 'new') { render(); fillGaps(); return; }
+  if (got === 'zips') render();
+  if ((got === 'zips' || got === 'same') && !force) { fileCheckedAt = Date.now(); renderFoot(); return; }
+  runLoad(background);
+}
+
 // Fetch every checkpoint. In the background the answer on screen stays put
 // until the new one is complete; in the foreground the screen fills in.
 async function runLoad(background) {
@@ -594,8 +658,8 @@ async function runLoad(background) {
 // Refetch only the places behind a "not checked" area.
 function retryUnchecked() {
   if (load.running) return;
+  const calls = nightCalls();
   const k = dayKeys.indexOf(plan[night].delivKey);
-  const calls = C.stateCalls(STATES, POINTS, lows, k);
   const bad = new Set();
   calls.forEach(c => c.uncheckedZips.forEach(z => bad.add(c.state + z)));
   return refetch(POINTS.map((p, i) => i).filter(i => bad.has(POINTS[i].state + POINTS[i].zip3) && (!lows[i] || lows[i][k] === null)));
@@ -622,11 +686,12 @@ let retryNote = '';
 
 function refreshNow() {
   if (!POINTS.length) { location.reload(); return; }   // the page's own data never arrived
-  if (!load.running) runLoad(answered(lows));
+  if (!load.running) update(answered(lows), true);
 }
 // Automatic updates: hourly; after a failed one, back off (10, 20, 30 min).
 function dueForUpdate() {
   if (load.running || !POINTS.length) return false;
+  if (Date.now() - fileCheckedAt < FILE_RECHECK_MS) return false;   // the next hourly file isn't out yet
   const wait = failedUpdates ? RETRY_AFTER_FAIL_MS[Math.min(failedUpdates, RETRY_AFTER_FAIL_MS.length) - 1] : 0;
   if (Date.now() - lastAttemptAt < wait) return false;
   return !asOf || Date.now() - asOf > UPDATE_AFTER_MS;
@@ -634,11 +699,11 @@ function dueForUpdate() {
 
 // ---- the answer for the selected night -----------------------------------------------------
 function nightCalls() {
-  const k = dayKeys.indexOf(plan[night].delivKey);
-  return C.stateCalls(STATES, POINTS, lows, k);
+  const day = plan[night].delivKey;
+  return C.stateCalls(STATES, POINTS, lows, dayKeys.indexOf(day), zipLowsFor(day));
 }
 function currentSummary(calls) {
-  return C.summarize(calls, { loading: load.running && !load.background });
+  return C.summarize(calls, { loading: (load.running && !load.background) || fileLoading });
 }
 const fmtDay = (d, long) => d.toLocaleDateString('en-US', long ? { weekday: 'long', month: 'short', day: 'numeric' } : { weekday: 'short', month: 'numeric', day: 'numeric' });
 const fmtTime = (t) => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -692,9 +757,12 @@ function renderNights() {
 function stateLine(c, withZips) {
   const name = esc(STATE_NAME[c.state]);
   if (!withZips) return `<span class="item">${name}</span>`;
-  // keep the state name with its first range and each range in one piece, so
-  // a long list wraps only at the commas (and never pushes a phone screen wider)
-  const [first, ...rest] = C.zipRanges(withZips).split(', ');
+  return piecesLine(name, C.zipRanges(withZips).split(', '));
+}
+// keep the state name with its first piece and each piece in one piece, so
+// a long list wraps only at the commas (and never pushes a phone screen wider)
+function piecesLine(name, pieces) {
+  const [first, ...rest] = pieces;
   const cls = rest.length > 1 ? 'item long' : rest.length ? 'item two' : 'item';
   return `<span class="${cls}"><span class="nw">${name} <span class="zips">${first}</span></span>`
     + (rest.length ? `<span class="zips">${rest.map(r => `, <span class="nw">${r}</span>`).join('')}</span>` : '') + '</span>';
@@ -759,7 +827,10 @@ function render() {
   if (!dataError && s.status !== 'down') {
     const so = s.status === 'loading' ? 'So far: w' : 'W';
     if (s.whole.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, whole state</div><div>${joinItems(s.whole.sort(byName).map(c => stateLine(c)))}</div></div>`;
-    if (s.part.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, only ZIPs starting with</div><div>${joinItems(s.part.sort(byName).map(c => stateLine(c, c.coldZips)))}</div></div>`;
+    const areaStates = s.part.filter(c => c.coldZips.length).sort(byName), zipStates = s.part.filter(c => c.zips.length).sort(byName);
+    if (areaStates.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, all ZIPs starting with</div><div>${joinItems(areaStates.map(c => stateLine(c, c.coldZips)))}</div></div>`;
+    // one state per line: these lists run long, and a packer looks up one state at a time
+    if (zipStates.length) r += `<div class="row pack"><div class="row-label">${so}inter pack, these ZIPs</div><div>${zipStates.map(c => `<div class="zip-state">${piecesLine(esc(STATE_NAME[c.state]), c.zips)}</div>`).join('')}</div></div>`;
     if (s.status !== 'loading' && s.unchecked.length) {
       const whole = (c, what) => `<span class="item two"><span class="nw">${esc(STATE_NAME[c.state])}</span> <span class="zips nw">(${what})</span></span>`;
       const items = s.unchecked.sort(byName).map(c => c.allUnchecked ? whole(c, 'all ZIPs') : c.restUnchecked ? whole(c, 'rest of the state') : stateLine(c, c.uncheckedZips));
@@ -770,7 +841,14 @@ function render() {
     if (s.status === 'complete' && s.packCount) r += `<div class="row std"><div class="row-label">Everything else</div><div>Standard</div></div>`;
     if (s.status === 'incomplete') r += `<div class="row std"><div class="row-label">Everything else checked</div><div>Standard</div></div>`;
     if (s.packCount && s.status !== 'loading') r += define;
-    if (s.status !== 'loading') r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours or more in a row, 11am–6pm local time on the delivery day.</div>`;
+    if (s.status !== 'loading') {
+      // say how this day's list was read: ZIP by ZIP, or (no file, or later days) by 3-digit group
+      const lower = calls.filter(c => c.state !== 'AK' && c.state !== 'HI').flatMap(c => c.areas);
+      const byZip = lower.filter(a => a.byZip).length;
+      const how = !byZip ? ' Each ZIP’s own forecast isn’t in for this day, so each 3-digit ZIP group goes by its checkpoints: all of a group gets a winter pack when one of them is that cold.'
+        : byZip < lower.length ? ' Each ZIP’s own forecast isn’t in yet for some 3-digit ZIP groups on this day; those go by their checkpoints (all of a group gets a winter pack when one of them is that cold).' : '';
+      r += `<div class="define rule-line">Rule: winter pack where it stays at ${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours or more in a row, 11am–6pm local time on the delivery day.${how}</div>`;
+    }
   }
   rows.innerHTML = r;
   // long lists on paper: a smaller map keeps it on page 1. Calibrated by printing
@@ -801,7 +879,10 @@ function renderFoot() {
   else text = 'No forecast loaded';
   head.textContent = text;
   const old = asOf && !load.running && Date.now() - asOf > STALE_WARN_MS;
-  foot.innerHTML = 'Forecasts: National Weather Service' + (load.failed
+  const zl = plan[night] ? zipLowsFor(plan[night].delivKey) : null;
+  const nz = zl ? Object.keys(zl).length : 0;
+  const zipTime = nz && asOf && Math.abs(asOf - zipBuilt) > 10 * 60000 ? ` (ZIPs as of ${fmtTime(zipBuilt)})` : '';
+  foot.innerHTML = 'Forecasts: National Weather Service' + (nz ? ` · ${POINTS.length.toLocaleString()} checkpoints and ${nz.toLocaleString()} ZIPs${zipTime}` : '') + (load.failed
     ? ' · <span class="stale">The last update failed. Press Refresh.</span>'
     : old ? ` · <span class="stale">This forecast is ${Math.floor((Date.now() - asOf) / 3600000)} hours old. Press Refresh.</span>` : '');
 }
@@ -815,7 +896,9 @@ function noteText() {
   if (s.status === 'down') { lines.push('NO FORECAST — the weather service is not answering. Ask a pharmacist before packing cold boxes.'); return lines.join('\n'); }
   const nm = (c) => STATE_NAME[c.state];
   if (s.whole.length) lines.push(`Winter pack, whole state: ${s.whole.sort(byName).map(nm).join(', ')}`);
-  if (s.part.length) lines.push(`Winter pack, only ZIPs starting with: ${s.part.sort(byName).map(c => `${nm(c)} ${C.zipRanges(c.coldZips)}`).join('; ')}`);
+  const areaStates = s.part.filter(c => c.coldZips.length).sort(byName), zipStates = s.part.filter(c => c.zips.length).sort(byName);
+  if (areaStates.length) lines.push(`Winter pack, all ZIPs starting with: ${areaStates.map(c => `${nm(c)} ${C.zipRanges(c.coldZips)}`).join('; ')}`);
+  if (zipStates.length) lines.push(`Winter pack, these ZIPs:\n${zipStates.map(c => `  ${nm(c)}: ${c.zips.join(', ')}`).join('\n')}`);
   if (s.unchecked.length) lines.push(`NOT CHECKED — ask a pharmacist: ${s.unchecked.sort(byName).map(c => c.allUnchecked ? `${nm(c)} (all ZIPs)` : c.restUnchecked ? `${nm(c)} (rest of the state)` : `${nm(c)} ${C.zipRanges(c.uncheckedZips)}`).join('; ')}`);
   if (s.status === 'complete') lines.push(s.packCount ? 'Everything else: standard.' : 'No winter packs. Standard packing everywhere.');
   else lines.push(s.packCount ? 'Everything else that was checked: standard.' : 'No winter packs found in the areas that were checked.');
@@ -1004,10 +1087,14 @@ function stateTip(code) {
   const c = lastCalls.find(x => x.state === code);
   const name = STATE_NAME[code] || code;
   if (!c) return name;
-  const cold = c.coldest !== null ? ` · ${C.COLD_HOURS}-hour low ${deg(c.coldest)}` : '';
+  // the state's single coldest reading: one spot, often a mountain, not the state's typical temperature
+  const cold = c.coldest !== null ? ` · coldest spot: ${C.COLD_HOURS}-hour low ${deg(c.coldest)}` : '';
+  const which = [c.coldZips.length ? `ZIPs starting with ${C.zipRanges(c.coldZips)}` : '',
+                 !c.zips.length ? '' : c.zips.length <= 6 ? `ZIP${c.zips.length === 1 ? '' : 's'} ${c.zips.join(', ')}` : `${c.zips.length} ZIPs (listed above)`]
+    .filter(Boolean).join(' and ');
   switch (c.call) {
     case 'whole': return `${name}: winter pack, whole state${cold}`;
-    case 'part': return `${name}: winter pack only for ZIPs starting with ${C.zipRanges(c.coldZips)}${cold}` + (c.uncheckedZips.length ? ` · not checked: ZIPs starting with ${C.zipRanges(c.uncheckedZips)}` : '');
+    case 'part': return `${name}: winter pack only for ${which}${cold}` + (c.uncheckedZips.length ? ` · not checked: ZIPs starting with ${C.zipRanges(c.uncheckedZips)}` : '');
     case 'standard': return `${name}: standard${cold}`;
     case 'unchecked': return `${name}: not checked${c.allUnchecked ? '' : ' (ZIPs starting with ' + C.zipRanges(c.uncheckedZips) + ')'} — ask a pharmacist`;
     default: return `${name}: still checking…`;
@@ -1077,6 +1164,8 @@ function stateForZip(zip3, at) {
 // the queue so they don't wait behind a full load. Resolves to
 // {value} | {unknownZip: true} | {failed: true}; a failure is retried after a minute.
 function exactLow(zip, day) {
+  const zl = zipLowsFor(day);
+  if (zl && typeof zl[zip] === 'number') return Promise.resolve({ value: zl[zip] });
   const key = zip + '|' + day;
   const known = exact[key];
   if (known && !(known.failed && Date.now() - known.at > 60000)) return known.then ? known : Promise.resolve(known);
@@ -1102,27 +1191,36 @@ function zipMessage(zip, ex) {
   const call = st ? lastCalls.find(c => c.state === st) : null;
   const looking = ex === undefined;
   const low = ex && 'value' in ex ? ex.value : null;
-  const v = C.zipVerdict(call, zip3, low);
+  const v = C.zipVerdict(call, zip3, low, zip);
   const area = call && call.areas.find(x => x.zip3 === zip3);
   const where = `ZIPs starting with ${zip3}` + (st ? ` (${STATE_NAME[st]})` : '');
   const reading = low !== null ? ` This ZIP's ${C.COLD_HOURS}-hour low: ${deg(low)}.`
     : ex && ex.unknownZip ? ` (${zip} isn't in our ZIP list, so this is the answer for all ${where}.)`
     : ex && ex.failed ? ` (This exact ZIP couldn’t be checked; this is the answer for all ${where}.)` : '';
-  // never show a green Standard while this ZIP's own check could still add a pack
-  if (looking && v.verdict === 'standard') return { cls: '', big: 'Checking…', why: `Checking this exact ZIP in ${where}.` };
+  // never show a green Standard (or an "ask") while this ZIP's own reading could still settle it
+  if (looking && (v.verdict === 'standard' || v.why === 'zip-unknown')) return { cls: '', big: 'Checking…', why: `Checking this exact ZIP in ${where}.` };
+  const freeze = `${C.WINTER_PACK_F}°F or colder for ${C.COLD_HOURS} hours in a row`;
   let big, why;
   if (v.verdict === 'pack') {
     big = 'Winter pack';
     why = v.why === 'whole' ? `All of ${STATE_NAME[st]} needs one for this delivery day.${reading}`
-        : v.why === 'area' ? `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`
-        : `This ZIP itself stays at ${deg(low)} or colder for ${C.COLD_HOURS} hours in a row${area && area.status === 'ok' ? ', colder than the rest of its group (which the list calls standard)' : ''}. Pack this box as winter.`;
+        : v.why === 'area' ? (area && area.byZip
+            ? `Every one of the ${where} gets one: most of that group's ZIPs stay at ${freeze}.${reading}`
+            : `Every one of the ${where} gets one: parts of that group stay at ${deg(area && area.low)} or colder for ${C.COLD_HOURS} hours in a row.${reading}`)
+        : `This ZIP itself stays at ${low !== null ? deg(low) : C.WINTER_PACK_F + '°F'} or colder for ${C.COLD_HOURS} hours in a row`
+          + (area && area.status === 'ok' && !area.byZip ? ', colder than the rest of its group (which the list calls standard)' : '') + '. Pack this box as winter.';
   } else if (v.verdict === 'standard') {
-    big = 'Standard'; why = `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (${C.COLD_HOURS}-hour low ${deg(area && area.low)}).${reading}`;
+    big = 'Standard';
+    why = v.why === 'zip' && low !== null
+        ? `This ZIP doesn't stay at ${freeze} (its own ${C.COLD_HOURS}-hour low: ${deg(low)}).${area && area.zips.length ? ` Some other ${where} do; they're listed above.` : ''}`
+        : v.why === 'zip' ? `None of the ${where} stay at ${freeze}.${reading}`
+        : `The ${where} don't stay at ${C.WINTER_PACK_F}°F or below for ${C.COLD_HOURS} hours in a row (${C.COLD_HOURS}-hour low ${deg(area && area.low)}).${reading}`;
   } else if (v.verdict === 'wait') {
     big = 'Still checking'; why = `${st ? STATE_NAME[st] : 'This area'} hasn't finished loading. If most of the state turns out cold, all of it gets a winter pack. Wait a moment.`;
   } else {
     big = 'Ask a pharmacist';
     why = v.why === 'unchecked' ? (area && area.low === null ? `The ${where} didn't load.${reading}` : `Part of the ${where} didn't load.${reading}`)
+        : v.why === 'zip-unknown' ? `We have no reading for ${zip}${ex && ex.unknownZip ? ' (it isn\u2019t in our ZIP list)' : ''}, and some other ${where} need a winter pack (listed above).`
         : `We have no forecast for ${where}.${reading}`;
   }
   return { cls: v.verdict === 'pack' ? 'pack' : v.verdict === 'standard' ? 'standard' : v.verdict === 'ask' ? 'ask' : '', big, why };
@@ -1143,6 +1241,8 @@ function checkZip() {
   if (dataError) { out.className = 'zip-out ask'; out.textContent = 'Page data didn’t load. Reload the page.'; return; }
   if (!plan.length || !POINTS.length) { out.className = 'zip-out'; out.textContent = 'Still loading the page…'; return; }
   const day = plan[night].delivKey;
+  const zl = zipLowsFor(day);
+  if (zl && typeof zl[zip] === 'number') return put(zipMessage(zip, { value: zl[zip] }));   // the file's, before an older live one
   const known = exact[zip + '|' + day];
   if (known && !known.then && !(known.failed && Date.now() - known.at > 60000)) return put(zipMessage(zip, known));
   put(zipMessage(zip, undefined));
@@ -1176,6 +1276,15 @@ async function start() {
     dataError = true; render(); return;
   }
   lows = new Array(POINTS.length);
+  fileLoading = true;
+  const got = await loadFile();
+  fileLoading = false;
+  if (got === 'new') {
+    lastAttemptAt = Date.now();
+    render(); fillGaps();
+    await mapPromise;
+    return;
+  }
   const cached = readCache();
   if (cached) {
     lows = cached.lows; asOf = cached.asOf;
@@ -1192,13 +1301,13 @@ async function start() {
 // forecast current, updating in the background when it's an hour old.
 setInterval(() => {
   if (C.dateKey(benchNow().day) !== C.dateKey(today)) { location.reload(); return; }
-  if (document.visibilityState === 'visible' && dueForUpdate()) runLoad(answered(lows));
+  if (document.visibilityState === 'visible' && dueForUpdate()) update(answered(lows));
   else renderFoot();
 }, 60000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (C.dateKey(benchNow().day) !== C.dateKey(today)) { location.reload(); return; }
-  if (dueForUpdate()) runLoad(answered(lows));
+  if (dueForUpdate()) update(answered(lows));
 });
 let resizeTimer = null;
 if (document.fonts) document.fonts.ready.then(() => { if (lastCalls.length && plan.length) renderMap(lastCalls, plan[night]); });
