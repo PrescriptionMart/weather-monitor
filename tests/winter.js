@@ -416,8 +416,8 @@ const callFor = (states, pts, vals) => W.stateCalls(states, pts, lowsOf(vals), K
      && /Pick up the newest Winter Pack forecast\n\s+continue-on-error: true/.test(dep) && dep.includes('restore-keys: winter-forecast-'));
   ok('  the deploy picks up what the build saves', /key: winter-forecast-\$\{\{ github\.run_id \}\}/.test(fc)
      && (fc.match(/path: data\/winter-forecast\.json/g) || []).length === 1 && (dep.match(/path: data\/winter-forecast\.json/g) || []).length === 1);
-  ok('the page reads the forecast file first (giving up after 10 s) and loads live when it is old or missing',
-     html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('const got = await loadFile();') && /FILE_FRESH_MS = 2 \* 60 \* 60 \* 1000/.test(html)
+  ok('the page reads the forecast file first (giving up after 10 s), uses it for up to 12 hours (GitHub runs schedules late), and loads live when it is older or missing',
+     html.includes("const FORECAST_FILE = 'data/winter-forecast.json';") && html.includes('const got = await loadFile();') && /FILE_FRESH_MS = 12 \* 60 \* 60 \* 1000/.test(html)
      && /FILE_TIMEOUT_MS = 10 \* 1000/.test(html) && html.includes('setTimeout(() => ctl.abort(), FILE_TIMEOUT_MS)'));
   ok('  the ZIP box takes the file\'s reading (and the hours behind it) before an older live one',
      /const zl = zipLowsFor\(day\), zh = zipHoursFor\(day\);\n\s+if \(zl && typeof zl\[zip\] === 'number'\) ex = \{ value: zl\[zip\] \};.*\n\s+if \(ex && zh && Array\.isArray\(zh\[zip\]\)\) d = \{ hours: zh\[zip\] \};/.test(html));

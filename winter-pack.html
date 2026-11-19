@@ -364,7 +364,7 @@
       <li>The <strong>5-hour low</strong> shown on the map and in the label check is the warmest it gets during a place's coldest <span class="v-hours">5</span> hours in a row. <span class="v-pack">32</span>°F or below means winter pack.</li>
       <li>If part of a group didn't load, it shows as <strong>Not checked — ask a pharmacist</strong>, unless the rest of the group's 5-hour low is well above freezing (over <span class="v-margin">52</span>°F) at about the same elevation. Nothing unchecked is ever shown as standard.</li>
       <li>Ship nights: Monday–Thursday deliver the next day. Friday is for Saturday-delivery items. Carrier holidays push delivery to the next service day.</li>
-      <li>The forecast is put together once an hour on our server, so the page opens in about a second and updates itself. If that hasn't come through for 2 hours, the page reads the forecast itself, which takes two or three minutes.</li>
+      <li>The forecast is put together on our server, normally once an hour, so the page opens in about a second and updates itself; the time it was put together shows at the top. If it's more than 6 hours old the page says so, and past 12 hours the page reads the forecast itself, which takes two or three minutes.</li>
     </ul>
   </details>
 
@@ -413,12 +413,15 @@ if (history.state && history.state.coreRefetch) history.replaceState(null, '');
 // ---- settings --------------------------------------------------------------------
 const CACHE_KEY = 'winter-pack-v' + PAGE_VERSION;       // saved lows were worked out by this core's rule; a new core starts fresh
 const FORECAST_FILE = 'data/winter-forecast.json';      // built once an hour at deploy (scripts/build-winter-forecast.py)
-const FILE_FRESH_MS = 2 * 60 * 60 * 1000;               // older than this, the page loads live from the weather service
+// GitHub runs scheduled jobs late, sometimes hours late, so the hourly file can
+// be several hours old. Read ZIP by ZIP, a forecast that old still beats a live
+// load (2 minutes, and whole 3-digit areas by their checkpoints).
+const FILE_FRESH_MS = 12 * 60 * 60 * 1000;              // older than this, the page loads live from the weather service
 const FILE_RECHECK_MS = 5 * 60 * 1000;                  // an hourly update waits this long for the next file
 const FILE_TIMEOUT_MS = 10 * 1000;                      // a file that takes longer than this: load live instead
 const GRID_FIX_KEY = 'winter-gridpoint-fix-v1';         // gridpoints NWS has moved since the build
 const UPDATE_AFTER_MS = 60 * 60 * 1000;                 // a forecast older than this updates itself
-const STALE_WARN_MS = 2 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
+const STALE_WARN_MS = 6 * 60 * 60 * 1000;               // and older than this gets a warning in the answer
 const MAX_INFLIGHT = 10;                                // NWS throttles hard above this
 const TIMEOUT_MS = 10000;                               // whole request, body included; slow NWS answers can take 5-9 s
 const RETRY_AFTER_FAIL_MS = [10, 20, 30].map(m => m * 60000); // automatic retries after a failed update
@@ -617,7 +620,7 @@ async function loadFile() {
   return 'new';
 }
 // This delivery day's ZIP readings from the file, while it's fresh (a live
-// Refresh keeps them: they're from the same forecast, at most 2 hours old).
+// Refresh keeps them: they're from the same forecast, at most 12 hours old).
 function zipLowsFor(day) {
   const z = zipLows[day];
   return z && Date.now() - zipBuilt < FILE_FRESH_MS ? z : null;
