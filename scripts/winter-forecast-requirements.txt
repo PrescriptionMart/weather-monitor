@@ -1,0 +1,5 @@
+# for scripts/build-winter-forecast.py (the deploy workflow installs these)
+numpy==2.4.6
+scipy==1.17.1
+pygrib==2.1.8
+timezonefinder==9.0.0

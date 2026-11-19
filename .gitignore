@@ -3,3 +3,9 @@ tests/_core.generated.js
 *.xlsx
 *.xls
 *.csv
+# built at deploy by scripts/build-winter-forecast.py, never committed
+data/winter-forecast.json
+data/winter-forecast.json.tmp
+
+# Python bytecode from running the builder tests
+__pycache__/

@@ -4,6 +4,7 @@
 #   2. the committed FAA data feed is valid JSON
 #   3. the Excursion Check's decision rules still hold (tests/decisions.js)
 #   4. the Winter Pack rules still hold (tests/winter.js)
+#   5. the hourly forecast builder reads them the same way (tests/winter_forecast.py)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -53,6 +54,13 @@ if node tests/winter.js > /dev/null; then
   echo "ok: tests/winter.js — winter pack rules hold"
 else
   node tests/winter.js | grep -v '^ok' ; echo "FAIL: tests/winter.js — a winter pack rule changed"; fail=1
+fi
+
+# The hourly forecast builder reads the rule exactly as the page does.
+if python3 tests/winter_forecast.py > /dev/null 2>&1; then
+  echo "ok: tests/winter_forecast.py — the forecast builder matches the page's rule"
+else
+  python3 tests/winter_forecast.py; echo "FAIL: tests/winter_forecast.py — the forecast builder and the page disagree"; fail=1
 fi
 
 [ "$fail" -eq 0 ] && echo "All checks passed." || echo "Checks failed."

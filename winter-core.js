@@ -2,12 +2,19 @@
 // Pure functions only: no DOM, no network, no clock (callers pass dates in),
 // apart from the version check at the bottom when a page loads this file.
 //
-// THE RULE (one sentence the whole page hangs on):
-//   A 3-digit ZIP area gets a WINTER PACK when any checkpoint in it stays at
-//   32°F (freezing) or colder for longer than 4 hours (5 hourly readings in a
-//   row) between 11am and 6pm, local time, on the delivery day. A freeze of 4
-//   hours or less doesn't count. When more than half of a state's ZIP areas
-//   need one, the whole state does.
+// THE RULE (what the whole page hangs on):
+//   A ZIP gets a WINTER PACK when it stays at 32°F (freezing) or colder for
+//   longer than 4 hours (5 hourly readings in a row) between 11am and 6pm,
+//   local time, on the delivery day. A freeze of 4 hours or less doesn't
+//   count. When more than half of a 3-digit ZIP area's ZIPs need one, the
+//   whole area does; when more than half of a state's areas do, the whole
+//   state does.
+//
+//   Each ZIP's own reading comes from the hourly forecast file (every ZIP in
+//   the lower 48, for the delivery days the national grid has hourly). An
+//   area without ZIP readings (Alaska, Hawaii, later days, no file) falls back
+//   on its checkpoints: the whole area gets a winter pack when any one of them
+//   is that cold.
 //
 // Why 11am-6pm: next-day air lands late morning to mid-afternoon (11am-3pm)
 // and we account for about 3 hours on the porch after that.
@@ -31,6 +38,11 @@
   const CHECK_MARGIN_F = 20;
   const CHECK_MARGIN_CLIMB_FT = 1000;
   const WHOLE_STATE_SHARE = 0.5;   // more than half the ZIP areas cold → whole state
+  // With a reading for each of an area's ZIPs, more than half of them cold →
+  // the whole area; otherwise only the cold ones. One cold checkpoint on a
+  // mountain no longer puts a whole 3-digit area on winter pack: a pass above
+  // Mammoth at 18°F used to pack Lancaster and Palmdale at 44-54°F.
+  const AREA_SHARE = 0.5;
   const PICKUP_HOUR = 16;          // carrier pickup, Central; after this "today" has shipped
   // NWS hourly forecasts run 156 hours from the current hour. Delivery day +5
   // is the last one whose 11am-6pm window is complete in every US time zone
@@ -159,10 +171,16 @@
   // points:  [{state, zip3, elev (ft, optional)}]
   // lows:    per point: undefined = not fetched yet, null = fetch failed,
   //          otherwise {key: 5-hour low °F | null} (null = window incomplete)
+  // zipLows: optional, {ZIP: 5-hour low °F} for this delivery day. The file
+  //          has an area's ZIPs only when it has every one of them, so an
+  //          area with any ZIP here is decided by its ZIPs (AREA_SHARE), and
+  //          its checkpoints don't matter; other areas go by their checkpoints.
   // Returns one entry per state (in `states` order):
-  //   {state, call, coldest, coldZips, uncheckedZips, pendingZips, areas}
+  //   {state, call, coldest, coldZips, zips, uncheckedZips, pendingZips, areas}
   //   call: 'pending' | 'whole' | 'part' | 'standard' | 'unchecked'
-  function stateCalls(states, points, lows, key) {
+  //   coldZips: 3-digit areas that get a winter pack, every ZIP in them
+  //   zips:     single ZIPs that get one, in areas that otherwise don't
+  function stateCalls(states, points, lows, key, zipLows) {
     const byState = {};
     states.forEach(s => { byState[s] = {}; });
     points.forEach((p, i) => {
@@ -182,9 +200,22 @@
       if (e !== null && (a.topAnswered === null || e > a.topAnswered)) a.topAnswered = e;
       if (a.low === null || t < a.low) a.low = t;
     });
+    // each ZIP's own reading, by 3-digit area: [[ZIP, low], ...] in ZIP order
+    const own = {};
+    Object.keys(zipLows || {}).sort().forEach(zip => {
+      const t = zipLows[zip];
+      if (typeof t === 'number' && Number.isFinite(t)) (own[zip.slice(0, 3)] || (own[zip.slice(0, 3)] = [])).push([zip, t]);
+    });
     return states.map(state => {
       const areas = Object.keys(byState[state]).sort().map(z => {
         const a = byState[state][z];
+        const mine = own[z];
+        if (mine) {
+          const cold = mine.filter(x => x[1] <= WINTER_PACK_F).map(x => x[0]);
+          const whole = cold.length > mine.length * AREA_SHARE;
+          return { zip3: z, status: whole ? 'cold' : 'ok', low: a.low, byZip: true, zipCount: mine.length,
+                   zipLow: Math.min.apply(null, mine.map(x => x[1])), zips: whole ? [] : cold };
+        }
         let status;
         if (a.low !== null && a.low <= WINTER_PACK_F) status = 'cold';
         else if (a.pending) status = 'pending';
@@ -192,7 +223,7 @@
         else if (a.answered && a.low > WINTER_PACK_F + CHECK_MARGIN_F &&
                  !(a.topMissing !== null && a.topAnswered !== null && a.topMissing > a.topAnswered + CHECK_MARGIN_CLIMB_FT)) status = 'ok';
         else status = 'unchecked';
-        return { zip3: z, status, low: a.low };
+        return { zip3: z, status, low: a.low, zips: [] };
       });
       const count = st => areas.filter(a => a.status === st).length;
       // If the areas still loading or not checked could push this state past
@@ -205,16 +236,17 @@
       }
       const pick = st => areas.filter(a => a.status === st).map(a => a.zip3);
       const coldZips = pick('cold'), pendingZips = pick('pending'), uncheckedZips = pick('unchecked');
-      const lowsKnown = areas.filter(a => a.low !== null).map(a => a.low);
+      const lowsKnown = [].concat.apply([], areas.map(a => [a.low, a.byZip ? a.zipLow : null].filter(v => v !== null)));
       const coldest = lowsKnown.length ? Math.min.apply(null, lowsKnown) : null;
+      const singles = [].concat.apply([], areas.map(a => a.zips || []));
       let call;
       if (!areas.length) call = 'unchecked';
       else if (coldZips.length > areas.length * WHOLE_STATE_SHARE) call = 'whole';
       else if (pendingZips.length) call = 'pending';
-      else if (coldZips.length) call = 'part';
+      else if (coldZips.length || singles.length) call = 'part';
       else if (uncheckedZips.length) call = 'unchecked';
       else call = 'standard';
-      return { state, call, coldest, coldZips, uncheckedZips, pendingZips, couldBeWhole,
+      return { state, call, coldest, coldZips, zips: call === 'whole' ? [] : singles, uncheckedZips, pendingZips, couldBeWhole,
                allUnchecked: uncheckedZips.length === areas.length,
                restUnchecked: uncheckedZips.length > 0 && coldZips.length + uncheckedZips.length === areas.length, areas };
     });
@@ -246,7 +278,7 @@
     };
   }
 
-  // ['790','791','792','794'] → '790–792, 794'
+  // ['790','791','792','794'] → '790–792, 794' (3-digit areas; leading zeros kept)
   function zipRanges(zips) {
     const n = zips.map(Number).sort((a, b) => a - b);
     const out = [];
@@ -260,21 +292,26 @@
     return out.join(', ');
   }
 
-  // One ZIP typed into the check box. The box can add a winter pack (this exact
-  // spot reads colder than our checkpoints) but never overrule the list.
-  //   area: the state's call entry; exactLow: this ZIP's own 5-hour low or null
+  // One ZIP typed into the check box. The box agrees with the list: it can add
+  // a winter pack (this exact ZIP reads colder than its area's checkpoints)
+  // but never take one away.
+  //   area: the state's call entry; exactLow: this ZIP's own 5-hour low, or
+  //   null when we have none; zip: the 5-digit ZIP
   //   → {verdict: 'pack'|'standard'|'ask'|'wait', why}
-  function zipVerdict(area, zip3, exactLow) {
-    const exactCold = exactLow !== null && exactLow !== undefined && exactLow <= WINTER_PACK_F;
+  function zipVerdict(area, zip3, exactLow, zip) {
+    const known = typeof exactLow === 'number' && Number.isFinite(exactLow);
+    const exactCold = known && exactLow <= WINTER_PACK_F;
     if (!area) return exactCold ? { verdict: 'pack', why: 'exact' } : { verdict: 'ask', why: 'no-area' };
     const a = area.areas.find(x => x.zip3 === zip3);
     if (area.call === 'whole') return { verdict: 'pack', why: 'whole' };
     if (a && a.status === 'cold') return { verdict: 'pack', why: 'area' };
-    if (exactCold) return { verdict: 'pack', why: 'exact' };
+    if (exactCold || (a && zip && a.zips && a.zips.includes(zip))) return { verdict: 'pack', why: 'exact' };
     if (!a) return { verdict: 'ask', why: 'no-area' };
     if (a.status === 'pending') return { verdict: 'wait', why: 'pending' };
     if (a.status === 'unchecked') return { verdict: 'ask', why: 'unchecked' };
-    return { verdict: 'standard', why: 'area' };
+    // decided ZIP by ZIP: one we have no reading for, where some of its neighbours freeze
+    if (a.byZip && !known && a.zips.length) return { verdict: 'ask', why: 'zip-unknown' };
+    return { verdict: 'standard', why: a.byZip ? 'zip' : 'area' };
   }
 
   // The page asks for this file as winter-core.js?v=VERSION. For about 10
@@ -282,11 +319,11 @@
   // page (which asks for plain winter-core.js) with this file, and that page
   // must not run on rules it wasn't written for. Bump VERSION, the page's
   // ?v= and PAGE_VERSION, and sw.js SHELL together; tests/winter.js checks.
-  const VERSION = 10;
+  const VERSION = 11;
 
   const api = {
     VERSION, DELIVERY_START_HOUR, DELIVERY_END_HOUR, DWELL_HOURS, WINDOW_END_HOUR,
-    WINTER_PACK_F, CHECK_MARGIN_F, CHECK_MARGIN_CLIMB_FT, WHOLE_STATE_SHARE, PICKUP_HOUR, LAST_DELIVERY_OFFSET, NO_SERVICE_DATES, HOLIDAY_NAMES,
+    WINTER_PACK_F, CHECK_MARGIN_F, CHECK_MARGIN_CLIMB_FT, WHOLE_STATE_SHARE, AREA_SHARE, PICKUP_HOUR, LAST_DELIVERY_OFFSET, NO_SERVICE_DATES, HOLIDAY_NAMES,
     dateKey, addDays, daysBetween, deliveryFor, shipPlan, defaultNight,
     COLD_HOURS, toF, windowTemps, spellTemp, coldSpell, coldSpells, stateCalls, summarize, zipRanges, zipVerdict,
   };
