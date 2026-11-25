@@ -1,1 +1,1 @@
-[]
+[{"airportId":"MIA","departureDelay":{"averageDelay":"90","reason":"TM Initiatives:MIT:WX","trend":"increasing"},"groundDelay":null,"groundStop":null},{"airportId":"SAN","departureDelay":null,"groundDelay":{"avgDelay":27.0,"endTime":"2026-11-25T23:59:00Z","impactingCondition":"airport volume","maxDelay":70,"startTime":"2026-11-25T17:30:00Z"},"groundStop":null}]
